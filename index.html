@@ -847,14 +847,14 @@ Alice <-- Bob: Another authentication Response`
             },
             participants: {
                 title: "Participant Types",
-                code: `participant Participant as Foo
-actor       Actor       as Foo1
-boundary    Boundary    as Foo2
-control     Control     as Foo3
-entity      Entity      as Foo4
-database    Database    as Foo5
-collections Collections as Foo6
-queue       Queue       as Foo7
+                code: `participant "Participant" as Foo
+actor       "Actor"       as Foo1
+boundary    "Boundary"    as Foo2
+control     "Control"     as Foo3
+entity      "Entity"      as Foo4
+database    "Database"    as Foo5
+collections "Collections" as Foo6
+queue       "Queue"       as Foo7
 
 Foo -> Foo1 : To actor
 Foo -> Foo2 : To boundary
@@ -1211,39 +1211,39 @@ Bob -> Alice : ok`
                 title: "Complex Workflow",
                 code: `actor Customer
 participant "Mobile App" as App
-participant "Order Service" as Order
+participant "Order Service" as Ord
 database "Inventory" as Stock
 participant "Payment Gateway" as Pay
 
 Customer -> App: Place Order
 activate App
 
-App -> Order: Create Order
-activate Order
+App -> Ord: Create Order
+activate Ord
 
-Order -> Stock: Check Availability
+Ord -> Stock: Check Availability
 activate Stock
-Stock --> Order: Item Available
+Stock --> Ord: Item Available
 deactivate Stock
 
 alt Payment Process
-    Order -> Pay: Process Payment
+    Ord -> Pay: Process Payment
     activate Pay
     Pay -> Pay: Validate Card
-    Pay --> Order: Payment Success
+    Pay --> Ord: Payment Success
     deactivate Pay
     
-    Order --> App: Order Confirmed
+    Ord --> App: Order Confirmed
 else Payment Failed
-    Order -> Pay: Process Payment
+    Ord -> Pay: Process Payment
     activate Pay
-    Pay --> Order: Payment Declined
+    Pay --> Ord: Payment Declined
     deactivate Pay
     
-    Order --> App: Order Failed
+    Ord --> App: Order Failed
 end
 
-deactivate Order
+deactivate Ord
 
 App --> Customer: Display Result
 deactivate App`
@@ -1343,47 +1343,103 @@ deactivate App`
         const componentSamples = {
             comp_basic: {
                 title: "Components",
-                code: `[First component]\n[Another component] as Comp2\ncomponent Comp3\ncomponent [Last\\ncomponent] as Comp4`
+                code: `[First component]
+[Another component] as Comp2
+component Comp3
+component [Last\ncomponent] as Comp4`
             },
             comp_naming: {
                 title: "Naming Exceptions ($)",
-                code: `component [$C1]\ncomponent [$C2] $C2\ncomponent [$C2] as dollarC2\nremove $C1\nremove $C2\nremove dollarC2`
+                code: `component [$C1]
+component [$C2] as dollarC2`
             },
             comp_interfaces: {
                 title: "Interfaces",
-                code: `() "First Interface"\n() "Another interface" as Interf2\ninterface Interf3\ninterface "Last\\ninterface" as Interf4\n\n[component]`
+                code: `() "First Interface"
+() "Another interface" as Interf2
+interface Interf3
+interface "Last\\ninterface" as Interf4
+
+[component]`
             },
             comp_basic_rel: {
                 title: "Basic Example",
-                code: `DataAccess - [First Component]\n[First Component] ..> HTTP : use`
+                code: `DataAccess - [First Component]
+[First Component] ..> HTTP : use`
             },
             comp_notes: {
                 title: "Using Notes",
-                code: `[Component] as C\nnote top of C: A top note\nnote bottom of C\n  A bottom note can also\n  be on several lines\nend note\nnote left of C\n  A left note can also\n  be on several lines\nend note\nnote right of C: A right note`
+                code: `[Component] as C
+note top of C: A top note
+note bottom of C
+  A bottom note can also
+  be on several lines
+end note
+note left of C
+  A left note can also
+  be on several lines
+end note
+note right of C: A right note`
             },
             comp_floating_notes: {
                 title: "Floating Notes",
-                code: `[Component] as C\nnote as N\n  A floating note can also\n  be on several lines\nend note\nC .. N`
+                code: `[Component] as C
+note as N
+  A floating note can also
+  be on several lines
+end note
+C .. N`
             },
             comp_grouping: {
                 title: "Grouping Components",
-                code: `package "Some Group" {\n  HTTP - [First Component]\n  [Another Component]\n}\nnode "Other Groups" {\n  FTP - [Second Component]\n  [First Component] --> FTP\n}\ncloud {\n  [Example 1]\n}\ndatabase "MySql" {\n  folder "This is my folder" {\n    [Folder 3]\n  }\n  frame "Foo" {\n    [Frame 4]\n  }\n}\n[Another Component] --> [Example 1]\n[Example 1] --> [Folder 3]\n[Folder 3] --> [Frame 4]`
+                code: `package "Some Group" {
+  HTTP - [First Component]
+  [Another Component]
+}
+node "Other Groups" {
+  FTP - [Second Component]
+  [First Component] --> FTP
+}
+cloud {
+  [Example 1]
+}
+database "MySql" {
+  folder "This is my folder" {
+    [Folder 3]
+  }
+  frame "Foo" {
+    [Frame 4]
+  }
+}
+[Another Component] --> [Example 1]
+[Example 1] --> [Folder 3]
+[Folder 3] --> [Frame 4]`
             },
             comp_directions: {
                 title: "Directions",
-                code: `[Component] -left-> left\n[Component] -right-> right\n[Component] -up-> up\n[Component] -down-> down`
+                code: `[Component] -left-> "left"
+[Component] -right-> "right"
+[Component] -up-> "up"
+[Component] -down-> "down"`
             },
             comp_uml2: {
                 title: "UML2 Notation",
-                code: `interface "Data Access" as DA\nDA - [First Component]\n[First Component] ..> HTTP : use`
+                code: `interface "Data Access" as DA
+DA - [First Component]
+[First Component] ..> HTTP : use`
             },
             comp_rect: {
                 title: "Rectangle Notation",
-                code: `skinparam componentStyle rectangle\ninterface "Data Access" as DA\nDA - [First Component]\n[First Component] ..> HTTP : use`
+                code: `interface "Data Access" as DA
+DA - [First Component]
+[First Component] ..> HTTP : use`
             },
             comp_long_desc: {
                 title: "Long Description",
-                code: `component comp1 [\nThis component has a long comment\non several lines\n]`
+                code: `component comp1 [
+This component has a long comment
+on several lines
+]`
             },
             comp_colors: {
                 title: "Individual Colors",
@@ -1391,19 +1447,51 @@ deactivate App`
             },
             comp_tagged: {
                 title: "Tagged Components",
-                code: `component C1 $tag13\ncomponent C2\ncomponent C3 $tag13\nC1 -- C2\nremove $tag13`
+                code: `component C1 <<tag13>>
+component C2
+component C3 <<tag13>>
+C1 -- C2`
             },
             comp_json: {
                 title: "JSON Data",
-                code: `allowmixing\ncomponent Component\n() Interface\njson JSON {\n   "fruit":"Apple",\n   "size":"Large",\n   "color": ["Red", "Green"]\n}`
+                code: `component "Component"
+() "Interface"
+component JSON [
+JSON Data
+{
+   "fruit": "Apple",
+   "size": "Large",
+   "color": ["Red", "Green"]
+}
+]`
             },
             comp_ports: {
                 title: "Ports",
-                code: `[c]\ncomponent C {\n  portin p1\n  portin p2\n  portin p3\n  component c1\n}\nc --> p1\nc --> p2\nc --> p3\np1 --> c1\np2 --> c1`
+                code: `[c]
+component C {
+  portin p1
+  portin p2
+  portin p3
+  component c1
+}
+c --> p1
+c --> p2
+c --> p3
+p1 --> c1
+p2 --> c1`
             },
             comp_position_hints: {
                 title: "Position Hints (Extended)",
-                code: `[Web Server] as Web\n[API Gateway] left of Web\n[Database] below Web\n[Load Balancer] above Web\n[Cache] right of Web\n\n[API Gateway] --> [Web]\n[Web] --> [Database]\n[Load Balancer] --> [Web]\n[Web] --> [Cache]`
+                code: `[Web Server] as Web
+[API Gateway] left of Web
+[Database] below Web
+[Load Balancer] above Web
+[Cache] right of Web
+
+[API Gateway] --> [Web]
+[Web] --> [Database]
+[Load Balancer] --> [Web]
+[Web] --> [Cache]`
             }
         };
 

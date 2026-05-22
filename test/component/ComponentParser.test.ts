@@ -534,3 +534,122 @@ describe('ComponentParser: Complex Scenarios', () => {
     expect(diagram.findComponent('A')).toBeDefined();
   });
 });
+
+describe('ComponentParser: Edge Cases & Missing Scenarios for AST Transition', () => {
+  describe('Multiline Bracket Descriptions', () => {
+    it('should parse component with inline multiline description', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse(`
+        component Comp1 [
+          Line 1
+          Line 2
+        ]
+      `);
+      const comp = diagram.findComponent('Comp1');
+      expect(comp).toBeDefined();
+      expect(comp?.label).toBe('Line 1\nLine 2');
+    });
+
+    it('should parse component alias with inline multiline description', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse(`
+        component "Real Name" as CompAlias [
+          This is a description
+          of the component
+        ]
+      `);
+      const comp = diagram.findComponent('CompAlias');
+      expect(comp).toBeDefined();
+      expect(comp?.label).toBe('This is a description\nof the component');
+    });
+
+    it('should parse bracket style component with inline description', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse(`
+        [BracketComp] as BC [
+          Some description
+        ]
+      `);
+      const comp = diagram.findComponent('BC');
+      expect(comp).toBeDefined();
+      expect(comp?.label).toBe('Some description');
+    });
+  });
+
+  describe('Port declarations with aliases and types', () => {
+    it('should parse port with alias', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse('port "Internal Port" as P1');
+      const port = diagram.findComponent('P1');
+      expect(port).toBeDefined();
+      expect(port?.type).toBe('port');
+      expect(port?.label).toBe('Internal Port');
+    });
+
+    it('should parse portin and portout with aliases', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse(`
+        portin "In Queue" as PI
+        portout "Out Topic" as PO
+      `);
+      expect(diagram.findComponent('PI')?.type).toBe('portin');
+      expect(diagram.findComponent('PI')?.label).toBe('In Queue');
+      expect(diagram.findComponent('PO')?.type).toBe('portout');
+      expect(diagram.findComponent('PO')?.label).toBe('Out Topic');
+    });
+  });
+
+  describe('Reverse Relationships with single shaft and dashed styles', () => {
+    it('should parse reverse solid arrow with single shaft: <-', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse('[Target] <- [Source]');
+      const rel = diagram.relationships[0];
+      expect(rel.from).toBe('Source');
+      expect(rel.to).toBe('Target');
+      expect(rel.direction).toBe('left');
+      expect(rel.type).toBe('solid');
+    });
+
+    it('should parse reverse dashed arrow with double shaft: <..', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse('[Target] <.. [Source]');
+      const rel = diagram.relationships[0];
+      expect(rel.from).toBe('Source');
+      expect(rel.to).toBe('Target');
+      expect(rel.direction).toBe('up');
+      expect(rel.type).toBe('dashed');
+    });
+  });
+
+  describe('Implicit generation via Relationship & Note', () => {
+    it('should auto-create interfaces from lollipop or unbracketed references', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse('() LollipopInterf --> PlainTextInterf');
+      
+      const comp1 = diagram.findComponent('LollipopInterf');
+      expect(comp1).toBeDefined();
+      expect(comp1?.type).toBe('interface');
+
+      const comp2 = diagram.findComponent('PlainTextInterf');
+      expect(comp2).toBeDefined();
+      expect(comp2?.type).toBe('interface');
+    });
+
+    it('should auto-create component/interface for undefined note targets', () => {
+      const parser = new ComponentParser();
+      const diagram = parser.parse(`
+        note left of [UndefComp] : Component Note
+        note right of UndefInterf : Interface Note
+      `);
+      
+      const comp = diagram.findComponent('UndefComp');
+      expect(comp).toBeDefined();
+      expect(comp?.type).toBe('component');
+
+      const interf = diagram.findComponent('UndefInterf');
+      expect(interf).toBeDefined();
+      expect(interf?.type).toBe('interface');
+    });
+  });
+});
+

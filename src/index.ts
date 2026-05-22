@@ -49,11 +49,11 @@ export function render(content: string): string {
     const hasSequenceKeywords = /\b(participant|actor|boundary|control|entity|collections|queue)\b/.test(content);
 
     // Component-specific keywords (explicit declarations)
-    const hasComponentKeywords = /\b(component|package|node|cloud|database|frame|folder)\b/.test(content);
+    const hasComponentKeywords = /\b(component|interface|package|node|cloud|database|frame|folder)\b/.test(content);
 
     // Component bracket syntax [Name], but only when at the start of a line
     // to avoid matching group labels like "group My Label [label2]"
-    const hasComponentBrackets = /^\s*\[[^\]]+\]/m.test(content);
+    const hasComponentBrackets = /^\s*\[[^\]\r\n]+\]/m.test(content);
 
     const isComponent = hasComponentKeywords || hasComponentBrackets;
     const isSequence = hasSequenceKeywords;
