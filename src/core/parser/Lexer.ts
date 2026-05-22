@@ -87,7 +87,10 @@ export class Lexer {
             }
 
             // Arrow matching (highest priority when symbol starts)
-            if (char === '<' || char === '-' || char === '.' || char === 'o' || char === '/' || char === '\\') {
+            if (char === '<' || char === '-' || char === '.' || 
+                char === 'o' || char === 'O' || 
+                char === 'x' || char === 'X' || 
+                char === '/' || char === '\\' || char === '(') {
                 if (this.tryScanArrow()) {
                     continue;
                 }
@@ -298,7 +301,8 @@ export class Lexer {
         const sub = this.lineText.substring(this.current);
         // The pattern for arrows:
         // Must contain at least one - or . (optionally surrounded by <, >, o, x, /, \ and [#color] and direction tags)
-        const ARROW_REGEX = /^([<ox\\/]*)([-.]+)(left|right|up|down|le|ri|do)?(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(--\+\+|\+\+--|--|\+\+|\*\*|!!)?/i;
+        // Optionally allows parenthesized numbers at both ends, e.g. ->(10) or (10)<-
+        const ARROW_REGEX = /^(?:\(\d+\))?([<ox\\/]*)([-.]+)(left|right|up|down|le|ri|do)?(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(?:\(\d+\))?(--\+\+|\+\+--|--|\+\+|\*\*|!!)?/i;
         const match = sub.match(ARROW_REGEX);
         if (match) {
             const fullArrow = match[0];
@@ -330,7 +334,7 @@ export class Lexer {
 
     private tryScanArrowLookahead(): boolean {
         const sub = this.lineText.substring(this.current);
-        const ARROW_REGEX = /^([<ox\\/]*)([-.]+)(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(--\+\+|\+\+--|--|\+\+|\*\*|!!)?/i;
+        const ARROW_REGEX = /^(?:\(\d+\))?([<ox\\/]*)([-.]+)(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(?:\(\d+\))?(--\+\+|\+\+--|--|\+\+|\*\*|!!)?/i;
         const match = sub.match(ARROW_REGEX);
         if (match) {
             const fullArrow = match[0];
@@ -421,4 +425,9 @@ const KEYWORDS: Record<string, TokenType> = {
     RIGHT: TokenType.RIGHT,
     TOP: TokenType.TOP,
     BOTTOM: TokenType.BOTTOM,
+    SKINPARAM: TokenType.SKINPARAM,
+    PARTITION: TokenType.PARTITION,
+    BOX: TokenType.BOX,
+    MAINFRAME: TokenType.MAINFRAME,
+    NEWPAGE: TokenType.NEWPAGE,
 };

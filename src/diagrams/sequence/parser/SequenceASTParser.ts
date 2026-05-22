@@ -69,7 +69,7 @@ export class SequenceASTParser {
             // If the next token is '<->', it is a time constraint!
             if (this.check(TokenType.ARROW) && (this.peek().value === '<->' || this.peek().value.includes('<->'))) {
                 this.advance(); // consume <->
-                const endTagToken = this.consume(TokenType.IDENTIFIER, "Time constraint expects target tag after <->");
+                const endTagToken = this.consumeIdentifier("Time constraint expects target tag after <->");
                 const endTag = endTagToken.value.replace(/[{}]/g, '');
 
                 let label = '';
@@ -90,12 +90,12 @@ export class SequenceASTParser {
             }
         }
 
-        // Check for sameStep '/' prefix
+        // Check for sameStep '/' or '&' prefix
         let isSameStep = false;
-        if (this.check(TokenType.IDENTIFIER) && this.peek().value === '/') {
-            this.advance(); // consume '/'
+        if (this.check(TokenType.IDENTIFIER) && (this.peek().value === '/' || this.peek().value === '&')) {
+            this.advance(); // consume '/' or '&'
             isSameStep = true;
-            // The '/' prefix modifies the NEXT statement. We just record it and continue parsing.
+            // The modifier modifies the NEXT statement. We just record it and continue parsing.
         }
 
         const token = this.peek();
@@ -160,7 +160,7 @@ export class SequenceASTParser {
             )) {
                 declType = this.previous().value.toLowerCase();
             }
-            const nameToken = this.consume(TokenType.IDENTIFIER, "Expected participant name after create");
+            const nameToken = this.consumeIdentifier("Expected participant name after create");
             this.consumeLineEnd();
             return {
                 type: 'Create',
@@ -174,7 +174,7 @@ export class SequenceASTParser {
         // 5. Activation statements: activate / deactivate / destroy
         if (this.match(TokenType.ACTIVATE, TokenType.DEACTIVATE, TokenType.DESTROY)) {
             const action = this.previous().type;
-            const nameToken = this.consume(TokenType.IDENTIFIER, "Expected name for activation/destruction");
+            const nameToken = this.consumeIdentifier("Expected name for activation/destruction");
             let color: string | undefined = undefined;
             if (this.check(TokenType.COLOR)) {
                 color = this.advance().value;
@@ -200,7 +200,7 @@ export class SequenceASTParser {
             }
         }
 
-        // 6. Meta statements: title, header, footer, hide footbox
+        // 6. Meta statements: title, header, footer, hide footbox, skinparam, mainframe, newpage
         if (this.match(TokenType.TITLE, TokenType.HEADER, TokenType.FOOTER)) {
             const metaType = this.previous().type.toLowerCase() as any;
             const text = this.consumeLineText();
@@ -222,14 +222,65 @@ export class SequenceASTParser {
                 column: token.column
             };
         }
+        if (this.match(TokenType.SKINPARAM)) {
+            const value = this.consumeLineText();
+            return {
+                type: 'Meta',
+                metaType: 'skinparam' as any,
+                value,
+                line: token.line,
+                column: token.column
+            };
+        }
+        if (this.match(TokenType.MAINFRAME)) {
+            const value = this.consumeLineText();
+            return {
+                type: 'Meta',
+                metaType: 'mainframe' as any,
+                value,
+                line: token.line,
+                column: token.column
+            };
+        }
+        if (this.match(TokenType.NEWPAGE)) {
+            const value = this.consumeLineText();
+            return {
+                type: 'Meta',
+                metaType: 'newpage' as any,
+                value,
+                line: token.line,
+                column: token.column
+            };
+        }
 
         // 7. Participant declarations
-        if (this.match(
+        const isNextArrow = this.peekNext().type === TokenType.ARROW;
+        if (!isNextArrow && this.match(
             TokenType.PARTICIPANT, TokenType.ACTOR, TokenType.BOUNDARY,
             TokenType.CONTROL, TokenType.ENTITY, TokenType.DATABASE, TokenType.COLLECTIONS, TokenType.QUEUE
         )) {
             const declType = this.previous().value.toLowerCase() as any;
-            const nameToken = this.consume(TokenType.IDENTIFIER, "Expected participant name");
+            const nameToken = this.consumeIdentifier("Expected participant name");
+
+            // Check if it's a multiline declaration starting with '['
+            if (this.match(TokenType.LBRACKET)) {
+                const lines: string[] = [];
+                while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
+                    lines.push(this.consumeLineRawText());
+                }
+                if (this.check(TokenType.RBRACKET)) {
+                    this.advance(); // consume ']'
+                }
+                this.consumeLineEnd();
+                return {
+                    type: 'ParticipantDeclaration',
+                    declType,
+                    name: nameToken.value,
+                    label: lines.join('\n'),
+                    line: token.line,
+                    column: token.column
+                };
+            }
             
             let label: string | undefined = undefined;
             let stereotype: string | undefined = undefined;
@@ -241,10 +292,10 @@ export class SequenceASTParser {
                 if (this.match(TokenType.STEREOTYPE)) {
                     stereotype = this.previous().value;
                 } else if (this.match(TokenType.AS)) {
-                    const labelToken = this.consume(TokenType.IDENTIFIER, "Expected label after 'as'");
+                    const labelToken = this.consumeIdentifier("Expected label after 'as'");
                     label = labelToken.value;
                 } else if (this.match(TokenType.ORDER)) {
-                    const orderToken = this.consume(TokenType.IDENTIFIER, "Expected order number");
+                    const orderToken = this.consumeIdentifier("Expected order number");
                     order = parseInt(orderToken.value, 10);
                 } else if (this.check(TokenType.COLOR)) {
                     color = this.advance().value;
@@ -268,10 +319,10 @@ export class SequenceASTParser {
             };
         }
 
-        // 8. Control Flow Groups: alt, opt, loop, par, break, critical, group
+        // 8. Control Flow Groups: alt, opt, loop, par, break, critical, group, partition, box
         if (this.match(
             TokenType.ALT, TokenType.OPT, TokenType.LOOP, TokenType.PAR,
-            TokenType.BREAK, TokenType.CRITICAL, TokenType.GROUP
+            TokenType.BREAK, TokenType.CRITICAL, TokenType.GROUP, TokenType.PARTITION, TokenType.BOX
         )) {
             return this.parseGroup();
         }
@@ -281,9 +332,9 @@ export class SequenceASTParser {
             this.consume(TokenType.OVER, "Expected 'over' after ref");
             
             const participants: string[] = [];
-            participants.push(this.consume(TokenType.IDENTIFIER, "Expected participant name in ref").value);
+            participants.push(this.consumeIdentifier("Expected participant name in ref").value);
             while (this.match(TokenType.COMMA)) {
-                participants.push(this.consume(TokenType.IDENTIFIER, "Expected participant name after comma").value);
+                participants.push(this.consumeIdentifier("Expected participant name after comma").value);
             }
 
             if (this.match(TokenType.COLON)) {
@@ -346,15 +397,15 @@ export class SequenceASTParser {
 
             let participants: string[] = [];
             if (this.match(TokenType.OF)) {
-                participants.push(this.consume(TokenType.IDENTIFIER, "Expected participant name in note").value);
+                participants.push(this.consumeIdentifier("Expected participant name in note").value);
                 while (this.match(TokenType.COMMA)) {
-                    participants.push(this.consume(TokenType.IDENTIFIER, "Expected participant name after comma").value);
+                    participants.push(this.consumeIdentifier("Expected participant name after comma").value);
                 }
             } else if (this.check(TokenType.IDENTIFIER) && !this.peek().value.startsWith('#') && this.peek().value !== ':') {
                 // of is optional, e.g. note right Participant
                 participants.push(this.advance().value);
                 while (this.match(TokenType.COMMA)) {
-                    participants.push(this.consume(TokenType.IDENTIFIER, "Expected participant name after comma").value);
+                    participants.push(this.consumeIdentifier("Expected participant name after comma").value);
                 }
             }
 
@@ -477,7 +528,7 @@ export class SequenceASTParser {
                 };
             }
             if (this.match(TokenType.INC)) {
-                const levelToken = this.consume(TokenType.IDENTIFIER, "Expected level A, B after inc");
+                const levelToken = this.consumeIdentifier("Expected level A, B after inc");
                 this.consumeLineEnd();
                 return {
                     type: 'Autonumber',
@@ -524,7 +575,7 @@ export class SequenceASTParser {
 
         // 13. Autoactivate setting
         if (this.match(TokenType.AUTOACTIVATE)) {
-            const stateToken = this.consume(TokenType.IDENTIFIER, "Expected 'on' or 'off' for autoactivate");
+            const stateToken = this.consumeIdentifier("Expected 'on' or 'off' for autoactivate");
             const enabled = stateToken.value.toLowerCase() === 'on';
             this.consumeLineEnd();
             return {
@@ -546,11 +597,11 @@ export class SequenceASTParser {
         } else if (this.check(TokenType.RBRACKET)) {
             this.advance(); // consume ]
             fromNode = ']';
-        } else if (this.check(TokenType.IDENTIFIER)) {
-            fromNode = this.advance().value;
         } else if (this.check(TokenType.ARROW)) {
             // E.g. -> A : Text (from is empty or outside)
             fromNode = '[';
+        } else if (!this.isAtEnd() && this.peek().type !== TokenType.NEWLINE) {
+            fromNode = this.advance().value;
         }
 
         const arrowToken = this.consume(TokenType.ARROW, "Expected message arrow");
@@ -562,7 +613,7 @@ export class SequenceASTParser {
         } else if (this.check(TokenType.RBRACKET)) {
             this.advance(); // consume ]
             toNode = ']';
-        } else if (this.check(TokenType.IDENTIFIER)) {
+        } else if (!this.isAtEnd() && this.peek().type !== TokenType.NEWLINE && this.peek().type !== TokenType.COLON && this.peek().type !== TokenType.COLOR && this.peek().type !== TokenType.SHORTHAND) {
             toNode = this.advance().value;
         } else {
             // lost message: A ->x
@@ -611,32 +662,37 @@ export class SequenceASTParser {
         const startToken = this.previous();
         const groupType = startToken.value.toLowerCase() as any;
 
-        let label = '';
-        if (this.check(TokenType.IDENTIFIER)) {
-            label = this.advance().value;
-        }
-        this.consumeLineEnd();
+        // Use consumeLineText to capture multi-word labels
+        let label = this.consumeLineText();
 
         const body: SequenceASTNode[] = [];
         const sections: GroupSectionAST[] = [];
 
+        // Pre-skip newlines before lookahead checks
+        while (this.match(TokenType.NEWLINE)) {}
+
         while (!this.check(TokenType.END) && !this.check(TokenType.ELSE) && !this.isAtEnd()) {
             const statement = this.parseLineStatement();
             if (statement) body.push(statement);
+            
+            // Post-skip newlines to expose 'end' or 'else' tokens correctly
+            while (this.match(TokenType.NEWLINE)) {}
         }
 
         while (this.match(TokenType.ELSE)) {
             const elseToken = this.previous();
-            let sectionLabel = '';
-            if (this.check(TokenType.IDENTIFIER)) {
-                sectionLabel = this.advance().value;
-            }
-            this.consumeLineEnd();
+            // Use consumeLineText to capture multi-word else labels
+            let sectionLabel = this.consumeLineText();
 
             const sectionBody: SequenceASTNode[] = [];
+            
+            while (this.match(TokenType.NEWLINE)) {}
+
             while (!this.check(TokenType.END) && !this.check(TokenType.ELSE) && !this.isAtEnd()) {
                 const statement = this.parseLineStatement();
                 if (statement) sectionBody.push(statement);
+                
+                while (this.match(TokenType.NEWLINE)) {}
             }
 
             sections.push({
@@ -649,6 +705,12 @@ export class SequenceASTParser {
         }
 
         this.consume(TokenType.END, "Expected 'end' at the end of control group");
+        
+        // Cleanly consume trailing 'box' for 'end box'
+        if (groupType === 'box' && this.check(TokenType.BOX)) {
+            this.advance();
+        }
+        
         this.consumeLineEnd();
 
         return {
@@ -734,5 +796,16 @@ export class SequenceASTParser {
         const rawLine = this.sourceLines[token.line - 1] || '';
         this.consumeLineEnd();
         return rawLine;
+    }
+
+    private consumeIdentifier(message: string): Token {
+        if (this.check(TokenType.IDENTIFIER)) return this.advance();
+        // Allow keyword tokens to be treated as identifiers when expected as identifier
+        const nextType = this.peek().type;
+        if (nextType !== TokenType.EOF && nextType !== TokenType.NEWLINE && nextType !== TokenType.COLON && nextType !== TokenType.ARROW) {
+            return this.advance();
+        }
+        const token = this.peek();
+        throw new Error(`Syntax error at line ${token.line}, col ${token.column}: ${message} (Got: ${token.type} '${token.value}')`);
     }
 }

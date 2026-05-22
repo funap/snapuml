@@ -1248,6 +1248,366 @@ deactivate Ord
 App --> Customer: Display Result
 deactivate App`
             },
+            declaringParticipant: {
+                title: "Declaring participant",
+                code: `participant Participant as Foo
+actor       Actor       as Foo1
+boundary    Boundary    as Foo2
+control     Control     as Foo3
+entity      Entity      as Foo4
+database    Database    as Foo5
+collections Collections as Foo6
+queue       Queue       as Foo7
+Foo -> Foo1 : To actor 
+Foo -> Foo2 : To boundary
+Foo -> Foo3 : To control
+Foo -> Foo4 : To entity
+Foo -> Foo5 : To database
+Foo -> Foo6 : To collections
+Foo -> Foo7: To queue`
+            },
+            declaringParticipantOnMultiline: {
+                title: "Declaring participant on multiline",
+                code: `participant Participant [
+    =Title
+    ----
+    ""SubTitle""
+]
+
+participant Bob
+
+Participant -> Bob`
+            },
+            useNonlettersInParticipants: {
+                title: "Use non-letters in participants",
+                code: `Alice -> "Bob()" : Hello
+"Bob()" -> "This is very\\nlong" as Long
+' You can also declare:
+' "Bob()" -> Long as "This is very\\nlong"
+Long --> "Bob()" : ok`
+            },
+            messageToSelf: {
+                title: "Message to Self",
+                code: `Alice -> Alice: This is a signal to self.\\nIt also demonstrates\\nmultiline \\ntext`
+            },
+            textAlignment: {
+                title: "Text alignment",
+                code: `skinparam sequenceMessageAlign right
+Bob -> Alice : Request
+Alice -> Bob : Response`
+            },
+            changeActorStyle: {
+                title: "Change Actor style",
+                code: `actor Alice
+actor Bob
+Alice -> Bob : hello
+hide footbox`
+            },
+            changeArrowStyle: {
+                title: "Change arrow style",
+                code: `Bob ->x Alice
+Bob -> Alice
+Bob ->> Alice
+Bob -\ Alice
+Bob \\- Alice
+Bob //-- Alice
+
+Bob ->o Alice
+Bob o\\-- Alice
+
+Bob <-> Alice
+Bob <->o Alice`
+            },
+            messageSequenceNumbering: {
+                title: "Message sequence numbering",
+                code: `autonumber
+Bob -> Alice : Authentication Request
+Bob <- Alice : Authentication Response`
+            },
+            splittingDiagrams: {
+                title: "Splitting diagrams",
+                code: `Alice -> Bob : message 1
+Alice -> Bob : message 2
+
+newpage
+
+Alice -> Bob : message 3
+Alice -> Bob : message 4
+
+newpage A title for the\\nlast page
+
+Alice -> Bob : message 5
+Alice -> Bob : message 6`
+            },
+            partitionAcrossTheEntireWidth: {
+                title: "Partition across the entire width",
+                code: `participant a
+
+partition p1
+b -> c: msg
+c --> b: OK
+note right: Some right note
+end
+
+partition p2
+a -> b: msg
+note left: Some left note
+end`
+            },
+            someOtherNotes: {
+                title: "Some other notes",
+                code: `participant Alice
+participant Bob
+note left of Alice #aqua
+This is displayed
+left of Alice.
+end note
+
+note right of Alice: This is displayed right of Alice.
+
+note over Alice: This is displayed over Alice.
+
+note over Alice, Bob #FFAAAA: This is displayed\\n over Bob and Alice.
+
+note over Bob, Alice
+This is yet another
+example of
+a long note.
+end note`
+            },
+            noteOverAllParticipantsAcross: {
+                title: "Note over all participants [across]",
+                code: `Alice->Bob:m1
+Bob->Charlie:m2
+note over Alice, Charlie: Old method for note over all part. with:\\n ""note over //FirstPart, LastPart//"".
+note across: New method with:\\n""note across""
+Bob->Alice
+hnote across:Note across all part.`
+            },
+            severalNotesAlignedAtTheSameLevel: {
+                title: "Several notes aligned at the same level [/]",
+                code: `note over Alice : initial state of Alice
+note over Bob : initial state of Bob
+Bob -> Alice : hello`
+            },
+            creoleAndHtml: {
+                title: "Creole and HTML",
+                code: `participant Alice
+participant "The **Famous** Bob" as Bob
+
+Alice -> Bob : hello --there--
+... Some ~~long delay~~ ...
+Bob -> Alice : ok
+note left
+  This is **bold**
+  This is //italics//
+  This is ""monospaced""
+  This is --stroked--
+  This is __underlined__
+  This is ~~waved~~
+end note
+
+Alice -> Bob : A //well formatted// message
+note right of Alice
+ This is <back:cadetblue><size:18>displayed</size></back>
+ __left of__ Alice.
+end note
+note left of Bob
+ <u:red>This</u> is <color #118888>displayed</color>
+ **<color purple>left of</color> <s:red>Alice</strike> Bob**.
+end note
+note over Alice, Bob
+ <w:#FF33FF>This is hosted</w> by <img:https://plantuml.com/sourceforge.jpg>
+end note`
+            },
+            textWrapping: {
+                title: "Text wrapping",
+                code: `skinparam maxMessageSize 50
+participant a
+participant b
+a -> b :this\\nis\\nmanually\\ndone
+a -> b :this is a very long message on several words`
+            },
+            messageTextSpansBeyondTheInvolvedParticipants: {
+                title: "Message text spans beyond the involved participants",
+                code: `ParticipantNumber1 -> ParticipantNumber2 : this is a very long message that is very long
+ParticipantNumber1 -> ParticipantNumber1 : this is a very long message that is very long 
+ParticipantNumber2 -> ParticipantNumber3 : foo2`
+            },
+            shortArrowsForIncomingAndOutgoingMessages: {
+                title: "Short arrows for incoming and outgoing messages",
+                code: `?-> Alice    : ""?->""\\n**short** to actor1
+[-> Alice    : ""[->""\\n**from start** to actor1
+[-> Bob      : ""[->""\\n**from start** to actor2
+?-> Bob      : ""?->""\\n**short** to actor2
+Alice ->]    : ""->]""\\nfrom actor1 **to end**
+Alice ->?    : ""->?""\\n**short** from actor1
+Alice -> Bob : ""->"" \\nfrom actor1 to actor2`
+            },
+            anchorsAndDuration: {
+                title: "Anchors and Duration",
+                code: `!pragma teoz true
+
+{start} Alice -> Bob : start doing things during duration
+Bob -> Max : something
+Max -> Bob : something else
+{end} Bob -> Alice : finish
+
+{start} <-> {end} : some time`
+            },
+            positionOfTheStereotypes: {
+                title: "Position of the stereotypes",
+                code: `skinparam stereotypePosition top
+
+participant A<<st1>>
+participant B<<st2>>
+A --> B : stereo test`
+            },
+            moreInformationOnTitles: {
+                title: "More information on titles",
+                code: `title __Simple__ **communication** example
+
+Alice -> Bob: Authentication Request
+Bob -> Alice: Authentication Response`
+            },
+            participantsEncompass: {
+                title: "Participants encompass",
+                code: `box "Internal Service" #LightBlue
+participant Bob
+participant Alice
+end box
+participant Other
+
+Bob -> Alice : hello
+Alice -> Other : hello`
+            },
+            removingFootBoxes: {
+                title: "Removing Foot Boxes",
+                code: `hide footbox
+title Foot Box removed
+
+Alice -> Bob: Authentication Request
+Bob --> Alice: Authentication Response`
+            },
+            skinparam: {
+                title: "Skinparam",
+                code: `skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 60
+skinparam sequenceParticipant underline
+
+actor User
+participant "First Class" as A
+participant "Second Class" as B
+participant "Last Class" as C
+
+User -> A: DoWork
+activate A
+
+A -> B: Create Request
+activate B
+
+B -> C: DoWork
+activate C
+C --> B: WorkDone
+destroy C
+
+B --> A: Request Created
+deactivate B
+
+A --> User: Done
+deactivate A`
+            },
+            changingPadding: {
+                title: "Changing padding",
+                code: `skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+box "Foo1"
+participant Alice1
+participant Alice2
+end box
+box "Foo2"
+participant Bob1
+participant Bob2
+end box
+Alice1 -> Bob1 : hello
+Alice1 -> Out : out`
+            },
+            appendixExamplesOfAllArrowType: {
+                title: "Appendix: Examples of all arrow type",
+                code: `participant Alice as a
+participant Bob   as b
+a ->     b : ""->   ""
+a ->>    b : ""->>  ""
+a -\     b : ""-\   ""
+a -\\    b : ""-\\\\""
+a -/     b : ""-/   ""
+a -//    b : ""-//  ""
+a ->x    b : ""->x  ""
+a x->    b : ""x->  ""
+a o->    b : ""o->  ""
+a ->o    b : ""->o  ""
+a o->o   b : ""o->o ""
+a <->    b : ""<->  ""
+a o<->o  b : ""o<->o""
+a x<->x  b : ""x<->x""
+a ->>o   b : ""->>o ""
+a -\o    b : ""-\o  ""
+a -\\o   b : ""-\\\\o""
+a -/o    b : ""-/o  ""
+a -//o   b : ""-//o ""
+a x->o   b : ""x->o ""`
+            },
+            specificSkinparameter: {
+                title: "Specific SkinParameter",
+                code: `Bob -> Alice : hello
+...
+Alice -> Bob : ok`
+            },
+            hideUnlinkedParticipant: {
+                title: "Hide unlinked participant",
+                code: `participant Alice
+participant Bob
+participant Carol
+
+Alice -> Bob : hello`
+            },
+            colorAGroupMessage: {
+                title: "Color a group message",
+                code: `Alice -> Bob: Authentication Request
+alt#Gold #LightBlue Successful case
+    Bob -> Alice: Authentication Accepted
+else #Pink Failure
+    Bob -> Alice: Authentication Rejected
+end`
+            },
+            mainframe: {
+                title: "Mainframe",
+                code: `mainframe This is a **mainframe**
+Alice->Bob : Hello`
+            },
+            slantedOrOddArrows: {
+                title: "Slanted or odd arrows",
+                code: `A ->(10) B: text 10
+B ->(10) A: text 10
+
+A ->(10) B: text 10
+A (10)<- B: text 10`
+            },
+            parallelMessagesWithTeoz: {
+                title: "Parallel messages (with teoz)",
+                code: `!pragma teoz true
+Alice -> Bob : hello
+& Bob -> Charlie : hi`
+            },
+            styleForSolidLifeline: {
+                title: "Style for Solid Lifeline",
+                code: `Alice -> Bob : hello
+...
+Alice <- Bob : hello`
+            },
+
         };
 
         const editor = document.getElementById('editor');

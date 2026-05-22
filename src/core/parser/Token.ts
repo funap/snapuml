@@ -81,6 +81,11 @@ export enum TokenType {
     RIGHT = 'RIGHT',             // right keyword
     TOP = 'TOP',                 // top keyword
     BOTTOM = 'BOTTOM',           // bottom keyword
+    SKINPARAM = 'SKINPARAM',
+    PARTITION = 'PARTITION',
+    BOX = 'BOX',
+    MAINFRAME = 'MAINFRAME',
+    NEWPAGE = 'NEWPAGE',
 }
 
 export interface Token {
