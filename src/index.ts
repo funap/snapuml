@@ -76,10 +76,10 @@ export function render(content: string): string {
 
 
 /**
- * Automatically render all seeduml diagram blocks on the page
- * @param selector CSS selector for diagram blocks (default: 'pre.seeduml')
+ * Automatically render all snapuml diagram blocks on the page
+ * @param selector CSS selector for diagram blocks (default: 'pre.snapuml')
  */
-export function renderAll(selector: string = 'pre.seeduml'): void {
+export function renderAll(selector: string = 'pre.snapuml'): void {
     if (typeof document === 'undefined') return;
 
     const blocks = document.querySelectorAll(selector);
@@ -89,7 +89,7 @@ export function renderAll(selector: string = 'pre.seeduml'): void {
 
         // Replace the pre element with an SVG container
         const container = document.createElement('div');
-        container.className = 'seeduml-diagram';
+        container.className = 'snapuml-diagram';
         container.innerHTML = svg;
         container.style.display = 'inline-block';
 
@@ -98,11 +98,11 @@ export function renderAll(selector: string = 'pre.seeduml'): void {
 }
 
 /**
- * Initialize SeedUML with automatic rendering
+ * Initialize SnapUML with automatic rendering
  * @param config Configuration options
  */
 export function initialize(config: InitializeConfig = {}): void {
-    const { startOnLoad = true, selector = 'pre.seeduml' } = config;
+    const { startOnLoad = true, selector = 'pre.snapuml' } = config;
 
     if (!startOnLoad) return;
 
@@ -120,7 +120,7 @@ export function initialize(config: InitializeConfig = {}): void {
 
 // Browser global
 if (typeof window !== 'undefined') {
-    (window as any).seeduml = {
+    (window as any).snapuml = {
         renderSequenceDiagram,
         renderComponentDiagram,
         render,

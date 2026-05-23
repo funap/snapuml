@@ -1,8 +1,8 @@
-# SeedUML
+# SnapUML
 
 A PlantUML-compatible diagram generator for the web.
 
-**[Try it Live](https://funap.github.io/seeduml/)**
+**[Try it Live](https://funap.github.io/snapuml/)**
 
 ## Build Instructions
 

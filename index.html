@@ -4,15 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SeedUML - Instant Sequence & Component Diagrams</title>
+    <title>SnapUML - Instant Sequence & Component Diagrams</title>
     <meta name="description"
         content="Generate beautiful sequence and component diagrams instantly in your browser. Zero server round-trips, fully client-side high-quality SVG generation.">
     <script>
         // Apply theme immediately to prevent screen flicker
-        const savedTheme = localStorage.getItem('seeduml_theme') || 'light';
+        const savedTheme = localStorage.getItem('snapuml_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
-    <script src="dist/seeduml.min.js"></script>
+    <script src="dist/snapuml.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -927,14 +927,14 @@
         <div class="container">
             <nav>
                 <a href="#" class="logo">
-                    🚀 <span class="logo-text">SeedUML</span><span class="badge-beta">Beta</span>
+                    🚀 <span class="logo-text">SnapUML</span><span class="badge-beta">Beta</span>
                 </a>
                 <div class="nav-links">
                     <a href="#features">Features</a>
                     <a href="#playground">Playground</a>
                     <a href="#gallery">Examples</a>
                     <a href="#documentation">Getting Started</a>
-                    <a href="https://github.com/funap/seeduml" target="_blank">GitHub</a>
+                    <a href="https://github.com/funap/snapuml" target="_blank">GitHub</a>
                     <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle Theme">
                         <span class="sun-icon">☀️</span>
                         <span class="moon-icon">🌙</span>
@@ -1028,7 +1028,7 @@ end</textarea>
                         <!-- Compatible items injected via JS -->
                     </div>
 
-                    <h3 style="margin: 40px 0 20px; color: var(--secondary);">SeedUML Extensions (Incompatible)</h3>
+                    <h3 style="margin: 40px 0 20px; color: var(--secondary);">SnapUML Extensions (Incompatible)</h3>
                     <div class="gallery-grid" id="gallery-extensions">
                         <!-- Extension items injected via JS -->
                     </div>
@@ -1047,15 +1047,15 @@ end</textarea>
                 <div class="feature-card" style="margin-bottom: 40px;">
                     <h3 style="margin-bottom: 15px;">Getting Started</h3>
                     <p style="color: var(--text-muted); margin-bottom: 15px;">
-                        Download the SeedUML library and include it in your project.
+                        Download the SnapUML library and include it in your project.
                     </p>
                     <div class="code-container">
                         <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
-                        <pre><code>&lt;script src="seeduml.min.js"&gt;&lt;/script&gt;</code></pre>
+                        <pre><code>&lt;script src="snapuml.min.js"&gt;&lt;/script&gt;</code></pre>
                     </div>
                     <p style="color: var(--text-muted); font-size: 14px;">
                         Once loaded, the <code
-                            style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);">window.seeduml</code>
+                            style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);">window.snapuml</code>
                         global object becomes available.
                     </p>
                 </div>
@@ -1073,7 +1073,7 @@ end</textarea>
                         <div class="code-container">
                             <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
                             <pre><code>const code = 'Alice -> Bob: Hello'; // or component diagram code
-const svg = seeduml.render(code);
+const svg = snapuml.render(code);
 
 // Insert into DOM
 document.getElementById('output').innerHTML = svg;</code></pre>
@@ -1083,7 +1083,7 @@ document.getElementById('output').innerHTML = svg;</code></pre>
                             <p style="color: var(--text-muted); margin-bottom: 8px;">
                                 • <code
                                     style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 1px 4px; border-radius: 3px;">content</code>:
-                                SeedUML-format diagram code
+                                SnapUML-format diagram code
                             </p>
                             <p style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">Returns:</p>
                             <p style="color: var(--text-muted);">
@@ -1100,13 +1100,13 @@ document.getElementById('output').innerHTML = svg;</code></pre>
                         </p>
                         <div class="code-container">
                             <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
-                            <pre><code>seeduml.initialize({
+                            <pre><code>snapuml.initialize({
   startOnLoad: true,
-  selector: 'pre.seeduml'
+  selector: 'pre.snapuml'
 });
 
 // Or use defaults:
-seeduml.initialize();</code></pre>
+snapuml.initialize();</code></pre>
                         </div>
                         <div style="font-size: 12px; line-height: 1.8; margin-top: 16px;">
                             <p style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">Config Options:
@@ -1119,7 +1119,7 @@ seeduml.initialize();</code></pre>
                             <p style="color: var(--text-muted); margin-bottom: 8px;">
                                 • <code
                                     style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 1px 4px; border-radius: 3px;">selector</code>:
-                                CSS selector (default: 'pre.seeduml')
+                                CSS selector (default: 'pre.snapuml')
                             </p>
                             <p style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">Note:</p>
                             <p style="color: var(--text-muted);">
@@ -1146,13 +1146,13 @@ seeduml.initialize();</code></pre>
     &lt;h1&gt;Diagrams&lt;/h1&gt;
 
     &lt;h2&gt;Example 1&lt;/h2&gt;
-    &lt;pre class="seeduml"&gt;
+    &lt;pre class="snapuml"&gt;
 Alice -> Bob: Hello!
 Bob -> Alice: Hi!
     &lt;/pre&gt;
 
     &lt;h2&gt;Example 2&lt;/h2&gt;
-    &lt;pre class="seeduml"&gt;
+    &lt;pre class="snapuml"&gt;
 participant C
 participant S
 
@@ -1160,9 +1160,9 @@ C -> S: Request
 S -> C: Response
     &lt;/pre&gt;
 
-    &lt;script src="seeduml.min.js"&gt;&lt;/script&gt;
+    &lt;script src="snapuml.min.js"&gt;&lt;/script&gt;
     &lt;script&gt;
-      seeduml.initialize();
+      snapuml.initialize();
     &lt;/script&gt;
   &lt;/body&gt;
 &lt;/html&gt;</code></pre>
@@ -1177,13 +1177,13 @@ S -> C: Response
                                 <h4
                                     style="margin-top: 0; margin-bottom: 12px; font-size: 14px; color: var(--text-main); font-weight: 600;">
                                     Example 1</h4>
-                                <pre class="seeduml"
+                                <pre class="snapuml"
                                     style="margin: 0 0 20px 0; padding: 0; background: transparent !important; border: none; font-size: 12px; color: var(--text-muted);">Alice -> Bob: Hello!
 Bob -> Alice: Hi!</pre>
                                 <h4
                                     style="margin-top: 0; margin-bottom: 12px; font-size: 14px; color: var(--text-main); font-weight: 600;">
                                     Example 2</h4>
-                                <pre class="seeduml"
+                                <pre class="snapuml"
                                     style="margin: 0; padding: 0; background: transparent !important; border: none; font-size: 12px; color: var(--text-muted);">participant C
 participant S
 
@@ -1199,10 +1199,10 @@ S -> C: Response</pre>
 
     <footer>
         <div class="container" style="text-align: center;">
-            <p>SeedUML &copy; 2026. Open source and free to use.</p>
+            <p>SnapUML &copy; 2026. Open source and free to use.</p>
             <p
                 style="font-size: 12px; color: var(--text-muted); margin-top: 8px; max-width: 600px; margin-left: auto; margin-right: auto;">
-                Note: SeedUML is currently in beta. Vertical alignment and layout algorithms are subject to refinement
+                Note: SnapUML is currently in beta. Vertical alignment and layout algorithms are subject to refinement
                 as
                 the library evolves.
             </p>
@@ -2060,8 +2060,8 @@ Alice <- Bob : hello`
 
         function render() {
             try {
-                if (window.seeduml && window.seeduml.render) {
-                    const svg = window.seeduml.render(editor.value);
+                if (window.snapuml && window.snapuml.render) {
+                    const svg = window.snapuml.render(editor.value);
                     output.innerHTML = svg;
                 }
             } catch (e) {
@@ -2074,7 +2074,7 @@ Alice <- Bob : hello`
         let timeout;
         editor.addEventListener('input', () => {
             clearTimeout(timeout);
-            localStorage.setItem('seeduml_playground', editor.value);
+            localStorage.setItem('snapuml_playground', editor.value);
             timeout = setTimeout(render, 300);
         });
 
@@ -2121,7 +2121,7 @@ component [$C2] as dollarC2`
 () "Another interface" as Interf2
 interface Interf3
 interface "Last\\ninterface" as Interf4
-
+ 
 [component]`
             },
             comp_basic_rel: {
@@ -2249,7 +2249,7 @@ p2 --> c1`
 [Database] below Web
 [Load Balancer] above Web
 [Cache] right of Web
-
+ 
 [API Gateway] --> [Web]
 [Web] --> [Database]
 [Load Balancer] --> [Web]
@@ -2287,9 +2287,9 @@ p2 --> c1`
             let previewSvg = '';
             try {
                 if (type === 'sequence') {
-                    previewSvg = window.seeduml.renderSequenceDiagram(sample.code);
+                    previewSvg = window.snapuml.renderSequenceDiagram(sample.code);
                 } else {
-                    previewSvg = window.seeduml.renderComponentDiagram(sample.code);
+                    previewSvg = window.snapuml.renderComponentDiagram(sample.code);
                 }
             } catch (e) { previewSvg = 'Error'; }
 
@@ -2302,7 +2302,7 @@ p2 --> c1`
 
             item.addEventListener('click', () => {
                 editor.value = sample.code;
-                localStorage.setItem('seeduml_playground', editor.value);
+                localStorage.setItem('snapuml_playground', editor.value);
                 render();
                 document.getElementById('playground').scrollIntoView({ behavior: 'smooth' });
             });
@@ -2317,23 +2317,23 @@ p2 --> c1`
                 const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
                 const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
                 document.documentElement.setAttribute('data-theme', newTheme);
-                localStorage.setItem('seeduml_theme', newTheme);
+                localStorage.setItem('snapuml_theme', newTheme);
             });
         }
 
         // Initial Load
         window.addEventListener('load', () => {
-            const savedCode = localStorage.getItem('seeduml_playground');
+            const savedCode = localStorage.getItem('snapuml_playground');
             if (savedCode) {
                 editor.value = savedCode;
             }
             render();
-            if (window.seeduml) {
+            if (window.snapuml) {
                 initGallery();
                 // Initialize auto-rendering for demonstration diagrams
-                window.seeduml.initialize({ startOnLoad: true });
+                window.snapuml.initialize({ startOnLoad: true });
             } else {
-                output.innerHTML = '<p style="color:red; opacity:0.6;">SeedUML library not loaded. Run npm run build.</p>';
+                output.innerHTML = '<p style="color:red; opacity:0.6;">SnapUML library not loaded. Run npm run build.</p>';
             }
         });
     </script>
