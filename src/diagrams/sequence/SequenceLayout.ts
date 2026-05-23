@@ -94,7 +94,19 @@ export class LayoutEngine {
         const maxStep = this.calculateMaxStep(diagram);
         this.finalizeEndSteps(diagram, maxStep);
 
-        const stepHeightResult = this.calculateStepHeights(diagram, maxStep);
+        let participantYStart = this.theme.padding;
+        if (diagram.title) {
+            participantYStart = 55; // Enough room for title at y=25 (occupying up to y=35) + 20px gap
+        } else if (diagram.header) {
+            participantYStart = 35; // Enough room for header at y=15 (occupying up to y=20) + 15px gap
+        }
+
+        let bottomPadding = this.theme.padding;
+        if (diagram.footer) {
+            bottomPadding += 25; // Space for footer
+        }
+
+        const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart);
         const stepY = stepHeightResult.stepY;
         const currentY = stepHeightResult.totalHeight;
 
@@ -121,7 +133,7 @@ export class LayoutEngine {
         }
 
         const footboxHeight = diagram.hideFootbox ? 0 : this.theme.participantHeight + 20;
-        const totalHeight = currentY + footboxHeight + this.theme.padding;
+        const totalHeight = currentY + footboxHeight + bottomPadding;
 
         // Finalize X positions
         const participantLayouts: ParticipantLayout[] = participants.map((p, i) => {
@@ -130,7 +142,7 @@ export class LayoutEngine {
                 participant: p,
                 centerX: centerX,
                 x: centerX - pWidths[i] / 2,
-                y: p.createdStep !== undefined ? stepY[p.createdStep] - this.theme.participantHeight / 2 : this.theme.padding,
+                y: p.createdStep !== undefined ? stepY[p.createdStep] - this.theme.participantHeight / 2 : participantYStart,
                 width: pWidths[i],
                 height: this.theme.participantHeight,
                 destroyedY: p.destroyedStep !== undefined ? stepY[p.destroyedStep] : undefined
@@ -402,7 +414,10 @@ export class LayoutEngine {
             ...diagram.spacings
         ];
         allElements.forEach(e => {
-            const s = (e as any).step ?? (e as any).startStep ?? (e as any).endStep ?? 0;
+            const s1 = (e as any).step ?? 0;
+            const s2 = (e as any).startStep ?? 0;
+            const s3 = (e as any).endStep ?? 0;
+            const s = Math.max(s1, s2, s3);
             if (s > maxStep) maxStep = s;
         });
         return maxStep + 1;
@@ -413,7 +428,7 @@ export class LayoutEngine {
         diagram.groups.forEach(g => { if (g.endStep === undefined) g.endStep = maxStep; });
     }
 
-    private calculateStepHeights(diagram: SequenceDiagram, maxStep: number) {
+    private calculateStepHeights(diagram: SequenceDiagram, maxStep: number, participantYStart: number) {
         const stepHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
         const topExtension = new Array(maxStep + 2).fill(0);
         const bottomExtension = new Array(maxStep + 2).fill(0);
@@ -441,6 +456,9 @@ export class LayoutEngine {
         });
 
         const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
+        if (maxStep > 0) {
+            baseHeights[maxStep - 1] = 40; // Compact spacing for the last step before the footbox
+        }
         diagram.dividers.forEach(d => { baseHeights[d.step] = 30; });
         diagram.delays.forEach(d => { baseHeights[d.step] = 40; });
         diagram.spacings.forEach(s => { baseHeights[s.step] = s.height; });
@@ -462,13 +480,13 @@ export class LayoutEngine {
         }
 
         const stepY = new Array(maxStep + 1).fill(0);
-        let currentY = this.theme.padding + 90; // Header offset
+        let currentY = participantYStart + this.theme.participantHeight + 30; // 30px gap below participants instead of the static 90px header offset
         for (let i = 0; i <= maxStep; i++) {
             stepY[i] = currentY;
             currentY += stepHeights[i];
         }
 
-        return { stepY, totalHeight: currentY };
+        return { stepY, totalHeight: stepY[maxStep] };
     }
 
     private calculateParticipantWidth(p: Participant): number {

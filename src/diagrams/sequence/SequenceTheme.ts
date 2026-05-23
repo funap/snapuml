@@ -18,7 +18,7 @@ export interface SequenceTheme {
 }
 
 export const defaultTheme: SequenceTheme = {
-    padding: 40,
+    padding: 16,
     participantWidth: 120,
     participantHeight: 40,
     participantGap: 180,

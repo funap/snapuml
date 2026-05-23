@@ -113,6 +113,11 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
 
     private renderLifelines(diagram: SequenceDiagram, layout: LayoutResult): string {
         let svg = '';
+        let bottomPadding = this.theme.padding;
+        if (diagram.footer) {
+            bottomPadding += 25;
+        }
+
         layout.participants.forEach(pl => {
             // Skip external participants ([ and ])
             if (pl.participant.name === '[' || pl.participant.name === ']') {
@@ -123,7 +128,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
             // Use destroyedY or default to bottom
             const yEnd = pl.destroyedY !== undefined ?
                 pl.destroyedY :
-                (diagram.hideFootbox ? (layout.height - this.theme.padding) : (layout.height - this.theme.padding - this.theme.participantHeight));
+                (diagram.hideFootbox ? (layout.height - bottomPadding) : (layout.height - bottomPadding - this.theme.participantHeight));
 
             svg += `<line x1="${x}" y1="${pl.y + pl.height}" x2="${x}" y2="${yEnd}" stroke="${this.theme.colors.line}" stroke-dasharray="4" />`;
         });
@@ -147,10 +152,15 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
 
     private renderParticipants(diagram: SequenceDiagram, layout: LayoutResult): string {
         let svg = '';
+        let bottomPadding = this.theme.padding;
+        if (diagram.footer) {
+            bottomPadding += 25;
+        }
+
         const draw = (pl: any, top: boolean) => {
             const fill = this.normalizeColor(pl.participant.color, this.theme.colors.actorFill);
             const x = pl.x;
-            const y = top ? pl.y : layout.height - this.theme.padding - this.theme.participantHeight - 20;
+            const y = top ? pl.y : layout.height - bottomPadding - this.theme.participantHeight - 20;
             const cx = pl.centerX;
             const cy = y + this.theme.participantHeight / 2;
             const label = (pl.participant.label || pl.participant.name).replace(/\\n/g, '\n');

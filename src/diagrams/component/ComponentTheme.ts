@@ -30,7 +30,7 @@ export interface ComponentTheme {
 }
 
 export const defaultTheme: ComponentTheme = {
-    padding: 20,
+    padding: 16,
     componentWidth: 120,
     componentHeight: 50,
     interfaceRadius: 10,
