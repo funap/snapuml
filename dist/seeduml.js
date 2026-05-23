@@ -29,6 +29,1067 @@ var seeduml = (() => {
     renderSequenceDiagram: () => renderSequenceDiagram
   });
 
+  // src/core/parser/Token.ts
+  var ParseError = class extends Error {
+    constructor(message, line, column) {
+      super(message);
+      this.line = line;
+      this.column = column;
+      this.name = "ParseError";
+    }
+  };
+
+  // src/core/parser/Lexer.ts
+  var Lexer = class {
+    constructor(source) {
+      this.tokens = [];
+      this.line = 1;
+      this.column = 1;
+      this.current = 0;
+      this.lineText = "";
+      this.source = source;
+    }
+    scanTokens() {
+      const lines = this.source.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        this.line = i + 1;
+        this.column = 1;
+        this.current = 0;
+        this.lineText = lines[i];
+        this.scanLine();
+      }
+      this.addToken("EOF" /* EOF */, "");
+      return this.tokens;
+    }
+    scanLine() {
+      const trimmed = this.lineText.trim();
+      if (trimmed === "" || trimmed.startsWith("'") || trimmed.startsWith("@") || trimmed.startsWith("!pragma")) {
+        this.addToken("NEWLINE" /* NEWLINE */, "\n");
+        return;
+      }
+      if (trimmed === "|||") {
+        this.addToken("SPACING" /* SPACING */, "|||");
+        this.addToken("NEWLINE" /* NEWLINE */, "\n");
+        return;
+      }
+      const spacingMatch = trimmed.match(/^\|\|(\d+)\|\|$/);
+      if (spacingMatch) {
+        this.addToken("SPACING" /* SPACING */, trimmed);
+        this.addToken("NEWLINE" /* NEWLINE */, "\n");
+        return;
+      }
+      const delayMatch = trimmed.match(/^\.\.\.(?:\s*(.*?)\s*\.\.\.)?$/);
+      if (delayMatch) {
+        this.addToken("DELAY" /* DELAY */, trimmed);
+        this.addToken("NEWLINE" /* NEWLINE */, "\n");
+        return;
+      }
+      const dividerMatch = trimmed.match(/^==\s*(.*?)\s*==$/);
+      if (dividerMatch) {
+        this.addToken("DIVIDER" /* DIVIDER */, trimmed);
+        this.addToken("NEWLINE" /* NEWLINE */, "\n");
+        return;
+      }
+      while (this.current < this.lineText.length) {
+        const char = this.peek();
+        if (/\s/.test(char)) {
+          this.advance();
+          continue;
+        }
+        if (char === "'") {
+          break;
+        }
+        if (char === "<" && this.peekNext() === "<") {
+          this.scanStereotype();
+          continue;
+        }
+        if (char === "<" || char === "-" || char === "." || char === "o" || char === "O" || char === "x" || char === "X" || char === "/" || char === "\\" || char === "(") {
+          if (this.tryScanArrow()) {
+            continue;
+          }
+        }
+        if (char === "+" || char === "-" || char === "*" || char === "!") {
+          if (this.tryScanShorthand()) {
+            continue;
+          }
+        }
+        if (char === ":") {
+          this.advance();
+          this.addToken("COLON" /* COLON */, ":");
+          continue;
+        }
+        if (char === ",") {
+          this.advance();
+          this.addToken("COMMA" /* COMMA */, ",");
+          continue;
+        }
+        if (char === "=") {
+          this.advance();
+          this.addToken("EQUAL" /* EQUAL */, "=");
+          continue;
+        }
+        if (char === "{") {
+          this.scanTagOrLbrace();
+          continue;
+        }
+        if (char === "}") {
+          this.advance();
+          this.addToken("RBRACE" /* RBRACE */, "}");
+          continue;
+        }
+        if (char === "[") {
+          this.scanBracketOrColor();
+          continue;
+        }
+        if (char === "]") {
+          this.advance();
+          this.addToken("RBRACKET" /* RBRACKET */, "]");
+          continue;
+        }
+        if (char === "(" && this.peekNext() === ")") {
+          this.advance();
+          this.advance();
+          this.addToken("IDENTIFIER" /* IDENTIFIER */, "()");
+          continue;
+        }
+        if (char === "#") {
+          this.scanColor();
+          continue;
+        }
+        if (char === '"') {
+          this.scanQuotedString();
+          continue;
+        }
+        if (/[a-zA-Z0-9_]/.test(char)) {
+          this.scanWord();
+          continue;
+        }
+        this.advance();
+        this.addToken("IDENTIFIER" /* IDENTIFIER */, char);
+      }
+      this.addToken("NEWLINE" /* NEWLINE */, "\n");
+    }
+    peek() {
+      if (this.current >= this.lineText.length) return "\0";
+      return this.lineText[this.current];
+    }
+    peekNext() {
+      if (this.current + 1 >= this.lineText.length) return "\0";
+      return this.lineText[this.current + 1];
+    }
+    advance() {
+      const char = this.peek();
+      this.current++;
+      this.column++;
+      return char;
+    }
+    addToken(type, value) {
+      this.tokens.push({
+        type,
+        value,
+        line: this.line,
+        column: this.column - value.length
+      });
+    }
+    scanQuotedString() {
+      this.advance();
+      let start = this.current;
+      let value = "";
+      while (this.peek() !== '"' && this.peek() !== "\0") {
+        if (this.peek() === "\\" && this.peekNext() === '"') {
+          value += '"';
+          this.advance();
+          this.advance();
+        } else {
+          value += this.advance();
+        }
+      }
+      if (this.peek() === "\0") {
+        throw new Error(`Quoted string not closed at line ${this.line}, col ${this.column}`);
+      }
+      this.advance();
+      this.addToken("IDENTIFIER" /* IDENTIFIER */, value);
+    }
+    scanStereotype() {
+      const startCol = this.column;
+      this.advance();
+      this.advance();
+      let start = this.current;
+      while (!(this.peek() === ">" && this.peekNext() === ">") && this.peek() !== "\0") {
+        this.advance();
+      }
+      if (this.peek() === "\0") {
+        throw new Error(`Stereotype << not closed at line ${this.line}, col ${this.column}`);
+      }
+      const val = this.lineText.substring(start, this.current);
+      this.advance();
+      this.advance();
+      this.tokens.push({
+        type: "STEREOTYPE" /* STEREOTYPE */,
+        value: val,
+        line: this.line,
+        column: startCol
+      });
+    }
+    scanTagOrLbrace() {
+      const startCol = this.column;
+      this.advance();
+      let start = this.current;
+      while (this.peek() !== "}" && this.peek() !== "\0" && !/\s/.test(this.peek())) {
+        this.advance();
+      }
+      if (this.peek() === "}") {
+        const val = this.lineText.substring(start, this.current);
+        this.advance();
+        this.addToken("IDENTIFIER" /* IDENTIFIER */, `{${val}}`);
+      } else {
+        this.tokens.push({
+          type: "LBRACE" /* LBRACE */,
+          value: "{",
+          line: this.line,
+          column: startCol
+        });
+      }
+    }
+    scanBracketOrColor() {
+      const startCol = this.column;
+      this.advance();
+      if (this.peek() === "#") {
+        let start = this.current;
+        while (this.peek() !== "]" && this.peek() !== "\0") {
+          this.advance();
+        }
+        if (this.peek() === "]") {
+          const color = this.lineText.substring(start, this.current);
+          this.advance();
+          this.addToken("COLOR" /* COLOR */, color);
+          return;
+        }
+      }
+      this.tokens.push({
+        type: "LBRACKET" /* LBRACKET */,
+        value: "[",
+        line: this.line,
+        column: startCol
+      });
+    }
+    scanColor() {
+      this.advance();
+      let start = this.current;
+      while (/[a-zA-Z0-9_]/.test(this.peek())) {
+        this.advance();
+      }
+      const color = this.lineText.substring(start, this.current);
+      this.addToken("COLOR" /* COLOR */, "#" + color);
+    }
+    tryScanArrow() {
+      const sub = this.lineText.substring(this.current);
+      const ARROW_REGEX = /^(?:\(\d+\))?([<ox\\/]*)([-.]+)(left|right|up|down|le|ri|do)?(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(?:\(\d+\))?(--\+\+|\+\+--|--|\+\+|\*\*|!!)?/i;
+      const match = sub.match(ARROW_REGEX);
+      if (match) {
+        const fullArrow = match[0];
+        const hasArrowHead = /[<>xoOX\\/]/.test(fullArrow);
+        const isComponentArrow = /^([-]|\.\.?)$/.test(fullArrow) || /^[-.]+(left|right|up|down|le|ri|do)[-.]*$/i.test(fullArrow);
+        if (!hasArrowHead && !isComponentArrow) {
+          return false;
+        }
+        this.current += fullArrow.length;
+        this.column += fullArrow.length;
+        this.addToken("ARROW" /* ARROW */, fullArrow);
+        return true;
+      }
+      return false;
+    }
+    tryScanShorthand() {
+      const sub = this.lineText.substring(this.current);
+      const match = sub.match(/^(\+\+--|--\+\+|\+\+|--|\*\*|!!)/);
+      if (match) {
+        const val = match[1];
+        this.current += val.length;
+        this.column += val.length;
+        this.addToken("SHORTHAND" /* SHORTHAND */, val);
+        return true;
+      }
+      return false;
+    }
+    tryScanArrowLookahead() {
+      const sub = this.lineText.substring(this.current);
+      const ARROW_REGEX = /^(?:\(\d+\))?([<ox\\/]*)([-.]+)(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(?:\(\d+\))?(--\+\+|\+\+--|--|\+\+|\*\*|!!)?/i;
+      const match = sub.match(ARROW_REGEX);
+      if (match) {
+        const fullArrow = match[0];
+        if (fullArrow.includes(">") || fullArrow.includes("<") || fullArrow.length >= 2) {
+          return true;
+        }
+      }
+      return false;
+    }
+    scanWord() {
+      let start = this.current;
+      while (/[a-zA-Z0-9_.-]/.test(this.peek())) {
+        const nextChar = this.peek();
+        if (nextChar === "-" || nextChar === ".") {
+          if (this.tryScanArrowLookahead()) {
+            break;
+          }
+        }
+        this.advance();
+      }
+      const value = this.lineText.substring(start, this.current);
+      const upper = value.toUpperCase();
+      if (upper in KEYWORDS) {
+        this.addToken(KEYWORDS[upper], value);
+      } else {
+        this.addToken("IDENTIFIER" /* IDENTIFIER */, value);
+      }
+    }
+  };
+  var KEYWORDS = {
+    PARTICIPANT: "PARTICIPANT" /* PARTICIPANT */,
+    ACTOR: "ACTOR" /* ACTOR */,
+    BOUNDARY: "BOUNDARY" /* BOUNDARY */,
+    CONTROL: "CONTROL" /* CONTROL */,
+    ENTITY: "ENTITY" /* ENTITY */,
+    DATABASE: "DATABASE" /* DATABASE */,
+    COLLECTIONS: "COLLECTIONS" /* COLLECTIONS */,
+    QUEUE: "QUEUE" /* QUEUE */,
+    COMPONENT: "COMPONENT" /* COMPONENT */,
+    INTERFACE: "INTERFACE" /* INTERFACE */,
+    PACKAGE: "PACKAGE" /* PACKAGE */,
+    NODE: "NODE" /* NODE */,
+    FOLDER: "FOLDER" /* FOLDER */,
+    FRAME: "FRAME" /* FRAME */,
+    CLOUD: "CLOUD" /* CLOUD */,
+    ALT: "ALT" /* ALT */,
+    ELSE: "ELSE" /* ELSE */,
+    OPT: "OPT" /* OPT */,
+    LOOP: "LOOP" /* LOOP */,
+    PAR: "PAR" /* PAR */,
+    BREAK: "BREAK" /* BREAK */,
+    CRITICAL: "CRITICAL" /* CRITICAL */,
+    GROUP: "GROUP" /* GROUP */,
+    END: "END" /* END */,
+    REF: "REF" /* REF */,
+    NOTE: "NOTE" /* NOTE */,
+    HNOTE: "HNOTE" /* HNOTE */,
+    RNOTE: "RNOTE" /* RNOTE */,
+    BNOTE: "BNOTE" /* BNOTE */,
+    CREATE: "CREATE" /* CREATE */,
+    DESTROY: "DESTROY" /* DESTROY */,
+    ACTIVATE: "ACTIVATE" /* ACTIVATE */,
+    DEACTIVATE: "DEACTIVATE" /* DEACTIVATE */,
+    RETURN: "RETURN" /* RETURN */,
+    TITLE: "TITLE" /* TITLE */,
+    HEADER: "HEADER" /* HEADER */,
+    FOOTER: "FOOTER" /* FOOTER */,
+    AUTONUMBER: "AUTONUMBER" /* AUTONUMBER */,
+    AUTOACTIVATE: "AUTOACTIVATE" /* AUTOACTIVATE */,
+    HIDE: "HIDE" /* HIDE */,
+    FOOTBOX: "FOOTBOX" /* FOOTBOX */,
+    AS: "AS" /* AS */,
+    ORDER: "ORDER" /* ORDER */,
+    OF: "OF" /* OF */,
+    OVER: "OVER" /* OVER */,
+    ON: "ON" /* ON */,
+    OFF: "OFF" /* OFF */,
+    STOP: "STOP" /* STOP */,
+    RESUME: "RESUME" /* RESUME */,
+    INC: "INC" /* INC */,
+    PORT: "PORT" /* PORT */,
+    PORTIN: "PORTIN" /* PORTIN */,
+    PORTOUT: "PORTOUT" /* PORTOUT */,
+    LEFT: "LEFT" /* LEFT */,
+    RIGHT: "RIGHT" /* RIGHT */,
+    TOP: "TOP" /* TOP */,
+    BOTTOM: "BOTTOM" /* BOTTOM */,
+    SKINPARAM: "SKINPARAM" /* SKINPARAM */,
+    PARTITION: "PARTITION" /* PARTITION */,
+    BOX: "BOX" /* BOX */,
+    MAINFRAME: "MAINFRAME" /* MAINFRAME */,
+    NEWPAGE: "NEWPAGE" /* NEWPAGE */
+  };
+
+  // src/diagrams/sequence/parser/SequenceASTParser.ts
+  var SequenceASTParser = class {
+    constructor(tokens, source = "") {
+      this.current = 0;
+      this.tokens = tokens;
+      this.sourceLines = source.split("\n");
+    }
+    parse() {
+      const body = [];
+      const startToken = this.peek();
+      while (!this.isAtEnd()) {
+        const statement = this.parseLineStatement();
+        if (statement) {
+          body.push(statement);
+        }
+      }
+      return {
+        type: "SequenceDiagram",
+        body,
+        line: startToken.line,
+        column: startToken.column
+      };
+    }
+    parseLineStatement() {
+      while (this.match("NEWLINE" /* NEWLINE */)) {
+      }
+      if (this.isAtEnd()) return null;
+      const statementStart = this.current;
+      let tag = void 0;
+      if (this.check("IDENTIFIER" /* IDENTIFIER */) && this.peek().value.startsWith("{")) {
+        const tagToken = this.advance();
+        tag = tagToken.value.replace(/[{}]/g, "");
+        if (this.check("ARROW" /* ARROW */) && (this.peek().value === "<->" || this.peek().value.includes("<->"))) {
+          this.advance();
+          const endTagToken = this.consumeIdentifier("Time constraint expects target tag after <->");
+          const endTag = endTagToken.value.replace(/[{}]/g, "");
+          let label = "";
+          if (this.match("COLON" /* COLON */)) {
+            label = this.consumeLineText();
+          } else {
+            this.consumeLineEnd();
+          }
+          return {
+            type: "TimeConstraint",
+            startTag: tag,
+            endTag,
+            label,
+            line: tagToken.line,
+            column: tagToken.column
+          };
+        }
+      }
+      let isSameStep = false;
+      if (this.check("IDENTIFIER" /* IDENTIFIER */) && (this.peek().value === "/" || this.peek().value === "&")) {
+        this.advance();
+        isSameStep = true;
+      }
+      const token = this.peek();
+      if (this.match("SPACING" /* SPACING */)) {
+        const val = this.previous().value;
+        let height = 30;
+        const match = val.match(/^\|\|(\d+)\|\|$/);
+        if (match) {
+          height = parseInt(match[1], 10);
+        }
+        this.consumeLineEnd();
+        return {
+          type: "Spacing",
+          height,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("DELAY" /* DELAY */)) {
+        const val = this.previous().value;
+        let text2 = void 0;
+        const match = val.match(/^\.\.\.(?:\s*(.*?)\s*\.\.\.)?$/);
+        if (match && match[1]) {
+          text2 = match[1];
+        }
+        this.consumeLineEnd();
+        return {
+          type: "Delay",
+          text: text2,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("DIVIDER" /* DIVIDER */)) {
+        const val = this.previous().value;
+        let label = "";
+        const match = val.match(/^==\s*(.*?)\s*==$/);
+        if (match && match[1]) {
+          label = match[1];
+        }
+        this.consumeLineEnd();
+        return {
+          type: "Divider",
+          label,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("CREATE" /* CREATE */)) {
+        let declType = void 0;
+        if (this.match(
+          "PARTICIPANT" /* PARTICIPANT */,
+          "ACTOR" /* ACTOR */,
+          "BOUNDARY" /* BOUNDARY */,
+          "CONTROL" /* CONTROL */,
+          "ENTITY" /* ENTITY */,
+          "DATABASE" /* DATABASE */,
+          "COLLECTIONS" /* COLLECTIONS */,
+          "QUEUE" /* QUEUE */
+        )) {
+          declType = this.previous().value.toLowerCase();
+        }
+        const nameToken = this.consumeIdentifier("Expected participant name after create");
+        this.consumeLineEnd();
+        return {
+          type: "Create",
+          name: nameToken.value,
+          declType,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("ACTIVATE" /* ACTIVATE */, "DEACTIVATE" /* DEACTIVATE */, "DESTROY" /* DESTROY */)) {
+        const action = this.previous().type;
+        const nameToken = this.consumeIdentifier("Expected name for activation/destruction");
+        let color2 = void 0;
+        if (this.check("COLOR" /* COLOR */)) {
+          color2 = this.advance().value;
+        }
+        this.consumeLineEnd();
+        if (action === "DESTROY" /* DESTROY */) {
+          return {
+            type: "Destroy",
+            name: nameToken.value,
+            line: token.line,
+            column: token.column
+          };
+        } else {
+          return {
+            type: "Activation",
+            action: action === "ACTIVATE" /* ACTIVATE */ ? "activate" : "deactivate",
+            name: nameToken.value,
+            color: color2,
+            line: token.line,
+            column: token.column
+          };
+        }
+      }
+      if (this.match("TITLE" /* TITLE */, "HEADER" /* HEADER */, "FOOTER" /* FOOTER */)) {
+        const metaType = this.previous().type.toLowerCase();
+        const text2 = this.consumeLineText();
+        return {
+          type: "Meta",
+          metaType,
+          value: text2,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("HIDE" /* HIDE */)) {
+        this.consume("FOOTBOX" /* FOOTBOX */, "Expected 'footbox' after hide");
+        this.consumeLineEnd();
+        return {
+          type: "Meta",
+          metaType: "hide_footbox",
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("SKINPARAM" /* SKINPARAM */)) {
+        const value = this.consumeLineText();
+        return {
+          type: "Meta",
+          metaType: "skinparam",
+          value,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("MAINFRAME" /* MAINFRAME */)) {
+        const value = this.consumeLineText();
+        return {
+          type: "Meta",
+          metaType: "mainframe",
+          value,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("NEWPAGE" /* NEWPAGE */)) {
+        const value = this.consumeLineText();
+        return {
+          type: "Meta",
+          metaType: "newpage",
+          value,
+          line: token.line,
+          column: token.column
+        };
+      }
+      const isNextArrow = this.peekNext().type === "ARROW" /* ARROW */;
+      if (!isNextArrow && this.match(
+        "PARTICIPANT" /* PARTICIPANT */,
+        "ACTOR" /* ACTOR */,
+        "BOUNDARY" /* BOUNDARY */,
+        "CONTROL" /* CONTROL */,
+        "ENTITY" /* ENTITY */,
+        "DATABASE" /* DATABASE */,
+        "COLLECTIONS" /* COLLECTIONS */,
+        "QUEUE" /* QUEUE */
+      )) {
+        const declType = this.previous().value.toLowerCase();
+        const nameToken = this.consumeIdentifier("Expected participant name");
+        if (this.match("LBRACKET" /* LBRACKET */)) {
+          const lines = [];
+          while (!this.check("RBRACKET" /* RBRACKET */) && !this.isAtEnd()) {
+            lines.push(this.consumeLineRawText());
+          }
+          if (this.check("RBRACKET" /* RBRACKET */)) {
+            this.advance();
+          }
+          this.consumeLineEnd();
+          return {
+            type: "ParticipantDeclaration",
+            declType,
+            name: nameToken.value,
+            label: lines.join("\n"),
+            line: token.line,
+            column: token.column
+          };
+        }
+        let label = void 0;
+        let stereotype = void 0;
+        let order = void 0;
+        let color2 = void 0;
+        while (!this.check("NEWLINE" /* NEWLINE */) && !this.isAtEnd()) {
+          if (this.match("STEREOTYPE" /* STEREOTYPE */)) {
+            stereotype = this.previous().value;
+          } else if (this.match("AS" /* AS */)) {
+            const labelToken = this.consumeIdentifier("Expected label after 'as'");
+            label = labelToken.value;
+          } else if (this.match("ORDER" /* ORDER */)) {
+            const orderToken = this.consumeIdentifier("Expected order number");
+            order = parseInt(orderToken.value, 10);
+          } else if (this.check("COLOR" /* COLOR */)) {
+            color2 = this.advance().value;
+          } else {
+            this.advance();
+          }
+        }
+        this.consumeLineEnd();
+        return {
+          type: "ParticipantDeclaration",
+          declType,
+          name: nameToken.value,
+          label,
+          stereotype,
+          order,
+          color: color2,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match(
+        "ALT" /* ALT */,
+        "OPT" /* OPT */,
+        "LOOP" /* LOOP */,
+        "PAR" /* PAR */,
+        "BREAK" /* BREAK */,
+        "CRITICAL" /* CRITICAL */,
+        "GROUP" /* GROUP */,
+        "PARTITION" /* PARTITION */,
+        "BOX" /* BOX */
+      )) {
+        return this.parseGroup();
+      }
+      if (this.match("REF" /* REF */)) {
+        this.consume("OVER" /* OVER */, "Expected 'over' after ref");
+        const participants = [];
+        participants.push(this.consumeIdentifier("Expected participant name in ref").value);
+        while (this.match("COMMA" /* COMMA */)) {
+          participants.push(this.consumeIdentifier("Expected participant name after comma").value);
+        }
+        if (this.match("COLON" /* COLON */)) {
+          const label = this.consumeLineText();
+          return {
+            type: "Reference",
+            participants,
+            label,
+            line: token.line,
+            column: token.column
+          };
+        } else {
+          this.consumeLineEnd();
+          const lines = [];
+          while (!this.isAtEnd()) {
+            if (this.check("END" /* END */) && this.peekNext().type === "REF" /* REF */) {
+              this.advance();
+              this.advance();
+              this.consumeLineEnd();
+              break;
+            }
+            if (this.check("END" /* END */) && this.peekNext().type === "NEWLINE" /* NEWLINE */) {
+              this.advance();
+              this.consumeLineEnd();
+              break;
+            }
+            lines.push(this.consumeLineRawText());
+          }
+          return {
+            type: "Reference",
+            participants,
+            label: lines.join("\n"),
+            line: token.line,
+            column: token.column
+          };
+        }
+      }
+      if (this.match("NOTE" /* NOTE */, "HNOTE" /* HNOTE */, "RNOTE" /* RNOTE */, "BNOTE" /* BNOTE */)) {
+        const noteKeywordToken = this.previous();
+        const shapeKeyword = noteKeywordToken.type;
+        let shape = "folder";
+        if (shapeKeyword === "HNOTE" /* HNOTE */) shape = "hexagon";
+        else if (shapeKeyword === "RNOTE" /* RNOTE */) shape = "rectangle";
+        else if (shapeKeyword === "BNOTE" /* BNOTE */) shape = "bubble";
+        let positionToken;
+        if (this.match("IDENTIFIER" /* IDENTIFIER */, "LEFT" /* LEFT */, "RIGHT" /* RIGHT */, "TOP" /* TOP */, "BOTTOM" /* BOTTOM */, "OVER" /* OVER */)) {
+          positionToken = this.previous();
+        } else {
+          const token2 = this.peek();
+          throw new Error(`Syntax error at line ${token2.line}, col ${token2.column}: Expected note position (left, right, over, across) (Got: ${token2.type} '${token2.value}')`);
+        }
+        const position = positionToken.value.toLowerCase();
+        let participants = [];
+        if (this.match("OF" /* OF */)) {
+          participants.push(this.consumeIdentifier("Expected participant name in note").value);
+          while (this.match("COMMA" /* COMMA */)) {
+            participants.push(this.consumeIdentifier("Expected participant name after comma").value);
+          }
+        } else if (this.check("IDENTIFIER" /* IDENTIFIER */) && !this.peek().value.startsWith("#") && this.peek().value !== ":") {
+          participants.push(this.advance().value);
+          while (this.match("COMMA" /* COMMA */)) {
+            participants.push(this.consumeIdentifier("Expected participant name after comma").value);
+          }
+        }
+        let color2 = void 0;
+        if (this.check("COLOR" /* COLOR */)) {
+          color2 = this.advance().value;
+        }
+        if (this.match("COLON" /* COLON */)) {
+          const text2 = this.consumeLineText();
+          return {
+            type: "Note",
+            position,
+            participants,
+            text: text2,
+            shape,
+            color: color2,
+            line: token.line,
+            column: token.column
+          };
+        } else {
+          this.consumeLineEnd();
+          const lines = [];
+          while (!this.isAtEnd()) {
+            const next = this.peek();
+            const isEndNote = next.type === "END" /* END */ && this.peekNext().type === "NOTE" /* NOTE */;
+            const isEndHnote = next.type === "END" /* END */ && this.peekNext().type === "HNOTE" /* HNOTE */;
+            const isEndRnote = next.type === "END" /* END */ && this.peekNext().type === "RNOTE" /* RNOTE */;
+            const isEndBnote = next.type === "END" /* END */ && this.peekNext().type === "BNOTE" /* BNOTE */;
+            const isEndPlain = next.type === "END" /* END */ && (this.peekNext().value === "hnote" || this.peekNext().value === "rnote" || this.peekNext().value === "bnote" || this.peekNext().value === "note");
+            if (isEndNote || isEndHnote || isEndRnote || isEndBnote || isEndPlain) {
+              this.advance();
+              this.advance();
+              this.consumeLineEnd();
+              break;
+            }
+            if (next.type === "END" /* END */ && this.peekNext().type === "NEWLINE" /* NEWLINE */) {
+              this.advance();
+              this.consumeLineEnd();
+              break;
+            }
+            lines.push(this.consumeLineRawText());
+          }
+          return {
+            type: "Note",
+            position,
+            participants,
+            text: lines.join("\n"),
+            shape,
+            color: color2,
+            line: token.line,
+            column: token.column
+          };
+        }
+      }
+      if (this.match("RETURN" /* RETURN */)) {
+        let text2 = "";
+        if (this.match("COLON" /* COLON */)) {
+          text2 = this.consumeLineText();
+        } else {
+          text2 = this.consumeLineText();
+        }
+        return {
+          type: "Message",
+          from: "",
+          // compiler will resolve to last active
+          to: "",
+          arrow: "<--",
+          // compiler will handle return arrow
+          text: text2,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("AUTONUMBER" /* AUTONUMBER */)) {
+        if (this.match("STOP" /* STOP */)) {
+          this.consumeLineEnd();
+          return {
+            type: "Autonumber",
+            action: "stop",
+            line: token.line,
+            column: token.column
+          };
+        }
+        if (this.match("RESUME" /* RESUME */)) {
+          let increment2 = void 0;
+          let format2 = void 0;
+          if (this.check("IDENTIFIER" /* IDENTIFIER */)) {
+            const nextVal = this.peek().value;
+            if (/^\d+$/.test(nextVal)) {
+              increment2 = parseInt(this.advance().value, 10);
+            }
+          }
+          if (this.check("IDENTIFIER" /* IDENTIFIER */)) {
+            format2 = this.advance().value;
+          }
+          this.consumeLineEnd();
+          return {
+            type: "Autonumber",
+            action: "resume",
+            increment: increment2,
+            format: format2,
+            line: token.line,
+            column: token.column
+          };
+        }
+        if (this.match("INC" /* INC */)) {
+          const levelToken = this.consumeIdentifier("Expected level A, B after inc");
+          this.consumeLineEnd();
+          return {
+            type: "Autonumber",
+            action: "inc",
+            level: levelToken.value,
+            line: token.line,
+            column: token.column
+          };
+        }
+        let start = void 0;
+        let increment = void 0;
+        let format = void 0;
+        if (this.check("IDENTIFIER" /* IDENTIFIER */)) {
+          const nextVal = this.peek().value;
+          if (/^[\d.]+$/.test(nextVal)) {
+            start = this.advance().value;
+            if (this.check("IDENTIFIER" /* IDENTIFIER */)) {
+              const nextVal2 = this.peek().value;
+              if (/^\d+$/.test(nextVal2)) {
+                increment = parseInt(this.advance().value, 10);
+              }
+            }
+          }
+        }
+        if (this.check("IDENTIFIER" /* IDENTIFIER */)) {
+          format = this.advance().value;
+        }
+        this.consumeLineEnd();
+        return {
+          type: "Autonumber",
+          action: "start",
+          start,
+          increment,
+          format,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (this.match("AUTOACTIVATE" /* AUTOACTIVATE */)) {
+        const stateToken = this.consumeIdentifier("Expected 'on' or 'off' for autoactivate");
+        const enabled = stateToken.value.toLowerCase() === "on";
+        this.consumeLineEnd();
+        return {
+          type: "Autoactivate",
+          enabled,
+          line: token.line,
+          column: token.column
+        };
+      }
+      let fromNode = "";
+      if (this.check("LBRACKET" /* LBRACKET */)) {
+        this.advance();
+        fromNode = "[";
+      } else if (this.check("RBRACKET" /* RBRACKET */)) {
+        this.advance();
+        fromNode = "]";
+      } else if (this.check("ARROW" /* ARROW */)) {
+        fromNode = "[";
+      } else if (!this.isAtEnd() && this.peek().type !== "NEWLINE" /* NEWLINE */) {
+        fromNode = this.advance().value;
+      }
+      const arrowToken = this.consume("ARROW" /* ARROW */, "Expected message arrow");
+      let toNode = "";
+      if (this.check("LBRACKET" /* LBRACKET */)) {
+        this.advance();
+        toNode = "[";
+      } else if (this.check("RBRACKET" /* RBRACKET */)) {
+        this.advance();
+        toNode = "]";
+      } else if (!this.isAtEnd() && this.peek().type !== "NEWLINE" /* NEWLINE */ && this.peek().type !== "COLON" /* COLON */ && this.peek().type !== "COLOR" /* COLOR */ && this.peek().type !== "SHORTHAND" /* SHORTHAND */) {
+        toNode = this.advance().value;
+      } else {
+        toNode = "]";
+      }
+      let shorthand = void 0;
+      if (this.match("SHORTHAND" /* SHORTHAND */)) {
+        shorthand = this.previous().value;
+      }
+      let color = void 0;
+      if (this.check("COLOR" /* COLOR */)) {
+        color = this.advance().value;
+      }
+      let text = "";
+      if (this.match("COLON" /* COLON */)) {
+        text = this.consumeLineText();
+      } else {
+        this.consumeLineEnd();
+      }
+      const msgNode = {
+        type: "Message",
+        tag,
+        from: fromNode,
+        to: toNode,
+        arrow: arrowToken.value,
+        text,
+        shorthand,
+        color,
+        line: token.line,
+        column: token.column
+      };
+      if (isSameStep) {
+        msgNode.arrow = "/" + msgNode.arrow;
+      }
+      return msgNode;
+    }
+    parseGroup() {
+      const startToken = this.previous();
+      const groupType = startToken.value.toLowerCase();
+      let label = this.consumeLineText();
+      const body = [];
+      const sections = [];
+      while (this.match("NEWLINE" /* NEWLINE */)) {
+      }
+      while (!this.check("END" /* END */) && !this.check("ELSE" /* ELSE */) && !this.isAtEnd()) {
+        const statement = this.parseLineStatement();
+        if (statement) body.push(statement);
+        while (this.match("NEWLINE" /* NEWLINE */)) {
+        }
+      }
+      while (this.match("ELSE" /* ELSE */)) {
+        const elseToken = this.previous();
+        let sectionLabel = this.consumeLineText();
+        const sectionBody = [];
+        while (this.match("NEWLINE" /* NEWLINE */)) {
+        }
+        while (!this.check("END" /* END */) && !this.check("ELSE" /* ELSE */) && !this.isAtEnd()) {
+          const statement = this.parseLineStatement();
+          if (statement) sectionBody.push(statement);
+          while (this.match("NEWLINE" /* NEWLINE */)) {
+          }
+        }
+        sections.push({
+          type: "GroupSection",
+          label: sectionLabel,
+          body: sectionBody,
+          line: elseToken.line,
+          column: elseToken.column
+        });
+      }
+      this.consume("END" /* END */, "Expected 'end' at the end of control group");
+      if (groupType === "box" && this.check("BOX" /* BOX */)) {
+        this.advance();
+      }
+      this.consumeLineEnd();
+      return {
+        type: "Group",
+        groupType,
+        label,
+        body,
+        sections,
+        line: startToken.line,
+        column: startToken.column
+      };
+    }
+    peek() {
+      return this.tokens[this.current];
+    }
+    peekNext() {
+      if (this.current + 1 >= this.tokens.length) return this.peek();
+      return this.tokens[this.current + 1];
+    }
+    previous() {
+      return this.tokens[this.current - 1];
+    }
+    isAtEnd() {
+      return this.peek().type === "EOF" /* EOF */;
+    }
+    check(type) {
+      if (this.isAtEnd()) return false;
+      return this.peek().type === type;
+    }
+    advance() {
+      if (!this.isAtEnd()) this.current++;
+      return this.previous();
+    }
+    match(...types) {
+      for (const type of types) {
+        if (this.check(type)) {
+          this.advance();
+          return true;
+        }
+      }
+      return false;
+    }
+    consume(type, message) {
+      if (this.check(type)) return this.advance();
+      const token = this.peek();
+      throw new Error(`Syntax error at line ${token.line}, col ${token.column}: ${message} (Got: ${token.type} '${token.value}')`);
+    }
+    consumeLineEnd() {
+      if (this.isAtEnd()) return;
+      const currentLine = this.peek().line;
+      while (!this.isAtEnd() && this.peek().line === currentLine) {
+        const token = this.advance();
+        if (token.type === "NEWLINE" /* NEWLINE */) break;
+      }
+    }
+    consumeLineText() {
+      if (this.isAtEnd() || this.check("NEWLINE" /* NEWLINE */)) {
+        this.consumeLineEnd();
+        return "";
+      }
+      const token = this.peek();
+      const rawLine = this.sourceLines[token.line - 1] || "";
+      const text = rawLine.substring(token.column - 1).trim();
+      this.consumeLineEnd();
+      return text;
+    }
+    consumeLineRawText() {
+      if (this.isAtEnd()) {
+        return "";
+      }
+      const token = this.peek();
+      const rawLine = this.sourceLines[token.line - 1] || "";
+      this.consumeLineEnd();
+      return rawLine;
+    }
+    consumeIdentifier(message) {
+      if (this.check("IDENTIFIER" /* IDENTIFIER */)) return this.advance();
+      const nextType = this.peek().type;
+      if (nextType !== "EOF" /* EOF */ && nextType !== "NEWLINE" /* NEWLINE */ && nextType !== "COLON" /* COLON */ && nextType !== "ARROW" /* ARROW */) {
+        return this.advance();
+      }
+      const token = this.peek();
+      throw new Error(`Syntax error at line ${token.line}, col ${token.column}: ${message} (Got: ${token.type} '${token.value}')`);
+    }
+  };
+
   // src/core/RichText.ts
   function formatRichText(text) {
     if (!text) return "";
@@ -292,405 +1353,359 @@ var seeduml = (() => {
     }
   };
 
+  // src/diagrams/sequence/parser/SequenceASTCompiler.ts
+  var SequenceASTCompiler = class {
+    constructor() {
+      this.lastMessageStep = -1;
+      this.lastMessageFrom = "";
+      this.lastMessageTo = "";
+      this.lastMessageType = "";
+      this.lastActivationStep = /* @__PURE__ */ new Map();
+    }
+    compile(ast) {
+      const diagram = new SequenceDiagram();
+      this.lastMessageStep = -1;
+      this.lastMessageFrom = "";
+      this.lastMessageTo = "";
+      this.lastMessageType = "";
+      this.lastActivationStep.clear();
+      this.compileBody(diagram, ast.body);
+      return diagram;
+    }
+    compileBody(diagram, body) {
+      for (const node of body) {
+        this.compileNode(diagram, node);
+      }
+    }
+    compileNode(diagram, node) {
+      switch (node.type) {
+        case "ParticipantDeclaration":
+          this.compileParticipantDeclaration(diagram, node);
+          break;
+        case "Message":
+          this.compileMessage(diagram, node);
+          break;
+        case "Note":
+          this.compileNote(diagram, node);
+          break;
+        case "Group":
+          this.compileGroup(diagram, node);
+          break;
+        case "Divider":
+          diagram.addDivider(node.label);
+          break;
+        case "Delay":
+          diagram.addDelay(node.text);
+          break;
+        case "Spacing":
+          diagram.addSpacing(node.height);
+          break;
+        case "Autonumber":
+          this.compileAutonumber(diagram, node);
+          break;
+        case "Autoactivate":
+          diagram.setAutoactivate(node.enabled);
+          break;
+        case "Activation":
+          this.compileActivation(diagram, node);
+          break;
+        case "Create":
+          this.compileCreate(diagram, node);
+          break;
+        case "Destroy":
+          this.compileDestroy(diagram, node);
+          break;
+        case "Reference":
+          this.compileReference(diagram, node);
+          break;
+        case "TimeConstraint":
+          diagram.addTimeConstraint(node.startTag, node.endTag, node.label);
+          break;
+        case "Meta":
+          this.compileMeta(diagram, node);
+          break;
+      }
+    }
+    compileParticipantDeclaration(diagram, node) {
+      const name = node.name.replace(/^"(.*)"$/, "$1");
+      const label = node.label ? node.label.replace(/^"(.*)"$/, "$1") : void 0;
+      let participantName;
+      let participantLabel;
+      if (label) {
+        if (label.startsWith('"')) {
+          participantName = name;
+          participantLabel = label.replace(/^"(.*)"$/, "$1");
+        } else {
+          participantName = label.replace(/^"(.*)"$/, "$1");
+          participantLabel = name;
+        }
+      } else {
+        participantName = name;
+        participantLabel = void 0;
+      }
+      diagram.addParticipant(
+        participantName,
+        participantLabel,
+        node.declType,
+        node.order,
+        node.color,
+        node.stereotype
+      );
+    }
+    compileMessage(diagram, node) {
+      if (node.from === "" && node.to === "" && node.arrow === "<--") {
+        const normalizedText = node.text.replace(/\\n/g, "\n");
+        diagram.returnMessage(normalizedText);
+        return;
+      }
+      let from = node.from;
+      let to = node.to;
+      if (from) from = from.replace(/^"(.*)"$/, "$1");
+      if (to) to = to.replace(/^"(.*)"$/, "$1");
+      if (!from || from === "[") from = "[";
+      if (!to || to === "]") to = "]";
+      let arrow = node.arrow;
+      let sameStep = false;
+      if (arrow.startsWith("/")) {
+        sameStep = true;
+        arrow = arrow.substring(1).trim();
+        diagram.rewindStep();
+      }
+      let shorthand = node.shorthand;
+      let autoActivColor = node.color;
+      const arrowMatch = arrow.match(/^([<ox\\/]*)([-.]+)(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(?:(--\+\+|\+\+--|--|\+\+|\*\*|!!))?$/i);
+      if (arrowMatch) {
+        let [, headStartStr, line1, msgColor, line2, headEndStr, arrowShorthand] = arrowMatch;
+        if (arrowShorthand) {
+          shorthand = arrowShorthand;
+        }
+        const lineFull = line1 + (line2 || "");
+        const isDotted = lineFull.includes("..") || lineFull.includes("--");
+        let isBidirectional = headStartStr.includes("<") && (headEndStr || "").includes(">");
+        const mapHead = (s, isStart) => {
+          if (!s) return "none";
+          if (s === ">") return "default";
+          if (s === "<") return "default";
+          if (s === ">>") return "open";
+          if (s === "<<") return "open";
+          if (s === "\\" || s === "/") return "half";
+          if (s === "\\\\" || s === "//") return "open";
+          if (s.includes("x")) return "lost";
+          if (s.includes("o")) {
+            return "arrow-circle";
+          }
+          return "default";
+        };
+        let arrowHead = mapHead(headEndStr || "", false);
+        let startHead = mapHead(headStartStr || "", true);
+        if (headEndStr === "x") arrowHead = "lost";
+        if (from === "x") startHead = "found";
+        const normalizedText = node.text.replace(/\\n/g, "\n");
+        const step = diagram.addMessage(from, to, normalizedText, isDotted ? "dotted" : "arrow", arrowHead, msgColor, isBidirectional, startHead);
+        if (node.tag) {
+          diagram.addTaggedStep(node.tag, step);
+        }
+        let semanticFrom = from;
+        let semanticTo = to;
+        const isHead = (h) => ["default", "open", "half", "arrow-circle"].includes(h);
+        if (isHead(startHead) && !isHead(arrowHead)) {
+          semanticFrom = to;
+          semanticTo = from;
+        } else if (isHead(arrowHead) && !isHead(startHead)) {
+          semanticFrom = from;
+          semanticTo = to;
+        }
+        this.lastMessageStep = step;
+        this.lastMessageFrom = semanticFrom;
+        this.lastMessageTo = semanticTo;
+        this.lastMessageType = isDotted ? "dotted" : "arrow";
+        if (shorthand === "++") {
+          if (autoActivColor && autoActivColor.startsWith("#")) {
+            const hexContent = autoActivColor.substring(1);
+            const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
+            if (!isHex) {
+              autoActivColor = hexContent;
+            }
+          }
+          diagram.activate(to, step, step, autoActivColor);
+          this.lastActivationStep.set(to, step);
+        } else if (shorthand === "--") {
+          diagram.deactivate(from, step, step);
+        } else if (shorthand === "--++") {
+          diagram.deactivate(from, step, step);
+          if (autoActivColor && autoActivColor.startsWith("#")) {
+            const hexContent = autoActivColor.substring(1);
+            const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
+            if (!isHex) {
+              autoActivColor = hexContent;
+            }
+          }
+          diagram.activate(to, step, step, autoActivColor);
+          this.lastActivationStep.set(to, step);
+        } else if (shorthand === "++--") {
+          if (autoActivColor && autoActivColor.startsWith("#")) {
+            const hexContent = autoActivColor.substring(1);
+            const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
+            if (!isHex) {
+              autoActivColor = hexContent;
+            }
+          }
+          diagram.activate(from, step, step, autoActivColor);
+          this.lastActivationStep.set(from, step);
+          diagram.deactivate(to, step, step);
+        } else if (shorthand === "**") {
+          diagram.create(to, step);
+        } else if (shorthand === "!!") {
+          diagram.destroy(to, step);
+        }
+      }
+    }
+    compileNote(diagram, node) {
+      const normPos = node.position;
+      let participants = node.participants.map((p) => p.replace(/^"(.*)"$/, "$1"));
+      let associationStep;
+      if (participants.length === 0) {
+        if ((normPos === "right" || normPos === "left") && this.lastMessageFrom && this.lastMessageTo) {
+          const idxFrom = diagram.participants.findIndex((p) => p.name === this.lastMessageFrom);
+          const idxTo = diagram.participants.findIndex((p) => p.name === this.lastMessageTo);
+          if (idxFrom !== -1 && idxTo !== -1) {
+            const pFrom = diagram.participants[idxFrom];
+            const pTo = diagram.participants[idxTo];
+            let isFromLeftOfTo = idxFrom < idxTo;
+            if (pFrom.order !== void 0 && pTo.order !== void 0) {
+              isFromLeftOfTo = pFrom.order < pTo.order;
+            }
+            if (normPos === "left") {
+              participants = [isFromLeftOfTo ? this.lastMessageFrom : this.lastMessageTo];
+            } else {
+              participants = [isFromLeftOfTo ? this.lastMessageTo : this.lastMessageFrom];
+            }
+          } else {
+            participants = [this.lastMessageTo];
+          }
+          if (this.lastMessageStep !== -1) {
+            associationStep = this.lastMessageStep;
+          }
+        }
+      }
+      const normalizedText = node.text.replace(/\\n/g, "\n");
+      diagram.addNote(
+        normalizedText,
+        node.position,
+        participants,
+        node.color,
+        node.shape,
+        associationStep
+      );
+    }
+    compileGroup(diagram, node) {
+      diagram.startGroup(node.groupType, node.label);
+      for (const child of node.body) {
+        this.compileNode(diagram, child);
+      }
+      for (const section of node.sections) {
+        diagram.addGroupSection(section.label);
+        for (const child of section.body) {
+          this.compileNode(diagram, child);
+        }
+      }
+      diagram.endGroup();
+    }
+    compileActivation(diagram, node) {
+      const name = node.name.replace(/^"(.*)"$/, "$1");
+      let color = node.color;
+      if (color && color.startsWith("#")) {
+        const hexContent = color.substring(1);
+        const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
+        if (!isHex) color = hexContent;
+      }
+      if (node.action === "activate") {
+        if (name === this.lastMessageTo && this.lastMessageStep !== -1) {
+          diagram.activate(name, this.lastMessageStep, this.lastMessageStep, color);
+          this.lastActivationStep.set(name, this.lastMessageStep);
+        } else {
+          const step = diagram.nextStep();
+          diagram.activate(name, step, void 0, color);
+          this.lastActivationStep.set(name, step);
+        }
+      } else if (node.action === "deactivate") {
+        let shouldAlign = false;
+        if (this.lastMessageStep !== -1 && this.lastMessageStep > (this.lastActivationStep.get(name) ?? -1)) {
+          if (this.lastMessageType === "arrow") {
+            shouldAlign = name === this.lastMessageTo || name === this.lastMessageFrom;
+          } else if (this.lastMessageType === "dotted") {
+            shouldAlign = name === this.lastMessageFrom;
+          }
+        }
+        if (shouldAlign) {
+          diagram.deactivate(name, this.lastMessageStep);
+        } else {
+          diagram.deactivate(name, diagram.nextStep());
+        }
+      }
+    }
+    compileCreate(diagram, node) {
+      const name = node.name.replace(/^"(.*)"$/, "$1");
+      diagram.addParticipant(name, void 0, node.declType);
+      diagram.create(name, diagram.getCurrentStep());
+    }
+    compileDestroy(diagram, node) {
+      const name = node.name.replace(/^"(.*)"$/, "$1");
+      let shouldAlign = false;
+      if (this.lastMessageStep !== -1 && this.lastMessageStep > (this.lastActivationStep.get(name) ?? -1)) {
+        if (this.lastMessageType === "arrow") {
+          shouldAlign = name === this.lastMessageTo || name === this.lastMessageFrom;
+        } else if (this.lastMessageType === "dotted") {
+          shouldAlign = name === this.lastMessageFrom;
+        }
+      }
+      if (shouldAlign) {
+        diagram.destroy(name, this.lastMessageStep);
+      } else {
+        diagram.destroy(name, diagram.nextStep());
+      }
+    }
+    compileReference(diagram, node) {
+      const participants = node.participants.map((p) => p.replace(/^"(.*)"$/, "$1"));
+      diagram.addReference(participants, node.label);
+    }
+    compileAutonumber(diagram, node) {
+      if (node.action === "stop") {
+        diagram.stopAutonumber();
+      } else if (node.action === "resume") {
+        diagram.resumeAutonumber(node.increment, node.format);
+      } else if (node.action === "inc") {
+        if (node.level) {
+          diagram.incrementAutonumberLevel(node.level);
+        }
+      } else {
+        const start = node.start !== void 0 ? node.start : 1;
+        const increment = node.increment !== void 0 ? node.increment : 1;
+        diagram.setAutonumber(start, increment, node.format);
+      }
+    }
+    compileMeta(diagram, node) {
+      if (node.metaType === "title") {
+        diagram.setTitle(node.value || "");
+      } else if (node.metaType === "header") {
+        diagram.setHeader(node.value || "");
+      } else if (node.metaType === "footer") {
+        diagram.setFooter(node.value || "");
+      } else if (node.metaType === "hide_footbox") {
+        diagram.setHideFootbox(true);
+      }
+    }
+  };
+
   // src/diagrams/sequence/SequenceParser.ts
   var SequenceParser = class {
     parse(content) {
-      const diagram = new SequenceDiagram();
-      const lines = content.split("\n");
-      let pendingRef = null;
-      let pendingNote = null;
-      let lastMessageStep = -1;
-      let lastMessageFrom = "";
-      let lastMessageTo = "";
-      let lastMessageType = "";
-      let lastActivationStep = /* @__PURE__ */ new Map();
-      for (let i = 0; i < lines.length; i++) {
-        let line = lines[i];
-        const originalLine = line;
-        line = line.trim();
-        if (!line || line.startsWith("@") || line.startsWith("!pragma")) continue;
-        if (pendingNote) {
-          const lowerLine = line.toLowerCase();
-          const isEndNote = lowerLine.startsWith("end note");
-          const isEndHnote = lowerLine === "end hnote" || lowerLine === "endhnote";
-          const isEndRnote = lowerLine === "end rnote" || lowerLine === "endrnote";
-          const isEndBnote = lowerLine === "end bnote" || lowerLine === "endbnote";
-          if (isEndNote || isEndHnote || isEndRnote || isEndBnote) {
-            const normPos = pendingNote.position.toLowerCase();
-            let associationStep;
-            if (pendingNote.participants.length === 0) {
-              if ((normPos === "right" || normPos === "left") && lastMessageFrom && lastMessageTo) {
-                const idxFrom = diagram.participants.findIndex((p) => p.name === lastMessageFrom);
-                const idxTo = diagram.participants.findIndex((p) => p.name === lastMessageTo);
-                if (idxFrom !== -1 && idxTo !== -1) {
-                  const pFrom = diagram.participants[idxFrom];
-                  const pTo = diagram.participants[idxTo];
-                  let isFromLeftOfTo = idxFrom < idxTo;
-                  if (pFrom.order !== void 0 && pTo.order !== void 0) {
-                    isFromLeftOfTo = pFrom.order < pTo.order;
-                  }
-                  if (normPos === "left") {
-                    pendingNote.participants = [isFromLeftOfTo ? lastMessageFrom : lastMessageTo];
-                  } else {
-                    pendingNote.participants = [isFromLeftOfTo ? lastMessageTo : lastMessageFrom];
-                  }
-                } else {
-                  pendingNote.participants = [lastMessageTo];
-                }
-                if (lastMessageStep !== -1) {
-                  associationStep = lastMessageStep;
-                }
-              }
-            }
-            const text = pendingNote.text.join("\n").replace(/\\n/g, "\n");
-            diagram.addNote(text, pendingNote.position, pendingNote.participants, pendingNote.color, pendingNote.shape, associationStep);
-            pendingNote = null;
-          } else {
-            pendingNote.text.push(originalLine);
-          }
-          continue;
-        }
-        if (pendingRef) {
-          if (line.toLowerCase().startsWith("end ref")) {
-            diagram.addReference(pendingRef.participants, pendingRef.label.join("\n"));
-            pendingRef = null;
-          } else {
-            pendingRef.label.push(originalLine);
-          }
-          continue;
-        }
-        if (line.startsWith("'")) continue;
-        let sameStep = false;
-        if (line.startsWith("/")) {
-          sameStep = true;
-          line = line.substring(1).trim();
-          diagram.rewindStep();
-        }
-        const createMatch = line.match(/^create\s+(?:(actor|boundary|control|entity|database|collections)\s+)?(\w+)$/i);
-        if (createMatch) {
-          const [, type, name] = createMatch;
-          diagram.addParticipant(name, type);
-          diagram.create(name, diagram.getCurrentStep());
-          continue;
-        }
-        const actionMatch = line.match(/^(activate|deactivate|destroy)\s+(".*?"|\w+)(?:\s+(#\w+))?$/i);
-        if (actionMatch) {
-          let [, action, rawName, color] = actionMatch;
-          const name = rawName.replace(/^"(.*)"$/, "$1");
-          if (color && color.startsWith("#")) {
-            const hexContent = color.substring(1);
-            const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
-            if (!isHex) color = hexContent;
-          }
-          const act = action.toLowerCase();
-          if (act === "activate") {
-            if (name === lastMessageTo && lastMessageStep !== -1) {
-              diagram.activate(name, lastMessageStep, lastMessageStep, color);
-              lastActivationStep.set(name, lastMessageStep);
-            } else {
-              const step = diagram.nextStep();
-              diagram.activate(name, step, void 0, color);
-              lastActivationStep.set(name, step);
-            }
-          } else if (act === "deactivate") {
-            let shouldAlign = false;
-            if (lastMessageStep !== -1 && lastMessageStep > (lastActivationStep.get(name) ?? -1)) {
-              if (lastMessageType === "arrow") {
-                shouldAlign = name === lastMessageTo || name === lastMessageFrom;
-              } else if (lastMessageType === "dotted") {
-                shouldAlign = name === lastMessageFrom;
-              }
-            }
-            if (shouldAlign) {
-              diagram.deactivate(name, lastMessageStep);
-            } else {
-              diagram.deactivate(name, diagram.nextStep());
-            }
-          } else if (act === "destroy") {
-            let shouldAlign = false;
-            if (lastMessageStep !== -1 && lastMessageStep > (lastActivationStep.get(name) ?? -1)) {
-              if (lastMessageType === "arrow") {
-                shouldAlign = name === lastMessageTo || name === lastMessageFrom;
-              } else if (lastMessageType === "dotted") {
-                shouldAlign = name === lastMessageFrom;
-              }
-            }
-            if (shouldAlign) {
-              diagram.destroy(name, lastMessageStep);
-            } else {
-              diagram.destroy(name, diagram.nextStep());
-            }
-          }
-          continue;
-        }
-        const timeConstraintMatch = line.match(/^\{(\w+)\}\s*<->\s*\{(\w+)\}(?:\s*:\s*(.*))?$/);
-        if (timeConstraintMatch) {
-          const [, startTag, endTag, label] = timeConstraintMatch;
-          diagram.addTimeConstraint(startTag, endTag, label || "");
-          continue;
-        }
-        const delayMatch = line.match(/^\.\.\.(?:\s*(.*?)\s*\.\.\.)?$/);
-        if (delayMatch) {
-          const [, text] = delayMatch;
-          diagram.addDelay(text || void 0);
-          continue;
-        }
-        const arrowMatch = line.match(/^(?:\{(\w+)\}\s+)?(".*?"|\w+|x|\[|\])?\s*([<ox\\/]*)([-.]+)(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?\s*(".*?"|\w+|x|\[|\])?\s*(--\+\+|\+\+--|--|\+\+|\*\*|!!)?(?:\s+(#\w+))?(?:\s*:\s*(.*))?$/i);
-        if (arrowMatch) {
-          let [, tag, from, headStartStr, line1, msgColor, line2, headEndStr, to, shorthand, autoActivColor, text] = arrowMatch;
-          text = text || "";
-          const lineFull = line1 + (line2 || "");
-          if (lineFull.length > 0) {
-            if (from) from = from.replace(/^"(.*)"$/, "$1");
-            if (to) to = to.replace(/^"(.*)"$/, "$1");
-            if (!from || from === "[") from = "[";
-            if (!to || to === "]") to = "]";
-            const isDotted = lineFull.includes("..") || lineFull.includes("--");
-            let isBidirectional = headStartStr.includes("<") && (headEndStr || "").includes(">");
-            const mapHead = (s, isStart) => {
-              if (!s) return "none";
-              if (s === ">") return "default";
-              if (s === "<") return "default";
-              if (s === ">>") return "open";
-              if (s === "<<") return "open";
-              if (s === "\\" || s === "/") return "half";
-              if (s === "\\\\" || s === "//") return "open";
-              if (s.includes("x")) return "lost";
-              if (s.includes("o")) {
-                return "arrow-circle";
-              }
-              return "default";
-            };
-            let arrowHead = mapHead(headEndStr || "", false);
-            let startHead = mapHead(headStartStr || "", true);
-            if (headEndStr === "x") arrowHead = "lost";
-            if (from === "x") startHead = "found";
-            const normalizedText = text.replace(/\\n/g, "\n");
-            const step = diagram.addMessage(from, to, normalizedText, isDotted ? "dotted" : "arrow", arrowHead, msgColor, isBidirectional, startHead);
-            if (tag) {
-              diagram.addTaggedStep(tag, step);
-            }
-            let semanticFrom = from;
-            let semanticTo = to;
-            const isHead = (h) => ["default", "open", "half", "arrow-circle"].includes(h);
-            if (isHead(startHead) && !isHead(arrowHead)) {
-              semanticFrom = to;
-              semanticTo = from;
-            } else if (isHead(arrowHead) && !isHead(startHead)) {
-              semanticFrom = from;
-              semanticTo = to;
-            }
-            lastMessageStep = step;
-            lastMessageFrom = semanticFrom;
-            lastMessageTo = semanticTo;
-            lastMessageType = isDotted ? "dotted" : "arrow";
-            if (shorthand === "++") {
-              if (autoActivColor && autoActivColor.startsWith("#")) {
-                const hexContent = autoActivColor.substring(1);
-                const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
-                if (!isHex) {
-                  autoActivColor = hexContent;
-                }
-              }
-              diagram.activate(to, step, step, autoActivColor);
-              lastActivationStep.set(to, step);
-            } else if (shorthand === "--") {
-              diagram.deactivate(from, step, step);
-            } else if (shorthand === "--++") {
-              diagram.deactivate(from, step, step);
-              if (autoActivColor && autoActivColor.startsWith("#")) {
-                const hexContent = autoActivColor.substring(1);
-                const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
-                if (!isHex) {
-                  autoActivColor = hexContent;
-                }
-              }
-              diagram.activate(to, step, step, autoActivColor);
-              lastActivationStep.set(to, step);
-            } else if (shorthand === "++--") {
-              if (autoActivColor && autoActivColor.startsWith("#")) {
-                const hexContent = autoActivColor.substring(1);
-                const isHex = /^[0-9A-Fa-f]+$/.test(hexContent) && [3, 4, 6, 8].includes(hexContent.length);
-                if (!isHex) {
-                  autoActivColor = hexContent;
-                }
-              }
-              diagram.activate(from, step, step, autoActivColor);
-              lastActivationStep.set(from, step);
-              diagram.deactivate(to, step, step);
-            } else if (shorthand === "**") {
-              diagram.create(to, step);
-            } else if (shorthand === "!!") {
-              diagram.destroy(to, step);
-            }
-            continue;
-          }
-        }
-        const noteMatch = line.match(/^(h|r|b)?note\s+(left|right|over|across)(?:\s+(?:of\s+)?([^#:]+))?\s*(#\w+)?\s*(?::\s*(.*))?$/i);
-        if (noteMatch) {
-          let [, shapeType, position, participantsStr, color, text] = noteMatch;
-          let participants = [];
-          if (participantsStr && participantsStr.trim()) {
-            participants = participantsStr.split(",").map((p) => p.trim().replace(/^"(.*)"$/, "$1"));
-          }
-          let shape = "folder";
-          if (shapeType === "h") shape = "hexagon";
-          else if (shapeType === "r") shape = "rectangle";
-          else if (shapeType === "b") shape = "bubble";
-          if (text !== void 0) {
-            const normPos = position.toLowerCase();
-            let associationStep;
-            if (participants.length === 0) {
-              if ((normPos === "right" || normPos === "left") && lastMessageFrom && lastMessageTo) {
-                const idxFrom = diagram.participants.findIndex((p) => p.name === lastMessageFrom);
-                const idxTo = diagram.participants.findIndex((p) => p.name === lastMessageTo);
-                if (idxFrom !== -1 && idxTo !== -1) {
-                  const pFrom = diagram.participants[idxFrom];
-                  const pTo = diagram.participants[idxTo];
-                  let isFromLeftOfTo = idxFrom < idxTo;
-                  if (pFrom.order !== void 0 && pTo.order !== void 0) {
-                    isFromLeftOfTo = pFrom.order < pTo.order;
-                  }
-                  if (normPos === "left") {
-                    participants = [isFromLeftOfTo ? lastMessageFrom : lastMessageTo];
-                  } else {
-                    participants = [isFromLeftOfTo ? lastMessageTo : lastMessageFrom];
-                  }
-                } else {
-                  participants = [lastMessageTo];
-                }
-                if (lastMessageStep !== -1) {
-                  associationStep = lastMessageStep;
-                }
-              }
-            }
-            const normalizedText = text.replace(/\\n/g, "\n");
-            diagram.addNote(normalizedText, position.toLowerCase(), participants, color, shape, associationStep);
-          } else {
-            pendingNote = { text: [], position: position.toLowerCase(), participants, color, shape };
-          }
-          continue;
-        }
-        const groupStartMatch = line.match(/^(alt|opt|loop|par|break|critical|group)(?:\s+(.*))?$/i);
-        if (groupStartMatch) {
-          let [, type, label] = groupStartMatch;
-          diagram.startGroup(type.toLowerCase(), label || "");
-          continue;
-        }
-        const elseMatch = line.match(/^else(?:\s+(.*))?$/i);
-        if (elseMatch) {
-          let [, label] = elseMatch;
-          diagram.addGroupSection(label || "");
-          continue;
-        }
-        if (line.toLowerCase().startsWith("end")) {
-          diagram.endGroup();
-          continue;
-        }
-        const refMatch = line.match(/^ref\s+over\s+(.*?)(?:\s*:\s*(.*))?$/i);
-        if (refMatch) {
-          let [, participantsStr, label] = refMatch;
-          const participants = participantsStr.split(",").map((p) => p.trim().replace(/^"(.*)"$/, "$1"));
-          if (label) {
-            diagram.addReference(participants, label);
-          } else {
-            pendingRef = { participants, label: [] };
-          }
-          continue;
-        }
-        const returnMatch = line.match(/^return(?:\s+(.*))?$/i);
-        if (returnMatch) {
-          let [, text] = returnMatch;
-          const normalizedText = (text || "").replace(/\\n/g, "\n");
-          diagram.returnMessage(normalizedText);
-          continue;
-        }
-        if (/^autonumber\s+stop$/i.test(line)) {
-          diagram.stopAutonumber();
-          continue;
-        }
-        const autonumberResumeMatch = line.match(/^autonumber\s+resume(?:\s+(\d+))?(?:\s+"(.*?)"|)$/i);
-        if (autonumberResumeMatch) {
-          let [, increment, format] = autonumberResumeMatch;
-          diagram.resumeAutonumber(
-            increment ? parseInt(increment, 10) : void 0,
-            format
-          );
-          continue;
-        }
-        const autonumberIncMatch = line.match(/^autonumber\s+inc\s+([A-Z])$/i);
-        if (autonumberIncMatch) {
-          diagram.incrementAutonumberLevel(autonumberIncMatch[1]);
-          continue;
-        }
-        const autonumberMatch = line.match(/^autonumber(?:\s+([\d.]+))?(?:\s+(\d+))?(?:\s+"(.*?)"|)$/i);
-        if (autonumberMatch) {
-          let [, startStr, incrementStr, format] = autonumberMatch;
-          const increment = incrementStr ? parseInt(incrementStr, 10) : 1;
-          diagram.setAutonumber(startStr || 1, increment, format);
-          continue;
-        }
-        const autoactivateMatch = line.match(/^autoactivate\s+(on|off)$/i);
-        if (autoactivateMatch) {
-          diagram.setAutoactivate(autoactivateMatch[1].toLowerCase() === "on");
-          continue;
-        }
-        const dividerMatch = line.match(/^==\s*(.*?)\s*==$/);
-        if (dividerMatch) {
-          diagram.addDivider(dividerMatch[1]);
-          continue;
-        }
-        if (line === "|||") {
-          diagram.addSpacing();
-          continue;
-        }
-        const spacingMatch = line.match(/^\|\|(\d+)\|\|$/);
-        if (spacingMatch) {
-          diagram.addSpacing(parseInt(spacingMatch[1], 10));
-          continue;
-        }
-        const metaMatch = line.match(/^(title|header|footer)\s+(.*)$/i);
-        if (metaMatch) {
-          const [, type, text] = metaMatch;
-          if (type.toLowerCase() === "title") diagram.setTitle(text);
-          else if (type.toLowerCase() === "header") diagram.setHeader(text);
-          else if (type.toLowerCase() === "footer") diagram.setFooter(text);
-          continue;
-        }
-        if (line.toLowerCase() === "hide footbox") {
-          diagram.setHideFootbox(true);
-          continue;
-        }
-        const participantTypes = "(participant|actor|boundary|control|entity|database|collections|queue)";
-        const participantRegex = new RegExp(`^${participantTypes}\\s+(".*?"|\\w+)\\s*(?:<<\\s*(.*?)\\s*>>)?(?:\\s+as\\s+(".*?"|\\w+))?\\s*(?:<<\\s*(.*?)\\s*>>)?(?:\\s+order\\s+(\\d+))?(?:\\s+(#\\w+))?$`, "i");
-        const pMatch = line.match(participantRegex);
-        if (pMatch) {
-          let [, type, name, stereotype1, label, stereotype2, orderStr, color] = pMatch;
-          if (!type || !name) continue;
-          const stereotype = stereotype1 || stereotype2;
-          let participantName;
-          let participantLabel;
-          if (label) {
-            if (label.startsWith('"')) {
-              participantName = name.replace(/^"(.*)"$/, "$1");
-              participantLabel = label.replace(/^"(.*)"$/, "$1");
-            } else {
-              participantName = label.replace(/^"(.*)"$/, "$1");
-              participantLabel = name.replace(/^"(.*)"$/, "$1");
-            }
-          } else {
-            participantName = name.replace(/^"(.*)"$/, "$1");
-            participantLabel = void 0;
-          }
-          const order = orderStr ? parseInt(orderStr, 10) : void 0;
-          diagram.addParticipant(participantName, participantLabel, type.toLowerCase(), order, color, stereotype);
-          continue;
-        }
-        if (originalLine.trim() !== "" && !originalLine.trim().startsWith("'")) {
-          throw new Error(`Syntax error at line ${i + 1}: ${line}`);
-        }
-      }
-      return diagram;
+      const lexer = new Lexer(content);
+      const tokens = lexer.scanTokens();
+      const astParser = new SequenceASTParser(tokens, content);
+      const ast = astParser.parse();
+      const compiler = new SequenceASTCompiler();
+      return compiler.compile(ast);
     }
   };
 
@@ -1747,6 +2762,461 @@ var seeduml = (() => {
     }
   };
 
+  // src/diagrams/component/parser/ComponentASTParser.ts
+  var ComponentASTParser = class {
+    constructor(tokens, source) {
+      this.current = 0;
+      this.tokens = tokens;
+      this.source = source;
+      this.sourceLines = source.split("\n");
+    }
+    sliceSource(startLine, startCol, endLine, endCol) {
+      const startLineIdx = startLine - 1;
+      const startColIdx = startCol - 1;
+      const endLineIdx = endLine - 1;
+      const endColIdx = endCol - 1;
+      if (startLineIdx === endLineIdx) {
+        return this.sourceLines[startLineIdx].substring(startColIdx, endColIdx);
+      }
+      const parts = [];
+      parts.push(this.sourceLines[startLineIdx].substring(startColIdx));
+      for (let i = startLineIdx + 1; i < endLineIdx; i++) {
+        parts.push(this.sourceLines[i]);
+      }
+      parts.push(this.sourceLines[endLineIdx].substring(0, endColIdx));
+      return parts.join("\n");
+    }
+    parse() {
+      const body = [];
+      while (!this.isAtEnd()) {
+        this.skipNewlines();
+        if (this.isAtEnd()) break;
+        const statement = this.parseStatement();
+        if (statement) {
+          body.push(statement);
+        }
+        this.consumeNewlineOrEOF();
+      }
+      return {
+        type: "ComponentDiagram",
+        body,
+        line: 1,
+        column: 1
+      };
+    }
+    parseStatement() {
+      const token = this.peek();
+      if (token.type === "RBRACE" /* RBRACE */) {
+        return null;
+      }
+      if (token.type === "PACKAGE" /* PACKAGE */ || token.type === "NODE" /* NODE */ || token.type === "FOLDER" /* FOLDER */ || token.type === "FRAME" /* FRAME */ || token.type === "CLOUD" /* CLOUD */ || token.type === "DATABASE" /* DATABASE */ || (token.type === "COMPONENT" /* COMPONENT */ || token.type === "INTERFACE" /* INTERFACE */) && this.checkLbraceAhead()) {
+        return this.parseGroup();
+      }
+      if (token.type === "PORT" /* PORT */ || token.type === "PORTIN" /* PORTIN */ || token.type === "PORTOUT" /* PORTOUT */) {
+        return this.parsePort();
+      }
+      if (token.type === "NOTE" /* NOTE */) {
+        return this.parseNote();
+      }
+      const lhs = this.parseRefElement();
+      if (!lhs) {
+        this.advance();
+        return null;
+      }
+      const next = this.peek();
+      if (lhs.isBracketed && (next.type === "LEFT" /* LEFT */ || next.type === "RIGHT" /* RIGHT */ || next.type === "TOP" /* TOP */ || next.type === "BOTTOM" /* BOTTOM */)) {
+        const posToken = this.advance();
+        const position = posToken.value.toLowerCase();
+        this.consume("OF" /* OF */, "Expected 'of' after direction hint");
+        const rhs = this.parseRefElement();
+        if (!rhs) {
+          throw this.error(posToken, "Expected reference component after 'of'");
+        }
+        let color2;
+        if (this.match("COLOR" /* COLOR */)) {
+          color2 = this.previous().value;
+        }
+        return {
+          type: "PositionHint",
+          name: lhs.name,
+          position,
+          reference: rhs.name,
+          color: color2,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (next.type === "ARROW" /* ARROW */ || next.type === "SHORTHAND" /* SHORTHAND */ && next.value === "--") {
+        const arrowToken = this.advance();
+        const rhs = this.parseRefElement();
+        if (!rhs) {
+          throw this.error(arrowToken, "Expected right-hand side component in relationship");
+        }
+        let label;
+        if (this.match("COLON" /* COLON */)) {
+          label = this.parseLabelRestOfLine();
+        }
+        return {
+          type: "Relationship",
+          from: { name: lhs.name, isBracketed: lhs.isBracketed, isParens: lhs.isParens },
+          to: { name: rhs.name, isBracketed: rhs.isBracketed, isParens: rhs.isParens },
+          arrow: arrowToken.value,
+          label,
+          line: token.line,
+          column: token.column
+        };
+      }
+      if (lhs.keywordType === "component" || lhs.keywordType === "interface") {
+        let color2;
+        if (this.match("COLOR" /* COLOR */)) {
+          color2 = this.previous().value;
+        }
+        let description2;
+        if (this.match("LBRACKET" /* LBRACKET */)) {
+          description2 = this.parseMultilineDescription();
+        }
+        return {
+          type: "ComponentDeclaration",
+          declType: lhs.keywordType,
+          name: lhs.name,
+          label: lhs.rawName,
+          alias: lhs.alias,
+          color: color2,
+          description: description2,
+          line: token.line,
+          column: token.column
+        };
+      }
+      let alias;
+      if (this.match("AS" /* AS */)) {
+        alias = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected alias after 'as'").value;
+      }
+      let color;
+      if (this.match("COLOR" /* COLOR */)) {
+        color = this.previous().value;
+      }
+      let description;
+      if (this.match("LBRACKET" /* LBRACKET */)) {
+        description = this.parseMultilineDescription();
+      }
+      return {
+        type: "ComponentDeclaration",
+        declType: lhs.isParens ? "interface" : "component",
+        name: alias || lhs.name,
+        label: lhs.rawName,
+        alias,
+        color,
+        description,
+        line: token.line,
+        column: token.column
+      };
+    }
+    parseRefElement() {
+      const startToken = this.peek();
+      if (startToken.type === "IDENTIFIER" /* IDENTIFIER */ && startToken.value === "()") {
+        this.advance();
+        const nameToken = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected name after lollipop '()'");
+        let name = nameToken.value;
+        let alias;
+        if (this.match("AS" /* AS */)) {
+          alias = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected alias after 'as'").value;
+        }
+        return {
+          name: alias || name,
+          rawName: name,
+          isBracketed: false,
+          isParens: true,
+          alias
+        };
+      }
+      if (this.match("LBRACKET" /* LBRACKET */)) {
+        const startToken2 = this.previous();
+        while (!this.check("RBRACKET" /* RBRACKET */) && !this.isAtEnd()) {
+          this.advance();
+        }
+        const endToken = this.consume("RBRACKET" /* RBRACKET */, "Expected closing bracket ']'");
+        const name = this.sliceSource(
+          startToken2.line,
+          startToken2.column + startToken2.value.length,
+          endToken.line,
+          endToken.column
+        );
+        let alias;
+        if (this.match("AS" /* AS */)) {
+          alias = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected alias after 'as'").value;
+        }
+        return {
+          name: alias || name,
+          rawName: name,
+          isBracketed: true,
+          isParens: false,
+          alias
+        };
+      }
+      if (this.match("COMPONENT" /* COMPONENT */, "INTERFACE" /* INTERFACE */)) {
+        const keywordType = this.previous().type === "COMPONENT" /* COMPONENT */ ? "component" : "interface";
+        let name = "";
+        let isBracketed = false;
+        let label;
+        if (this.match("LBRACKET" /* LBRACKET */)) {
+          const startToken2 = this.previous();
+          while (!this.check("RBRACKET" /* RBRACKET */) && !this.isAtEnd()) {
+            this.advance();
+          }
+          const endToken = this.consume("RBRACKET" /* RBRACKET */, "Expected closing bracket ']'");
+          name = this.sliceSource(
+            startToken2.line,
+            startToken2.column + startToken2.value.length,
+            endToken.line,
+            endToken.column
+          );
+          isBracketed = true;
+        } else {
+          const nameToken = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected name after keyword");
+          name = nameToken.value;
+        }
+        let alias;
+        if (this.match("AS" /* AS */)) {
+          alias = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected alias after 'as'").value;
+        }
+        return {
+          name: alias || name,
+          rawName: name,
+          isBracketed,
+          isParens: keywordType === "interface",
+          keywordType,
+          alias
+        };
+      }
+      if (this.match("IDENTIFIER" /* IDENTIFIER */)) {
+        const name = this.previous().value;
+        return {
+          name,
+          rawName: name,
+          isBracketed: false,
+          isParens: false
+        };
+      }
+      return null;
+    }
+    parseGroup() {
+      const startToken = this.advance();
+      const containerType = startToken.value.toLowerCase();
+      let name = "";
+      if (this.match("IDENTIFIER" /* IDENTIFIER */)) {
+        name = this.previous().value;
+      }
+      this.consume("LBRACE" /* LBRACE */, "Expected '{' to start group block");
+      this.consumeNewlineOrEOF();
+      const body = [];
+      while (!this.check("RBRACE" /* RBRACE */) && !this.isAtEnd()) {
+        this.skipNewlines();
+        if (this.check("RBRACE" /* RBRACE */)) break;
+        const statement = this.parseStatement();
+        if (statement) {
+          body.push(statement);
+        }
+        this.consumeNewlineOrEOF();
+      }
+      this.consume("RBRACE" /* RBRACE */, "Expected '}' to close group block");
+      return {
+        type: "GroupContainer",
+        containerType,
+        name,
+        body,
+        line: startToken.line,
+        column: startToken.column
+      };
+    }
+    parsePort() {
+      const startToken = this.advance();
+      const portType = startToken.value.toLowerCase();
+      const nameToken = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected name for port");
+      let name = nameToken.value;
+      let alias;
+      if (this.match("AS" /* AS */)) {
+        alias = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected alias after 'as'").value;
+      }
+      return {
+        type: "PortDeclaration",
+        portType,
+        name: alias || name,
+        label: name,
+        alias,
+        line: startToken.line,
+        column: startToken.column
+      };
+    }
+    parseNote() {
+      const startToken = this.advance();
+      if (this.match("AS" /* AS */)) {
+        const aliasToken = this.consume("IDENTIFIER" /* IDENTIFIER */, "Expected alias after 'as' in floating note");
+        this.consumeNewlineOrEOF();
+        const text2 = this.parseMultilineNoteText();
+        return {
+          type: "ComponentNote",
+          alias: aliasToken.value,
+          text: text2,
+          line: startToken.line,
+          column: startToken.column
+        };
+      }
+      let position;
+      if (this.match("LEFT" /* LEFT */)) position = "left";
+      else if (this.match("RIGHT" /* RIGHT */)) position = "right";
+      else if (this.match("TOP" /* TOP */)) position = "top";
+      else if (this.match("BOTTOM" /* BOTTOM */)) position = "bottom";
+      else {
+        throw this.error(this.peek(), "Expected direction (left, right, top, bottom) in note");
+      }
+      this.consume("OF" /* OF */, "Expected 'of' in note declaration");
+      const target = this.parseRefElement();
+      if (!target) {
+        throw this.error(this.peek(), "Expected target after 'of' in note declaration");
+      }
+      if (this.match("COLON" /* COLON */)) {
+        const text2 = this.parseLabelRestOfLine();
+        return {
+          type: "ComponentNote",
+          position,
+          linkedTo: { name: target.name, isBracketed: target.isBracketed },
+          text: text2,
+          line: startToken.line,
+          column: startToken.column
+        };
+      }
+      this.consumeNewlineOrEOF();
+      const text = this.parseMultilineNoteText();
+      return {
+        type: "ComponentNote",
+        position,
+        linkedTo: { name: target.name, isBracketed: target.isBracketed },
+        text,
+        line: startToken.line,
+        column: startToken.column
+      };
+    }
+    parseMultilineNoteText() {
+      const lines = [];
+      while (!this.isAtEnd()) {
+        const token = this.peek();
+        if ((token.type === "END" /* END */ || token.type === "IDENTIFIER" /* IDENTIFIER */ && token.value.toLowerCase() === "end") && (this.peekNext().type === "NOTE" /* NOTE */ || this.peekNext().value.toLowerCase() === "note")) {
+          this.advance();
+          this.advance();
+          break;
+        }
+        let lineStr = "";
+        while (!this.check("NEWLINE" /* NEWLINE */) && !this.isAtEnd()) {
+          lineStr += (lineStr ? " " : "") + this.advance().value;
+        }
+        lines.push(lineStr);
+        this.consumeNewlineOrEOF();
+      }
+      return lines.join("\n");
+    }
+    parseMultilineDescription() {
+      const lines = [];
+      while (!this.isAtEnd()) {
+        const token = this.peek();
+        if (token.type === "RBRACKET" /* RBRACKET */) {
+          this.advance();
+          break;
+        }
+        let lineStr = "";
+        while (!this.check("NEWLINE" /* NEWLINE */) && !this.isAtEnd()) {
+          const currentToken = this.advance();
+          if (currentToken.type === "RBRACKET" /* RBRACKET */) {
+            break;
+          }
+          lineStr += (lineStr ? " " : "") + currentToken.value;
+        }
+        lines.push(lineStr);
+        if (this.previous().type === "RBRACKET" /* RBRACKET */) {
+          break;
+        }
+        this.consumeNewlineOrEOF();
+      }
+      return lines.join("\n").trim();
+    }
+    parseLabelRestOfLine() {
+      let label = "";
+      while (!this.check("NEWLINE" /* NEWLINE */) && !this.isAtEnd()) {
+        label += (label ? " " : "") + this.advance().value;
+      }
+      return label.trim();
+    }
+    // Helper operations
+    peek() {
+      return this.tokens[this.current];
+    }
+    peekNext() {
+      if (this.current + 1 >= this.tokens.length) return this.tokens[this.tokens.length - 1];
+      return this.tokens[this.current + 1];
+    }
+    previous() {
+      return this.tokens[this.current - 1];
+    }
+    isAtEnd() {
+      return this.peek().type === "EOF" /* EOF */;
+    }
+    check(type) {
+      if (this.isAtEnd()) return false;
+      return this.peek().type === type;
+    }
+    advance() {
+      if (!this.isAtEnd()) this.current++;
+      return this.previous();
+    }
+    match(...types) {
+      for (const type of types) {
+        if (this.check(type)) {
+          this.advance();
+          return true;
+        }
+      }
+      return false;
+    }
+    consume(type, message) {
+      if (this.check(type)) return this.advance();
+      throw this.error(this.peek(), message);
+    }
+    consumeNewlineOrEOF() {
+      if (this.match("NEWLINE" /* NEWLINE */) || this.isAtEnd()) {
+        return;
+      }
+      while (!this.check("NEWLINE" /* NEWLINE */) && !this.isAtEnd()) {
+        this.advance();
+      }
+      this.match("NEWLINE" /* NEWLINE */);
+    }
+    skipNewlines() {
+      while (this.check("NEWLINE" /* NEWLINE */)) {
+        this.advance();
+      }
+    }
+    checkLbraceAhead() {
+      let temp = this.current;
+      while (temp < this.tokens.length) {
+        const tok = this.tokens[temp];
+        if (tok.type === "NEWLINE" /* NEWLINE */ || tok.type === "EOF" /* EOF */) {
+          break;
+        }
+        if (tok.type === "LBRACE" /* LBRACE */) {
+          return true;
+        }
+        temp++;
+      }
+      return false;
+    }
+    error(token, message) {
+      return new ParseError(
+        `Component AST Parser Error at line ${token.line}, col ${token.column}: ${message} (Got: '${token.value}')`,
+        token.line,
+        token.column
+      );
+    }
+  };
+
   // src/diagrams/component/ComponentDiagram.ts
   var ComponentDiagram = class {
     constructor() {
@@ -1788,266 +3258,150 @@ var seeduml = (() => {
     }
   };
 
-  // src/diagrams/component/ComponentParser.ts
-  var ComponentParser = class {
-    parse(content) {
+  // src/diagrams/component/parser/ComponentASTCompiler.ts
+  var ComponentASTCompiler = class {
+    constructor() {
+      this.noteAliases = /* @__PURE__ */ new Set();
+    }
+    compile(ast) {
       const diagram = new ComponentDiagram();
-      const lines = content.split("\n");
-      const explicitDefinitions = /* @__PURE__ */ new Set();
-      const noteAliases = /* @__PURE__ */ new Set();
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line || line.startsWith("'") || line.startsWith("@")) continue;
-        const componentMatch = line.match(/^component\s+(?:\[(.*?)\]|(".*?"|\S+))(?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/i);
-        if (componentMatch) {
-          explicitDefinitions.add(componentMatch[3] || componentMatch[1] || (componentMatch[2] ? componentMatch[2].replace(/^"(.*)"$/, "$1") : ""));
-          continue;
-        }
-        const interfaceMatch = line.match(/^interface\s+(".*?"|\S+)(?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/i);
-        if (interfaceMatch) {
-          explicitDefinitions.add(interfaceMatch[2] || interfaceMatch[1].replace(/^"(.*)"$/, "$1"));
-          continue;
-        }
-        const circleMatch = line.match(/^\(\)\s+(".*?"|\S+)(?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/);
-        if (circleMatch) {
-          explicitDefinitions.add(circleMatch[2] || circleMatch[1].replace(/^"(.*)"$/, "$1"));
-          continue;
-        }
-        const bracketMatch = line.match(/^\[([^\]]+)\](?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/);
-        if (bracketMatch) {
-          explicitDefinitions.add(bracketMatch[2] || bracketMatch[1]);
-          continue;
-        }
-        const portMatch = line.match(/^(port|portin|portout)\s+(".*?"|\S+)(?:\s+as\s+(\S+))?$/i);
-        if (portMatch) {
-          explicitDefinitions.add(portMatch[3] || portMatch[2].replace(/^"(.*)"$/, "$1"));
-          continue;
-        }
-        const floatingNoteMatch = line.match(/^note\s+as\s+(\S+)$/i);
-        if (floatingNoteMatch) {
-          noteAliases.add(floatingNoteMatch[1]);
-          continue;
-        }
-      }
-      let pendingNote = null;
-      let parentStack = [];
-      for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].trim();
-        if (!line || line.startsWith("'") || line.startsWith("@")) continue;
-        if (pendingNote) {
-          if (line.endsWith("]")) {
-            if (pendingNote.isDescription && pendingNote.linkedTo) {
-              const description = pendingNote.text.join("\n");
-              const comp = diagram.findComponent(pendingNote.linkedTo);
-              if (comp) {
-                comp.label = description;
-              }
-              pendingNote = null;
-            } else if (line.toLowerCase() === "end note") {
-              diagram.addNote(pendingNote.text.join("\n"), pendingNote.position, pendingNote.linkedTo, pendingNote.alias);
-              pendingNote = null;
-            } else {
-              pendingNote.text.push(line);
-            }
-          } else if (line.toLowerCase() === "end note" && !pendingNote.isDescription) {
-            diagram.addNote(pendingNote.text.join("\n"), pendingNote.position, pendingNote.linkedTo, pendingNote.alias);
-            pendingNote = null;
-          } else {
-            if (pendingNote.isDescription && line.endsWith("]")) {
-              const content2 = line.substring(0, line.length - 1).trim();
-              if (content2) pendingNote.text.push(content2);
-              const description = pendingNote.text.join("\n");
-              const comp = diagram.findComponent(pendingNote.linkedTo);
-              if (comp) {
-                comp.label = description;
-              }
-              pendingNote = null;
-            } else {
-              pendingNote.text.push(line);
-            }
-          }
-          continue;
-        }
-        const currentParentId = parentStack.length > 0 ? parentStack[parentStack.length - 1] : void 0;
-        const posHintMatch = line.match(/^\[([^\]]+)\]\s+(left\s+of|right\s+of|top\s+of|bottom\s+of)\s+\[([^\]]+)\](?:\s+(#\w+))?$/i);
-        if (posHintMatch) {
-          const name = posHintMatch[1];
-          const posRaw = posHintMatch[2].toLowerCase().replace(/\s+of$/, "");
-          const refName = posHintMatch[3];
-          const color = posHintMatch[4];
-          let position;
-          if (posRaw === "left") position = "left";
-          else if (posRaw === "right") position = "right";
-          else if (posRaw === "top") position = "top";
-          else position = "bottom";
-          const comp = diagram.addComponent(name, "component", name, currentParentId, this.parseColor(color));
-          comp.positionHint = { reference: refName, position };
-          continue;
-        }
-        const componentMatch = line.match(/^component\s+(?:\[(.*?)\]|(".*?"|\S+))(?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/i);
-        if (componentMatch) {
-          const bracketName = componentMatch[1];
-          const simpleName = componentMatch[2];
-          const alias = componentMatch[3];
-          const color = componentMatch[4];
-          const label = bracketName || (simpleName ? simpleName.replace(/^"(.*)"$/, "$1") : "");
-          const id = alias || label;
-          diagram.addComponent(id, "component", label, currentParentId, this.parseColor(color));
-          if (line.trim().endsWith("[")) {
-            pendingNote = { text: [], linkedTo: id, alias: void 0, isDescription: true };
-          }
-          continue;
-        }
-        const interfaceMatch = line.match(/^interface\s+(".*?"|\S+)(?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/i);
-        if (interfaceMatch) {
-          const name = interfaceMatch[1].replace(/^"(.*)"$/, "$1");
-          const alias = interfaceMatch[2];
-          const color = interfaceMatch[3];
-          diagram.addComponent(alias || name, "interface", name, currentParentId, this.parseColor(color));
-          if (line.trim().endsWith("[")) {
-            pendingNote = { text: [], linkedTo: alias || name, alias: void 0, isDescription: true };
-          }
-          continue;
-        }
-        const circleMatch = line.match(/^\(\)\s+(".*?"|\S+)(?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/);
-        if (circleMatch) {
-          const name = circleMatch[1].replace(/^"(.*)"$/, "$1");
-          const alias = circleMatch[2];
-          const color = circleMatch[3];
-          diagram.addComponent(alias || name, "interface", name, currentParentId, this.parseColor(color));
-          continue;
-        }
-        const bracketMatch = line.match(/^\[([^\]]+)\](?:\s+as\s+(\S+))?(?:\s+(#\w+))?(?:\s*\[)?$/);
-        if (bracketMatch) {
-          const label = bracketMatch[1];
-          const alias = bracketMatch[2];
-          const color = bracketMatch[3];
-          const id = alias || label;
-          diagram.addComponent(id, "component", label, currentParentId, this.parseColor(color));
-          if (line.trim().endsWith("[")) {
-            pendingNote = { text: [], linkedTo: id, alias: void 0, isDescription: true };
-          }
-          continue;
-        }
-        const groupStartMatch = line.match(/^(package|node|folder|frame|cloud|database|component|interface)(?:\s+(".*?"|\S+))?\s*\{$/i);
-        if (groupStartMatch) {
-          const type = groupStartMatch[1].toLowerCase();
-          const nameRaw = groupStartMatch[2];
-          let groupId = nameRaw ? nameRaw.replace(/^"(.*)"$/, "$1") : type;
-          if (!nameRaw) {
-            const count = diagram.components.filter((c) => c.type === type).length;
-            groupId = `${type}_${count}_${i}`;
-            diagram.addComponent(groupId, type, "", currentParentId);
-          } else {
-            diagram.addComponent(groupId, type, groupId, currentParentId);
-          }
-          parentStack.push(groupId);
-          continue;
-        }
-        if (line === "}") {
-          parentStack.pop();
-          continue;
-        }
-        const portMatch = line.match(/^(port|portin|portout)\s+(".*?"|\S+)(?:\s+as\s+(\S+))?$/i);
-        if (portMatch) {
-          const type = portMatch[1].toLowerCase();
-          const name = portMatch[2].replace(/^"(.*)"$/, "$1");
-          const alias = portMatch[3];
-          let componentType = "port";
-          if (type === "portin") componentType = "portin";
-          if (type === "portout") componentType = "portout";
-          diagram.addComponent(alias || name, componentType, name, currentParentId);
-          continue;
-        }
-        const componentRef = `(\\(\\)\\s+)?(?:\\[([^\\]]+)\\]|(".*?"|[^\\s-]+))`;
-        const arrowRef = `([<>]*[-.]+[<>]*[^[\\]\\s]*)`;
-        const separator = `(?:\\s+|(?<=[^\\s])(?=[<\\-.>])|(?<=[<\\-.>])(?=[^\\s]))`;
-        const relRegex = new RegExp(`^${componentRef}${separator}${arrowRef}${separator}${componentRef}(?:\\s*:\\s*(.*))?$`);
-        const relMatch = line.match(relRegex);
-        if (relMatch) {
-          const isParens1 = !!relMatch[1];
-          const id1RawVal = relMatch[2] || relMatch[3];
-          const isId1BracketedVal = !!relMatch[2];
-          const arrow = relMatch[4];
-          const isParens2 = !!relMatch[5];
-          const id2RawVal = relMatch[6] || relMatch[7];
-          const isId2BracketedVal = !!relMatch[6];
-          const label = relMatch[8];
-          let id1Raw = id1RawVal;
-          let id2Raw = id2RawVal;
-          let isId1Bracketed = isId1BracketedVal;
-          let isId2Bracketed = isId2BracketedVal;
-          let isId1Parens = isParens1;
-          let isId2Parens = isParens2;
-          const hasReverse = arrow.includes("<");
-          const hasForward = arrow.includes(">");
-          if (hasReverse && !hasForward) {
-            id1Raw = id2RawVal;
-            id2Raw = id1RawVal;
-            isId1Bracketed = isId2BracketedVal;
-            isId2Bracketed = isId1BracketedVal;
-            isId1Parens = isParens2;
-            isId2Parens = isParens1;
-          }
-          const id1 = id1Raw.replace(/^"(.*)"$/, "$1");
-          const id2 = id2Raw.replace(/^"(.*)"$/, "$1");
-          if (!diagram.components.some((c) => c.name === id1) && !noteAliases.has(id1)) {
-            const type2 = isId1Bracketed ? "component" : "interface";
-            diagram.addComponent(id1, type2, id1, currentParentId);
-          }
-          if (!diagram.components.some((c) => c.name === id2) && !noteAliases.has(id2)) {
-            const type2 = isId2Bracketed ? "component" : "interface";
-            diagram.addComponent(id2, type2, id2, currentParentId);
-          }
-          let type = "solid";
-          if (arrow.includes("..")) type = "dashed";
-          else if (arrow.includes("--")) type = "solid";
-          let direction = void 0;
-          if (arrow.includes("left") || arrow.includes("le")) direction = "left";
-          else if (arrow.includes("right") || arrow.includes("ri")) direction = "right";
-          else if (arrow.includes("up")) direction = "up";
-          else if (arrow.includes("down") || arrow.includes("do")) direction = "down";
-          if (!direction) {
-            const stripped = arrow.replace(/[<>]/g, "");
-            const dashMatch = stripped.match(/(-+|\.+)/);
-            if (dashMatch) {
-              const len = dashMatch[1].length;
-              if (hasReverse && !hasForward) {
-                direction = len >= 2 ? "up" : "left";
-              } else {
-                direction = len >= 2 ? "down" : "right";
-              }
-            }
-          }
-          const hasArrowHead = hasForward || hasReverse;
-          diagram.addRelationship(id1, id2, type, label, direction, hasArrowHead, currentParentId);
-          continue;
-        }
-        const floatingNoteMatch = line.match(/^note\s+as\s+(\S+)$/i);
-        if (floatingNoteMatch) {
-          const alias = floatingNoteMatch[1];
-          pendingNote = { text: [], alias };
-          continue;
-        }
-        const noteMatch = line.match(/^note\s+(left|right|top|bottom)\s+of\s+(?:\[(.*?)\]|(".*?"|\S+))(?:\s*:\s*(.*))?$/i);
-        if (noteMatch) {
-          const pos = noteMatch[1].toLowerCase();
-          const targetDisplay = noteMatch[2] || noteMatch[3];
-          const targetId = targetDisplay.replace(/^"(.*)"$/, "$1");
-          const isBracketed = !!noteMatch[2];
-          if (!diagram.findComponent(targetId)) {
-            diagram.addComponent(targetId, isBracketed ? "component" : "interface");
-          }
-          const text = noteMatch[4];
-          if (text) {
-            diagram.addNote(text, pos, targetId);
-          } else {
-            pendingNote = { text: [], position: pos, linkedTo: targetId };
-          }
-          continue;
-        }
-      }
+      this.collectNoteAliases(ast.body);
+      this.compileNodes(ast.body, diagram);
       return diagram;
+    }
+    collectNoteAliases(nodes) {
+      for (const node of nodes) {
+        if (node.type === "ComponentNote" && node.alias) {
+          this.noteAliases.add(node.alias);
+        } else if (node.type === "GroupContainer") {
+          this.collectNoteAliases(node.body);
+        }
+      }
+    }
+    compileNodes(nodes, diagram, parentId) {
+      for (const node of nodes) {
+        switch (node.type) {
+          case "ComponentDeclaration":
+            this.compileDeclaration(node, diagram, parentId);
+            break;
+          case "PortDeclaration":
+            this.compilePort(node, diagram, parentId);
+            break;
+          case "GroupContainer":
+            this.compileGroup(node, diagram, parentId);
+            break;
+          case "Relationship":
+            this.compileRelationship(node, diagram, parentId);
+            break;
+          case "ComponentNote":
+            this.compileNote(node, diagram);
+            break;
+          case "PositionHint":
+            this.compilePositionHint(node, diagram, parentId);
+            break;
+        }
+      }
+    }
+    compileDeclaration(node, diagram, parentId) {
+      const cleanName = this.stripQuotes(node.name);
+      const cleanLabel = node.label ? this.stripQuotes(node.label) : cleanName;
+      const color = this.parseColor(node.color);
+      const comp = diagram.addComponent(cleanName, node.declType, cleanLabel, parentId, color);
+      if (node.description) {
+        comp.label = node.description;
+      }
+    }
+    compilePort(node, diagram, parentId) {
+      const cleanName = this.stripQuotes(node.name);
+      const cleanLabel = node.label ? this.stripQuotes(node.label) : cleanName;
+      diagram.addComponent(cleanName, node.portType, cleanLabel, parentId);
+    }
+    compileGroup(node, diagram, parentId) {
+      const type = node.containerType;
+      const cleanName = this.stripQuotes(node.name);
+      let groupId = cleanName;
+      if (!cleanName) {
+        const count = diagram.components.filter((c) => c.type === type).length;
+        groupId = `${type}_${count}_group`;
+        diagram.addComponent(groupId, type, "", parentId);
+      } else {
+        diagram.addComponent(cleanName, type, cleanName, parentId);
+      }
+      this.compileNodes(node.body, diagram, groupId);
+    }
+    compileRelationship(node, diagram, parentId) {
+      let fromVal = node.from.name;
+      let toVal = node.to.name;
+      let isFromBracketed = node.from.isBracketed;
+      let isToBracketed = node.to.isBracketed;
+      let isFromParens = node.from.isParens;
+      let isToParens = node.to.isParens;
+      const arrow = node.arrow;
+      const hasReverse = arrow.includes("<");
+      const hasForward = arrow.includes(">");
+      if (hasReverse && !hasForward) {
+        fromVal = node.to.name;
+        toVal = node.from.name;
+        isFromBracketed = node.to.isBracketed;
+        isToBracketed = node.from.isBracketed;
+        isFromParens = node.to.isParens;
+        isToParens = node.from.isParens;
+      }
+      const id1 = this.stripQuotes(fromVal);
+      const id2 = this.stripQuotes(toVal);
+      if (!diagram.components.some((c) => c.name === id1) && !this.noteAliases.has(id1)) {
+        const type2 = isFromBracketed ? "component" : "interface";
+        diagram.addComponent(id1, type2, id1, parentId);
+      }
+      if (!diagram.components.some((c) => c.name === id2) && !this.noteAliases.has(id2)) {
+        const type2 = isToBracketed ? "component" : "interface";
+        diagram.addComponent(id2, type2, id2, parentId);
+      }
+      let type = "solid";
+      if (arrow.includes("..")) {
+        type = "dashed";
+      }
+      let direction = void 0;
+      if (arrow.includes("left") || arrow.includes("le")) direction = "left";
+      else if (arrow.includes("right") || arrow.includes("ri")) direction = "right";
+      else if (arrow.includes("up")) direction = "up";
+      else if (arrow.includes("down") || arrow.includes("do")) direction = "down";
+      if (!direction) {
+        const stripped = arrow.replace(/[<>]/g, "");
+        const dashMatch = stripped.match(/(-+|\.+)/);
+        if (dashMatch) {
+          const len = dashMatch[1].length;
+          if (hasReverse && !hasForward) {
+            direction = len >= 2 ? "up" : "left";
+          } else {
+            direction = len >= 2 ? "down" : "right";
+          }
+        }
+      }
+      const hasArrowHead = hasForward || hasReverse;
+      diagram.addRelationship(id1, id2, type, node.label, direction, hasArrowHead, parentId);
+    }
+    compileNote(node, diagram) {
+      if (node.linkedTo) {
+        const targetId = this.stripQuotes(node.linkedTo.name);
+        if (!diagram.findComponent(targetId)) {
+          diagram.addComponent(targetId, node.linkedTo.isBracketed ? "component" : "interface");
+        }
+        diagram.addNote(node.text, node.position, targetId);
+      } else if (node.alias) {
+        diagram.addNote(node.text, void 0, void 0, node.alias);
+      }
+    }
+    compilePositionHint(node, diagram, parentId) {
+      const cleanName = this.stripQuotes(node.name);
+      const cleanRef = this.stripQuotes(node.reference);
+      const color = this.parseColor(node.color);
+      const comp = diagram.addComponent(cleanName, "component", cleanName, parentId, color);
+      comp.positionHint = { reference: cleanRef, position: node.position };
+    }
+    // Helper functions
+    stripQuotes(str) {
+      return str.replace(/^"(.*)"$/, "$1");
     }
     parseColor(color) {
       if (!color) return void 0;
@@ -2061,6 +3415,18 @@ var seeduml = (() => {
         }
       }
       return color;
+    }
+  };
+
+  // src/diagrams/component/ComponentParser.ts
+  var ComponentParser = class {
+    parse(content) {
+      const lexer = new Lexer(content);
+      const tokens = lexer.scanTokens();
+      const parser = new ComponentASTParser(tokens, content);
+      const ast = parser.parse();
+      const compiler = new ComponentASTCompiler();
+      return compiler.compile(ast);
     }
   };
 
@@ -3321,8 +4687,8 @@ var seeduml = (() => {
   }
   function render(content) {
     const hasSequenceKeywords = /\b(participant|actor|boundary|control|entity|collections|queue)\b/.test(content);
-    const hasComponentKeywords = /\b(component|package|node|cloud|database|frame|folder)\b/.test(content);
-    const hasComponentBrackets = /^\s*\[[^\]]+\]/m.test(content);
+    const hasComponentKeywords = /\b(component|interface|package|node|cloud|database|frame|folder)\b/.test(content);
+    const hasComponentBrackets = /^\s*\[[^\]\r\n]+\]/m.test(content);
     const isComponent = hasComponentKeywords || hasComponentBrackets;
     const isSequence = hasSequenceKeywords;
     if (isSequence && !isComponent) return renderSequenceDiagram(content);
