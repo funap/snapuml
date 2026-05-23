@@ -1174,4 +1174,41 @@ describe('Edge Cases', () => {
         expect(getComp(result, 'ImplicitA')).toBeDefined();
         expect(getComp(result, 'ImplicitB')).toBeDefined();
     });
+
+    it('should layout notes without excessive top/left margins', () => {
+        const result = parseAndLayout(`
+            [Component] as C
+            note top of C: A top note
+            note bottom of C
+              A bottom note can also
+              be on several lines
+            end note
+            note left of C
+              A left note can also
+              be on several lines
+            end note
+            note right of C: A right note
+        `);
+        
+        // Assert the total bounds are optimized without duplicate margins
+        expect(result.width).toBe(508);
+        expect(result.height).toBe(242);
+
+        // C should be shifted properly
+        const c = getComp(result, 'C')!;
+        expect(c.x).toBe(226);
+        expect(c.y).toBe(86);
+
+        // Left note should align exactly with left padding
+        const leftNote = result.notes.find(n => n.note.text.includes('A left note'))!;
+        expect(leftNote).toBeDefined();
+        expect(leftNote!.x).toBe(16);
+
+        // Top note should align exactly with top padding
+        const topNote = result.notes.find(n => n.note.text.includes('A top note'))!;
+        expect(topNote).toBeDefined();
+        expect(topNote!.y).toBe(16);
+    });
 });
+
+

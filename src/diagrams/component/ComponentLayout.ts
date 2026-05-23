@@ -67,26 +67,13 @@ export class ComponentLayout {
             }
         });
 
-        // 4. Global bounds
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        componentNodes.forEach(node => {
-            minX = Math.min(minX, node.x);
-            minY = Math.min(minY, node.y);
-            maxX = Math.max(maxX, node.x + node.width);
-            maxY = Math.max(maxY, node.y + node.height);
-        });
-
+        // 4. Calculate initial content bounds (components and notes)
         const notes = this.layoutNotes(componentNodes);
-        notes.forEach(n => {
-            minX = Math.min(minX, n.x);
-            minY = Math.min(minY, n.y);
-            maxX = Math.max(maxX, n.x + n.width);
-            maxY = Math.max(maxY, n.y + n.height);
-        });
+        const bounds = this.getContentBounds(componentNodes, notes);
 
-        // 5. Shift everything if minX or minY is out of desired padding
-        const offsetX = this.theme.padding - minX;
-        const offsetY = this.theme.padding - minY;
+        // 5. Shift everything if bounds.x or bounds.y is out of desired padding
+        const offsetX = this.theme.padding - bounds.x;
+        const offsetY = this.theme.padding - bounds.y;
 
         if (offsetX !== 0 || offsetY !== 0) {
             componentNodes.forEach(node => {
@@ -100,14 +87,18 @@ export class ComponentLayout {
                 note.x += offsetX;
                 note.y += offsetY;
             });
-            maxX += offsetX;
-            maxY += offsetY;
         }
 
         // 6. Layout Relationships based on final positions
         const relationships: RelationshipLayoutNode[] = this.diagram.relationships.map(r => this.routeRelationship(r));
 
-        // 7. Expand bounds to include relationship paths (to avoid clipping curves)
+        // 7. Calculate final bounds including relationship paths (to avoid clipping curves)
+        // Start from the shifted content bounds
+        let minX = bounds.x + offsetX;
+        let minY = bounds.y + offsetY;
+        let maxX = bounds.x + bounds.width + offsetX;
+        let maxY = bounds.y + bounds.height + offsetY;
+
         relationships.forEach(rel => {
             rel.path.forEach(p => {
                 minX = Math.min(minX, p.x);
@@ -154,6 +145,7 @@ export class ComponentLayout {
             width: maxX + this.theme.padding,
             height: maxY + this.theme.padding
         };
+
     }
 
     private straightenVerticalLines(nodes: ComponentLayoutNode[]) {
@@ -904,6 +896,33 @@ export class ComponentLayout {
         return {
             x: center.x + dx * scale,
             y: center.y + dy * scale
+        };
+    }
+
+    private getContentBounds(components: ComponentLayoutNode[], notes: NoteLayoutNode[]): Rect {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        components.forEach(node => {
+            minX = Math.min(minX, node.x);
+            minY = Math.min(minY, node.y);
+            maxX = Math.max(maxX, node.x + node.width);
+            maxY = Math.max(maxY, node.y + node.height);
+        });
+        notes.forEach(n => {
+            minX = Math.min(minX, n.x);
+            minY = Math.min(minY, n.y);
+            maxX = Math.max(maxX, n.x + n.width);
+            maxY = Math.max(maxY, n.y + n.height);
+        });
+
+        if (minX === Infinity) {
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
+
+        return {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
         };
     }
 
