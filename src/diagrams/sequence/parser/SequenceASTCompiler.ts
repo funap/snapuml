@@ -148,6 +148,18 @@ export class SequenceASTCompiler {
             diagram.rewindStep();
         }
 
+        let arrowDelay: number | undefined = undefined;
+        // Check for delay notation at the start or end of the arrow string
+        const startDelayMatch = arrow.match(/^\((\d+)\)/);
+        const endDelayMatch = arrow.match(/\((\d+)\)$/);
+        if (startDelayMatch) {
+            arrowDelay = parseInt(startDelayMatch[1], 10);
+            arrow = arrow.substring(startDelayMatch[0].length);
+        } else if (endDelayMatch) {
+            arrowDelay = parseInt(endDelayMatch[1], 10);
+            arrow = arrow.substring(0, arrow.length - endDelayMatch[0].length);
+        }
+
         let shorthand = node.shorthand;
         let autoActivColor = node.color;
 
@@ -184,7 +196,7 @@ export class SequenceASTCompiler {
             if (from === 'x') startHead = 'found';
 
             const normalizedText = node.text.replace(/\\n/g, '\n');
-            const step = diagram.addMessage(from, to, normalizedText, isDotted ? 'dotted' : 'arrow', arrowHead, msgColor, isBidirectional, startHead);
+            const step = diagram.addMessage(from, to, normalizedText, isDotted ? 'dotted' : 'arrow', arrowHead, msgColor, isBidirectional, startHead, arrowDelay);
 
             if (node.tag) {
                 diagram.addTaggedStep(node.tag, step);

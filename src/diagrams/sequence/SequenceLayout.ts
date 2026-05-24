@@ -246,8 +246,22 @@ export class LayoutEngine {
                 x2 = participants[toIdx].x; // Left edge
             }
 
-            const points: Point[] = [{ x: x1, y }, { x: x2, y }];
-            let labelPosition = { x: (x1 + x2) / 2, y };
+            const isHead = (h?: ArrowHead) => h && ['default', 'open', 'half', 'arrow-circle'].includes(h);
+            const isReverse = isHead(m.startHead) && !isHead(m.arrowHead);
+
+            const delay = m.arrowDelay || 0;
+            let y1 = y;
+            let y2 = y;
+            if (delay > 0) {
+                if (isReverse) {
+                    y1 = y + delay;
+                } else {
+                    y2 = y + delay;
+                }
+            }
+
+            const points: Point[] = [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+            let labelPosition = { x: (x1 + x2) / 2, y: y + delay / 2 };
 
             if (fromIdx === toIdx && fromIdx !== -1) {
                 // Self-message: find the active activation at this step
@@ -302,18 +316,18 @@ export class LayoutEngine {
                     const diff = 40;
                     points[0] = { x: baseXStart, y };
                     points[1] = { x: Math.max(baseXStart, baseXEnd) + diff, y };
-                    points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + 25 });
-                    points.push({ x: baseXEnd, y: y + 25 });
-                    labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + 5, y: y + 10 };
+                    points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + 25 + delay });
+                    points.push({ x: baseXEnd, y: y + 25 + delay });
+                    labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + 5, y: y + 10 + delay / 2 };
                 } else {
                     // No activation, use participant center
                     const baseX = participants[fromIdx].centerX;
                     const diff = 40;
                     points[0] = { x: baseX, y };
                     points[1] = { x: baseX + diff, y };
-                    points.push({ x: baseX + diff, y: y + 25 });
-                    points.push({ x: baseX, y: y + 25 });
-                    labelPosition = { x: baseX + diff + 5, y: y + 10 };
+                    points.push({ x: baseX + diff, y: y + 25 + delay });
+                    points.push({ x: baseX, y: y + 25 + delay });
+                    labelPosition = { x: baseX + diff + 5, y: y + 10 + delay / 2 };
                 }
             }
 
@@ -453,14 +467,15 @@ export class LayoutEngine {
         diagram.messages.forEach(m => {
             const lines = m.text.split('\n');
             const textLines = lines.length;
+            const delay = m.arrowDelay || 0;
             if (m.from === m.to) {
                 const loopHeight = Math.max(25, textLines * 20);
                 topExtension[m.step] = Math.max(topExtension[m.step], 0);
-                bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10);
+                bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10 + delay);
             } else {
                 const textHeight = textLines * 15 + 5;
                 topExtension[m.step] = Math.max(topExtension[m.step], textHeight);
-                bottomExtension[m.step] = Math.max(bottomExtension[m.step], 0);
+                bottomExtension[m.step] = Math.max(bottomExtension[m.step], delay);
             }
         });
 

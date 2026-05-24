@@ -38,6 +38,7 @@ export interface Message {
     color?: string;
     bidirectional?: boolean;
     number?: string;
+    arrowDelay?: number;
 }
 
 export interface Note {
@@ -144,7 +145,7 @@ export class SequenceDiagram implements Diagram {
         });
     }
 
-    addMessage(from: string, to: string, text: string, type: 'arrow' | 'dotted' = 'arrow', arrowHead: ArrowHead = 'default', color?: string, bidirectional?: boolean, startHead: ArrowHead = 'none') {
+    addMessage(from: string, to: string, text: string, type: 'arrow' | 'dotted' = 'arrow', arrowHead: ArrowHead = 'default', color?: string, bidirectional?: boolean, startHead: ArrowHead = 'none', arrowDelay?: number) {
         const step = this.currentStep++;
         this.addParticipant(from);
         this.addParticipant(to);
@@ -170,7 +171,7 @@ export class SequenceDiagram implements Diagram {
         // Then decode all Unicode escapes like <U+XXXX>
         text = decodeUnicode(text);
 
-        this.messages.push({ from, to, text, type, step, arrowHead, startHead, color, bidirectional, number: msgNumber });
+        this.messages.push({ from, to, text, type, step, arrowHead, startHead, color, bidirectional, number: msgNumber, arrowDelay });
 
         if (this.autoactivateEnabled && from !== to && type === 'arrow') {
             this.activate(to, step, step);
