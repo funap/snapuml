@@ -1035,7 +1035,14 @@ var SequenceASTParser = class {
     }
     const token = this.peek();
     const rawLine = this.sourceLines[token.line - 1] || "";
-    const text = rawLine.substring(token.column - 1).trim();
+    let startIdx = token.column - 1;
+    while (startIdx > 0 && rawLine[startIdx] !== '"' && rawLine[startIdx - 1] !== " " && rawLine[startIdx - 1] !== "	") {
+      startIdx--;
+    }
+    if (startIdx > 0 && rawLine[startIdx - 1] === '"') {
+      startIdx--;
+    }
+    const text = rawLine.substring(startIdx).trim();
     this.consumeLineEnd();
     return text;
   }
@@ -1568,7 +1575,28 @@ var SequenceASTCompiler = class {
     );
   }
   compileGroup(diagram, node) {
-    diagram.startGroup(node.groupType, node.label);
+    if (node.groupType === "box") {
+      let parsedLabel = "";
+      let parsedColor = void 0;
+      let remaining = node.label.trim();
+      const colorMatch = remaining.match(/#([a-zA-Z0-9]+)/);
+      if (colorMatch) {
+        parsedColor = "#" + colorMatch[1];
+        remaining = remaining.replace(colorMatch[0], "").trim();
+      }
+      const quoteMatch = remaining.match(/^"([^"]*)"$/) || remaining.match(/^"([^"]*)"/);
+      if (quoteMatch) {
+        parsedLabel = quoteMatch[1];
+      } else {
+        parsedLabel = remaining.replace(/^"(.*)"$/, "$1");
+      }
+      const group = diagram.startGroup(node.groupType, parsedLabel);
+      if (parsedColor) {
+        group.color = parsedColor;
+      }
+    } else {
+      diagram.startGroup(node.groupType, node.label);
+    }
     for (const child of node.body) {
       this.compileNode(diagram, child);
     }
@@ -1712,11 +1740,15 @@ var LayoutEngine = class {
     });
     const maxStep = this.calculateMaxStep(diagram);
     this.finalizeEndSteps(diagram, maxStep);
+    const hasBoxWithLabel = diagram.groups.some((g) => g.type === "box" && g.label);
     let participantYStart = this.theme.padding;
+    if (hasBoxWithLabel) {
+      participantYStart += 25;
+    }
     if (diagram.title) {
-      participantYStart = 55;
+      participantYStart = Math.max(participantYStart, 55 + (hasBoxWithLabel ? 25 : 0));
     } else if (diagram.header) {
-      participantYStart = 35;
+      participantYStart = Math.max(participantYStart, 35 + (hasBoxWithLabel ? 25 : 0));
     }
     let bottomPadding = this.theme.padding;
     if (diagram.footer) {
@@ -1768,7 +1800,7 @@ var LayoutEngine = class {
         height: layout.height
       });
     });
-    const groupLayouts = this.calculateGroupLayouts(diagram, participantLayouts, finalNoteLayouts, stepY, maxStep);
+    const groupLayouts = this.calculateGroupLayouts(diagram, participantLayouts, finalNoteLayouts, stepY, maxStep, participantYStart, totalHeight, bottomPadding);
     const activationLayouts = this.calculateActivationLayouts(diagram, participantLayouts, stepY, diagram.messages);
     return {
       width: totalWidth,
@@ -2246,7 +2278,7 @@ var LayoutEngine = class {
     });
     return { minX, maxX };
   }
-  calculateGroupLayouts(diagram, participants, noteLayouts, stepY, maxStep) {
+  calculateGroupLayouts(diagram, participants, noteLayouts, stepY, maxStep, participantYStart, totalHeight, bottomPadding) {
     const maxGroupLevel = diagram.groups.length > 0 ? Math.max(...diagram.groups.map((g) => g.level)) : 0;
     return diagram.groups.map((g) => {
       const pIdxs = g.participants.map((name) => participants.findIndex((pl) => pl.participant.name === name)).filter((i) => i !== -1);
@@ -2257,7 +2289,6 @@ var LayoutEngine = class {
       const hPadding = 10 + levelOffset * 10;
       const vPaddingTop = 25 + levelOffset * 8;
       const vPaddingBottom = 5 + levelOffset * 8;
-      let x = participants[minIdx].x + participants[minIdx].width / 2 - participants[minIdx].width / 2 - hPadding;
       let rectX = participants[minIdx].x - hPadding;
       let rectW = participants[maxIdx].x + participants[maxIdx].width + hPadding - rectX;
       const notesInGroup = noteLayouts.filter((nl) => {
@@ -2294,8 +2325,19 @@ var LayoutEngine = class {
           }
         }
       });
-      const yStart = stepY[g.startStep] - vPaddingTop;
-      const yEnd = stepY[g.endStep] + vPaddingBottom;
+      let yStart;
+      let height;
+      if (g.type === "box") {
+        yStart = participantYStart - 15;
+        if (g.label) {
+          yStart = participantYStart - 35;
+        }
+        const yEnd = totalHeight - bottomPadding - 10;
+        height = yEnd - yStart;
+      } else {
+        yStart = stepY[g.startStep] - vPaddingTop;
+        height = stepY[g.endStep] + vPaddingBottom - yStart;
+      }
       const sections = g.sections.map((s) => ({
         label: s.label,
         y: stepY[s.startStep]
@@ -2305,10 +2347,11 @@ var LayoutEngine = class {
         x: rectX,
         y: yStart,
         width: rectW,
-        height: yEnd - yStart,
+        height,
         type: g.type,
         label: g.label,
-        sections
+        sections,
+        color: g.color
       };
     }).filter((g) => g !== null);
   }
@@ -2336,6 +2379,7 @@ var SequenceRenderer = class {
   generateSvg(diagram, layout) {
     let svg = `<svg width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" xmlns="http://www.w3.org/2000/svg" style="background: white; font-family: ${this.theme.fontFamily};">`;
     svg += this.renderDefs(diagram);
+    svg += this.renderBoxes(layout);
     svg += this.renderLifelines(diagram, layout);
     svg += this.renderActivations(diagram, layout);
     svg += this.renderGroups(layout);
@@ -2541,6 +2585,7 @@ var SequenceRenderer = class {
   renderGroups(layout) {
     let svg = "";
     layout.groups.forEach((g) => {
+      if (g.type === "box") return;
       svg += `<rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" fill="none" stroke="#222" stroke-width="2" rx="5" />`;
       svg += `<path d="M ${g.x} ${g.y} L ${g.x + 70} ${g.y} L ${g.x + 70} ${g.y + 10} L ${g.x + 60} ${g.y + 20} L ${g.x} ${g.y + 20} Z" fill="#eee" stroke="#222" stroke-width="2" />`;
       svg += `<text x="${g.x + 5}" y="${g.y + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">${g.type}</text>`;
@@ -2550,6 +2595,21 @@ var SequenceRenderer = class {
         svg += `<line x1="${g.x}" y1="${sectionY}" x2="${g.x + g.width}" y2="${sectionY}" stroke="#222" stroke-width="1" stroke-dasharray="5,5" />`;
         svg += `<text x="${g.x + 5}" y="${sectionY + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${section.label}]</text>`;
       });
+    });
+    return svg;
+  }
+  renderBoxes(layout) {
+    let svg = "";
+    layout.groups.forEach((g) => {
+      if (g.type !== "box") return;
+      const fill = this.normalizeColor(g.color, "#F4F4F6");
+      const strokeColor = "#D1D1D6";
+      svg += `<rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" fill="${fill}" stroke="${strokeColor}" stroke-width="1.5" rx="8" />`;
+      if (g.label) {
+        const labelX = g.x + g.width / 2;
+        const labelY = g.y + 20;
+        svg += `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold" fill="${this.theme.colors.text}">${g.label}</text>`;
+      }
     });
     return svg;
   }
