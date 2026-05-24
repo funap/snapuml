@@ -1711,7 +1711,7 @@ var snapuml = (() => {
 
   // src/diagrams/sequence/SequenceTheme.ts
   var defaultTheme = {
-    padding: 40,
+    padding: 16,
     participantWidth: 120,
     participantHeight: 40,
     participantGap: 180,
@@ -1743,7 +1743,17 @@ var snapuml = (() => {
       });
       const maxStep = this.calculateMaxStep(diagram);
       this.finalizeEndSteps(diagram, maxStep);
-      const stepHeightResult = this.calculateStepHeights(diagram, maxStep);
+      let participantYStart = this.theme.padding;
+      if (diagram.title) {
+        participantYStart = 55;
+      } else if (diagram.header) {
+        participantYStart = 35;
+      }
+      let bottomPadding = this.theme.padding;
+      if (diagram.footer) {
+        bottomPadding += 25;
+      }
+      const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart);
       const stepY = stepHeightResult.stepY;
       const currentY = stepHeightResult.totalHeight;
       const pWidths = participants.map((p) => this.calculateParticipantWidth(p));
@@ -1760,14 +1770,14 @@ var snapuml = (() => {
         totalWidth += timeConstraintSpace;
       }
       const footboxHeight = diagram.hideFootbox ? 0 : this.theme.participantHeight + 20;
-      const totalHeight = currentY + footboxHeight + this.theme.padding;
+      const totalHeight = currentY + footboxHeight + bottomPadding;
       const participantLayouts = participants.map((p, i) => {
         const centerX = relpCenterX[i] + offsetX;
         return {
           participant: p,
           centerX,
           x: centerX - pWidths[i] / 2,
-          y: p.createdStep !== void 0 ? stepY[p.createdStep] - this.theme.participantHeight / 2 : this.theme.padding,
+          y: p.createdStep !== void 0 ? stepY[p.createdStep] - this.theme.participantHeight / 2 : participantYStart,
           width: pWidths[i],
           height: this.theme.participantHeight,
           destroyedY: p.destroyedStep !== void 0 ? stepY[p.destroyedStep] : void 0
@@ -1982,7 +1992,10 @@ var snapuml = (() => {
         ...diagram.spacings
       ];
       allElements.forEach((e) => {
-        const s = e.step ?? e.startStep ?? e.endStep ?? 0;
+        const s1 = e.step ?? 0;
+        const s2 = e.startStep ?? 0;
+        const s3 = e.endStep ?? 0;
+        const s = Math.max(s1, s2, s3);
         if (s > maxStep) maxStep = s;
       });
       return maxStep + 1;
@@ -1995,7 +2008,7 @@ var snapuml = (() => {
         if (g.endStep === void 0) g.endStep = maxStep;
       });
     }
-    calculateStepHeights(diagram, maxStep) {
+    calculateStepHeights(diagram, maxStep, participantYStart) {
       const stepHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
       const topExtension = new Array(maxStep + 2).fill(0);
       const bottomExtension = new Array(maxStep + 2).fill(0);
@@ -2019,6 +2032,9 @@ var snapuml = (() => {
         }
       });
       const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
+      if (maxStep > 0) {
+        baseHeights[maxStep - 1] = 40;
+      }
       diagram.dividers.forEach((d) => {
         baseHeights[d.step] = 30;
       });
@@ -2040,12 +2056,12 @@ var snapuml = (() => {
         stepHeights[i] = Math.max(baseHeights[i], requiredGap);
       }
       const stepY = new Array(maxStep + 1).fill(0);
-      let currentY = this.theme.padding + 90;
+      let currentY = participantYStart + this.theme.participantHeight + 30;
       for (let i = 0; i <= maxStep; i++) {
         stepY[i] = currentY;
         currentY += stepHeights[i];
       }
-      return { stepY, totalHeight: currentY };
+      return { stepY, totalHeight: stepY[maxStep] };
     }
     calculateParticipantWidth(p) {
       const label = (p.label || p.name).replace(/\\n/g, "\n");
@@ -2423,12 +2439,16 @@ var snapuml = (() => {
     }
     renderLifelines(diagram, layout) {
       let svg = "";
+      let bottomPadding = this.theme.padding;
+      if (diagram.footer) {
+        bottomPadding += 25;
+      }
       layout.participants.forEach((pl) => {
         if (pl.participant.name === "[" || pl.participant.name === "]") {
           return;
         }
         const x = pl.centerX;
-        const yEnd = pl.destroyedY !== void 0 ? pl.destroyedY : diagram.hideFootbox ? layout.height - this.theme.padding : layout.height - this.theme.padding - this.theme.participantHeight;
+        const yEnd = pl.destroyedY !== void 0 ? pl.destroyedY : diagram.hideFootbox ? layout.height - bottomPadding : layout.height - bottomPadding - this.theme.participantHeight;
         svg += `<line x1="${x}" y1="${pl.y + pl.height}" x2="${x}" y2="${yEnd}" stroke="${this.theme.colors.line}" stroke-dasharray="4" />`;
       });
       return svg;
@@ -2448,10 +2468,14 @@ var snapuml = (() => {
     }
     renderParticipants(diagram, layout) {
       let svg = "";
+      let bottomPadding = this.theme.padding;
+      if (diagram.footer) {
+        bottomPadding += 25;
+      }
       const draw = (pl, top) => {
         const fill = this.normalizeColor(pl.participant.color, this.theme.colors.actorFill);
         const x = pl.x;
-        const y = top ? pl.y : layout.height - this.theme.padding - this.theme.participantHeight - 20;
+        const y = top ? pl.y : layout.height - bottomPadding - this.theme.participantHeight - 20;
         const cx = pl.centerX;
         const cy = y + this.theme.participantHeight / 2;
         const label = (pl.participant.label || pl.participant.name).replace(/\\n/g, "\n");
@@ -3459,22 +3483,10 @@ var snapuml = (() => {
           node.y = rect.y;
         }
       });
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      componentNodes.forEach((node) => {
-        minX = Math.min(minX, node.x);
-        minY = Math.min(minY, node.y);
-        maxX = Math.max(maxX, node.x + node.width);
-        maxY = Math.max(maxY, node.y + node.height);
-      });
       const notes = this.layoutNotes(componentNodes);
-      notes.forEach((n) => {
-        minX = Math.min(minX, n.x);
-        minY = Math.min(minY, n.y);
-        maxX = Math.max(maxX, n.x + n.width);
-        maxY = Math.max(maxY, n.y + n.height);
-      });
-      const offsetX = this.theme.padding - minX;
-      const offsetY = this.theme.padding - minY;
+      const bounds = this.getContentBounds(componentNodes, notes);
+      const offsetX = this.theme.padding - bounds.x;
+      const offsetY = this.theme.padding - bounds.y;
       if (offsetX !== 0 || offsetY !== 0) {
         componentNodes.forEach((node) => {
           node.x += offsetX;
@@ -3487,10 +3499,12 @@ var snapuml = (() => {
           note.x += offsetX;
           note.y += offsetY;
         });
-        maxX += offsetX;
-        maxY += offsetY;
       }
       const relationships = this.diagram.relationships.map((r) => this.routeRelationship(r));
+      let minX = bounds.x + offsetX;
+      let minY = bounds.y + offsetY;
+      let maxX = bounds.x + bounds.width + offsetX;
+      let maxY = bounds.y + bounds.height + offsetY;
       relationships.forEach((rel) => {
         rel.path.forEach((p) => {
           minX = Math.min(minX, p.x);
@@ -4132,6 +4146,30 @@ var snapuml = (() => {
         y: center.y + dy * scale
       };
     }
+    getContentBounds(components, notes) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      components.forEach((node) => {
+        minX = Math.min(minX, node.x);
+        minY = Math.min(minY, node.y);
+        maxX = Math.max(maxX, node.x + node.width);
+        maxY = Math.max(maxY, node.y + node.height);
+      });
+      notes.forEach((n) => {
+        minX = Math.min(minX, n.x);
+        minY = Math.min(minY, n.y);
+        maxX = Math.max(maxX, n.x + n.width);
+        maxY = Math.max(maxY, n.y + n.height);
+      });
+      if (minX === Infinity) {
+        return { x: 0, y: 0, width: 0, height: 0 };
+      }
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
     layoutNotes(components) {
       const layouts = [];
       let defaultY = 0;
@@ -4265,7 +4303,7 @@ var snapuml = (() => {
 
   // src/diagrams/component/ComponentTheme.ts
   var defaultTheme2 = {
-    padding: 20,
+    padding: 16,
     componentWidth: 120,
     componentHeight: 50,
     interfaceRadius: 10,
