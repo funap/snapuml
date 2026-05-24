@@ -510,6 +510,20 @@ export class LayoutEngine {
             }
         });
 
+        // Group top and bottom extensions
+        const maxGroupLevel = diagram.groups.length > 0 ? Math.max(...diagram.groups.map(g => g.level)) : 0;
+        diagram.groups.forEach(g => {
+            if (g.type === 'box') return;
+            const levelOffset = (maxGroupLevel - g.level);
+            const vPaddingTop = 25 + levelOffset * 8;
+            const vPaddingBottom = 5 + levelOffset * 8;
+
+            topExtension[g.startStep] = Math.max(topExtension[g.startStep], vPaddingTop);
+            if (g.endStep !== undefined) {
+                bottomExtension[g.endStep] = Math.max(bottomExtension[g.endStep], vPaddingBottom);
+            }
+        });
+
         const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
         if (maxStep > 0) {
             baseHeights[maxStep - 1] = 40; // Compact spacing for the last step before the footbox
@@ -543,7 +557,8 @@ export class LayoutEngine {
         }
 
         const stepY = new Array(maxStep + 1).fill(0);
-        let currentY = participantYStart + this.theme.participantHeight + 30; // 30px gap below participants instead of the static 90px header offset
+        const headerGap = Math.max(30, topExtension[0] + 10);
+        let currentY = participantYStart + this.theme.participantHeight + headerGap;
         for (let i = 0; i <= maxStep; i++) {
             stepY[i] = currentY;
             currentY += stepHeights[i];
