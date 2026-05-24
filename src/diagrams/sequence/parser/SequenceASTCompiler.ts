@@ -264,6 +264,9 @@ export class SequenceASTCompiler {
     }
 
     private compileNote(diagram: SequenceDiagram, node: NoteAST) {
+        if (node.sameStep) {
+            diagram.rewindStep();
+        }
         const normPos = node.position;
         let participants = node.participants.map(p => p.replace(/^"(.*)"$/, '$1'));
         let associationStep: number | undefined;

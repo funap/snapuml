@@ -424,6 +424,7 @@ export class SequenceASTParser {
                     text,
                     shape,
                     color,
+                    sameStep: isSameStep,
                     line: token.line,
                     column: token.column
                 };
@@ -469,6 +470,7 @@ export class SequenceASTParser {
                     text: lines.join('\n'),
                     shape,
                     color,
+                    sameStep: isSameStep,
                     line: token.line,
                     column: token.column
                 };

@@ -50,6 +50,7 @@ export interface NoteAST extends ASTNode {
     text: string;
     shape: 'rectangle' | 'hexagon' | 'bubble' | 'folder';
     color?: string;
+    sameStep?: boolean;
 }
 
 export interface GroupAST extends ASTNode {
