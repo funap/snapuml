@@ -88,13 +88,15 @@ export class LayoutEngine {
     constructor(private theme: SequenceTheme) { }
 
     calculateLayout(diagram: SequenceDiagram): LayoutResult {
-        // Sort participants
-        const participants = [...diagram.participants].sort((a, b) => {
-            if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
-            if (a.order !== undefined) return -1;
-            if (b.order !== undefined) return 1;
-            return 0;
-        });
+        // Sort participants (excluding pseudo-participants [, ], ?)
+        const participants = [...diagram.participants]
+            .filter(p => p.name !== '[' && p.name !== ']' && p.name !== '?')
+            .sort((a, b) => {
+                if (a.order !== undefined && b.order !== undefined) return a.order - b.order;
+                if (a.order !== undefined) return -1;
+                if (b.order !== undefined) return 1;
+                return 0;
+            });
 
         const maxStep = this.calculateMaxStep(diagram);
         this.finalizeEndSteps(diagram, maxStep);
@@ -198,29 +200,57 @@ export class LayoutEngine {
     }
 
     private calculateMessageLayouts(diagram: SequenceDiagram, participants: ParticipantLayout[], stepY: number[], activations: ActivationLayout[]): MessageLayout[] {
+        const leftmostParticipant = participants[0];
+        const rightmostParticipant = participants[participants.length - 1];
+
         return diagram.messages.map(m => {
             const fromIdx = participants.findIndex(p => p.participant.name === m.from);
             const toIdx = participants.findIndex(p => p.participant.name === m.to);
             const y = stepY[m.step];
 
             // Default center positions
-            let x1 = fromIdx !== -1 ? participants[fromIdx].centerX : 0;
-            let x2 = toIdx !== -1 ? participants[toIdx].centerX : 0;
+            let x1 = 0;
+            if (fromIdx !== -1) {
+                x1 = participants[fromIdx].centerX;
+            } else if (m.from === '[') {
+                x1 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
+            } else if (m.from === ']') {
+                x1 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
+            } else if (m.from === '?') {
+                const toX = toIdx !== -1 ? participants[toIdx].centerX : 100;
+                x1 = toX - 50;
+            }
+
+            let x2 = 0;
+            if (toIdx !== -1) {
+                x2 = participants[toIdx].centerX;
+            } else if (m.to === ']') {
+                x2 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
+            } else if (m.to === '[') {
+                x2 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
+            } else if (m.to === '?') {
+                const fromX = fromIdx !== -1 ? participants[fromIdx].centerX : 50;
+                x2 = fromX + 50;
+            }
 
             // Adjust x1 and x2 based on activations
-            if (fromIdx !== -1 && toIdx !== -1) {
+            if (fromIdx !== -1 || toIdx !== -1) {
                 // Find active activations for "from" and "to" at this step
-                const fromActivations = activations
+                const fromActivations = fromIdx !== -1 ? activations
                     .filter(a => a.activation.participantName === m.from && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step)
-                    .sort((a, b) => b.activation.level - a.activation.level);
+                    .sort((a, b) => b.activation.level - a.activation.level) : [];
 
-                const toActivations = activations
+                const toActivations = toIdx !== -1 ? activations
                     .filter(a => a.activation.participantName === m.to && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step)
-                    .sort((a, b) => b.activation.level - a.activation.level);
+                    .sort((a, b) => b.activation.level - a.activation.level) : [];
 
                 if (fromIdx !== toIdx) {
                     // Regular message (not self)
-                    if (fromIdx < toIdx) {
+                    const isLeftToRight = (fromIdx !== -1 && toIdx !== -1)
+                        ? (fromIdx < toIdx)
+                        : true;
+
+                    if (isLeftToRight) {
                         // Left to Right
                         if (fromActivations.length > 0) {
                             x1 = fromActivations[0].x + fromActivations[0].width;
@@ -753,27 +783,58 @@ export class LayoutEngine {
         });
 
         messages.forEach(m => {
-            // ... Similar message bound logic ...
             const fromIdx = participants.findIndex(p => p.name === m.from);
             const toIdx = participants.findIndex(p => p.name === m.to);
-            if (fromIdx === -1 || toIdx === -1) return;
-
+            
             const textLines = m.text.split('\n');
             const textWidth = Math.max(...textLines.map(l => l.length * 8)) + 20; // simplified calc
 
-            if (fromIdx === toIdx) {
+            if (fromIdx !== -1 && fromIdx === toIdx) {
                 const cx = relpCenterX[fromIdx];
-                const textWidth = Math.max(...m.text.split('\n').map(l => l.length * 8)) + 20;
                 const rightBound = cx + 40 + textWidth + 10;
                 if (rightBound > maxX) maxX = rightBound;
             } else {
-                const x1 = relpCenterX[fromIdx];
-                const x2 = relpCenterX[toIdx];
+                // Get horizontal coordinates similar to calculateMessageLayouts
+                let x1 = 0;
+                let x2 = 0;
+                const leftmostParticipant = participants[0];
+                const rightmostParticipant = participants[participants.length - 1];
+
+                if (fromIdx !== -1) {
+                    x1 = relpCenterX[fromIdx] || 0;
+                } else if (m.from === '[') {
+                    x1 = relpCenterX[0] !== undefined ? relpCenterX[0] - 80 : 50;
+                } else if (m.from === ']') {
+                    x1 = relpCenterX[relpCenterX.length - 1] !== undefined ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
+                } else if (m.from === '?') {
+                    const toRelIdx = toIdx !== -1 ? toIdx : 0;
+                    x1 = relpCenterX[toRelIdx] !== undefined ? relpCenterX[toRelIdx] - 50 : 50;
+                }
+
+                if (toIdx !== -1) {
+                    x2 = relpCenterX[toIdx] || 0;
+                } else if (m.to === ']') {
+                    x2 = relpCenterX[relpCenterX.length - 1] !== undefined ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
+                } else if (m.to === '[') {
+                    x2 = relpCenterX[0] !== undefined ? relpCenterX[0] - 80 : 50;
+                } else if (m.to === '?') {
+                    const fromRelIdx = fromIdx !== -1 ? fromIdx : 0;
+                    x2 = relpCenterX[fromRelIdx] !== undefined ? relpCenterX[fromRelIdx] + 50 : 100;
+                }
+
                 const cx = (x1 + x2) / 2;
                 const left = cx - textWidth / 2;
                 const right = cx + textWidth / 2;
-                if (left < minX) minX = left;
-                if (right > maxX) maxX = right;
+                
+                // Track arrow ends themselves as well as label bounds
+                const arrowMin = Math.min(x1, x2);
+                const arrowMax = Math.max(x1, x2);
+
+                const finalLeft = Math.min(left, arrowMin);
+                const finalRight = Math.max(right, arrowMax);
+
+                if (finalLeft < minX) minX = finalLeft;
+                if (finalRight > maxX) maxX = finalRight;
             }
         });
 

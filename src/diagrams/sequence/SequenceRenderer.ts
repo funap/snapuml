@@ -121,7 +121,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
 
         layout.participants.forEach(pl => {
             // Skip external participants ([ and ])
-            if (pl.participant.name === '[' || pl.participant.name === ']') {
+            if (pl.participant.name === '[' || pl.participant.name === ']' || pl.participant.name === '?') {
                 return;
             }
 
@@ -258,7 +258,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
 
         layout.participants.forEach(pl => {
             // Skip external participants ([ and ])
-            if (pl.participant.name === '[' || pl.participant.name === ']') {
+            if (pl.participant.name === '[' || pl.participant.name === ']' || pl.participant.name === '?') {
                 return;
             }
             draw(pl, true);
@@ -437,7 +437,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
         let svg = '';
         const delayStyle = d.delayStyle || this.theme.delayStyle || 'dots';
 
-        const nonExternal = l.participants.filter(p => p.participant.name !== '[' && p.participant.name !== ']');
+        const nonExternal = l.participants.filter(p => p.participant.name !== '[' && p.participant.name !== ']' && p.participant.name !== '?');
         if (nonExternal.length === 0) return '';
         const centerXs = nonExternal.map(p => p.centerX);
         const minX = Math.min(...centerXs);
