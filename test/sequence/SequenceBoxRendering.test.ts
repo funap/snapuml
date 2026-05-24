@@ -127,4 +127,33 @@ describe('Sequence Diagram Box Rendering', () => {
         expect(lifelineIndex).toBeGreaterThan(-1);
         expect(boxIndex).toBeLessThan(lifelineIndex);
     });
+
+    it('should not introduce large empty spacing above messages when a box is used', () => {
+        const parser = new SequenceParser();
+        const content = `
+            box "Internal Service" #LightBlue
+            participant Bob
+            participant Alice
+            end box
+            participant Other
+
+            Bob -> Alice : hello
+            Alice -> Other : goodbye
+        `;
+        const diagram = parser.parse(content);
+        const layoutEngine = new LayoutEngine(defaultTheme);
+        const layout = layoutEngine.calculateLayout(diagram);
+
+        expect(diagram.messages).toHaveLength(2);
+        // Verify that the first message starts at step 0
+        expect(diagram.messages[0].step).toBe(0);
+        // Verify that the second message is at step 1
+        expect(diagram.messages[1].step).toBe(1);
+
+        const y0 = layout.messages[0].y;
+        const y1 = layout.messages[1].y;
+
+        // Message 0 and Message 1 spacing should be compacted (30px since message 1 is labeled)
+        expect(y1 - y0).toBe(30);
+    });
 });

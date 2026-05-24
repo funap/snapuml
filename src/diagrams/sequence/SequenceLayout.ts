@@ -465,7 +465,8 @@ export class LayoutEngine {
         });
 
         diagram.messages.forEach(m => {
-            const lines = m.text.split('\n');
+            const hasText = m.text && m.text.trim() !== '';
+            const lines = hasText ? m.text.split('\n') : [];
             const textLines = lines.length;
             const delay = m.arrowDelay || 0;
             if (m.from === m.to) {
@@ -473,7 +474,7 @@ export class LayoutEngine {
                 topExtension[m.step] = Math.max(topExtension[m.step], 0);
                 bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10 + delay);
             } else {
-                const textHeight = textLines * 15 + 5;
+                const textHeight = hasText ? textLines * 15 + 5 : 0;
                 topExtension[m.step] = Math.max(topExtension[m.step], textHeight);
                 bottomExtension[m.step] = Math.max(bottomExtension[m.step], delay);
             }
@@ -482,6 +483,14 @@ export class LayoutEngine {
         const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
         if (maxStep > 0) {
             baseHeights[maxStep - 1] = 40; // Compact spacing for the last step before the footbox
+        }
+
+        // Apply compact spacing (baseHeight = 20) for all steps containing messages (with or without labels)
+        for (let i = 0; i <= maxStep; i++) {
+            const stepMessages = diagram.messages.filter(m => m.step === i);
+            if (stepMessages.length > 0) {
+                baseHeights[i] = 20;
+            }
         }
         diagram.dividers.forEach(d => { baseHeights[d.step] = 30; });
         diagram.delays.forEach(d => { baseHeights[d.step] = 40; });

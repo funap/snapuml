@@ -346,7 +346,7 @@ export class SequenceDiagram implements Diagram {
     }
 
     startGroup(type: string, label: string) {
-        const step = this.nextStep();
+        const step = type === 'box' ? this.currentStep : this.nextStep();
         const group: Group = {
             type,
             label,
@@ -370,7 +370,7 @@ export class SequenceDiagram implements Diagram {
     endGroup() {
         const group = this.groupStack.pop();
         if (group) {
-            group.endStep = this.nextStep();
+            group.endStep = group.type === 'box' ? this.currentStep : this.nextStep();
         }
     }
 

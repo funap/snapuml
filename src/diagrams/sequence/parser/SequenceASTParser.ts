@@ -786,10 +786,20 @@ export class SequenceASTParser {
         const token = this.peek();
         const rawLine = this.sourceLines[token.line - 1] || '';
         let startIdx = token.column - 1;
-        while (startIdx > 0 && rawLine[startIdx] !== '"' && rawLine[startIdx - 1] !== ' ' && rawLine[startIdx - 1] !== '\t') {
+
+        // If the previous token was a COLON on the same line, we must not backtrack past it
+        let minStartIdx = 0;
+        if (this.current > 0 && this.tokens[this.current - 1].type === TokenType.COLON) {
+            const colonToken = this.tokens[this.current - 1];
+            if (colonToken.line === token.line) {
+                minStartIdx = colonToken.column; // column is 1-based, which represents index after colon
+            }
+        }
+
+        while (startIdx > minStartIdx && rawLine[startIdx] !== '"' && rawLine[startIdx - 1] !== ' ' && rawLine[startIdx - 1] !== '\t') {
             startIdx--;
         }
-        if (startIdx > 0 && rawLine[startIdx - 1] === '"') {
+        if (startIdx > minStartIdx && rawLine[startIdx - 1] === '"') {
             startIdx--;
         }
         const text = rawLine.substring(startIdx).trim();

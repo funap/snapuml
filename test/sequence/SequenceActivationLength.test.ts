@@ -52,7 +52,7 @@ a->a--
         const content = `
 participant a
 participant b
-a->b++
+a->b++: activate
 deactivate b
         `;
         const parser = new SequenceParser();
@@ -63,8 +63,8 @@ deactivate b
         const bAct = layout.activations.find(a => a.activation.participantName === 'b')!;
 
         // For cross-message, y = stepY[0], yEnd = stepY[1]
-        // Default gap is 60.
-        expect(bAct.height).toBeGreaterThanOrEqual(50);
+        // Since step Y spacing is compacted to 20px, activation height is exactly 20px.
+        expect(bAct.height).toBeGreaterThanOrEqual(20);
     });
     it('should align destroy mark with the preceding message arrow', () => {
         const content = `

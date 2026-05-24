@@ -410,7 +410,9 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                 const formattedLine = this.formatRichText(line);
                 const displayContent = (i === 0 && numberPrefix) ? `${numberPrefix} ${formattedLine}` : formattedLine;
 
-                svg += `<text x="${ml.labelPosition.x}" y="${y}" text-anchor="${anchor}" font-size="${this.theme.fontSize - 2}" fill="${strokeColor}">${displayContent}</text>`;
+                if (displayContent.trim() !== '') {
+                    svg += `<text x="${ml.labelPosition.x}" y="${y}" text-anchor="${anchor}" font-size="${this.theme.fontSize - 2}" fill="${strokeColor}">${displayContent}</text>`;
+                }
             });
         });
         return svg;
