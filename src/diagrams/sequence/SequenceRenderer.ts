@@ -35,6 +35,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
         let svg = `<svg width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" xmlns="http://www.w3.org/2000/svg" style="background: white; font-family: ${this.theme.fontFamily};">`;
 
         svg += this.renderDefs(diagram);
+        svg += this.renderBoxes(layout);
         svg += this.renderLifelines(diagram, layout);
         svg += this.renderActivations(diagram, layout); // Activations need layout linkage, currently relying on stepY match. Ideally LayoutEngine returns ActivationLayouts.
         svg += this.renderGroups(layout);
@@ -271,6 +272,8 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
     private renderGroups(layout: LayoutResult): string {
         let svg = '';
         layout.groups.forEach(g => {
+            if (g.type === 'box') return;
+
             svg += `<rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" fill="none" stroke="#222" stroke-width="2" rx="5" />`;
             svg += `<path d="M ${g.x} ${g.y} L ${g.x + 70} ${g.y} L ${g.x + 70} ${g.y + 10} L ${g.x + 60} ${g.y + 20} L ${g.x} ${g.y + 20} Z" fill="#eee" stroke="#222" stroke-width="2" />`;
             svg += `<text x="${g.x + 5}" y="${g.y + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">${g.type}</text>`;
@@ -283,6 +286,27 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                 svg += `<line x1="${g.x}" y1="${sectionY}" x2="${g.x + g.width}" y2="${sectionY}" stroke="#222" stroke-width="1" stroke-dasharray="5,5" />`;
                 svg += `<text x="${g.x + 5}" y="${sectionY + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${section.label}]</text>`;
             });
+        });
+        return svg;
+    }
+
+    private renderBoxes(layout: LayoutResult): string {
+        let svg = '';
+        layout.groups.forEach(g => {
+            if (g.type !== 'box') return;
+
+            const fill = this.normalizeColor(g.color, '#F4F4F6');
+            const strokeColor = '#D1D1D6';
+
+            // Draw the box background
+            svg += `<rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" fill="${fill}" stroke="${strokeColor}" stroke-width="1.5" rx="8" />`;
+
+            // Draw the box label centered horizontally at the top of the box
+            if (g.label) {
+                const labelX = g.x + g.width / 2;
+                const labelY = g.y + 20; // 20px down from the top edge of the box
+                svg += `<text x="${labelX}" y="${labelY}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold" fill="${this.theme.colors.text}">${g.label}</text>`;
+            }
         });
         return svg;
     }

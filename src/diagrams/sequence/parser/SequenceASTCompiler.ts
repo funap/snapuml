@@ -293,7 +293,33 @@ export class SequenceASTCompiler {
     }
 
     private compileGroup(diagram: SequenceDiagram, node: GroupAST) {
-        diagram.startGroup(node.groupType, node.label);
+        if (node.groupType === 'box') {
+            let parsedLabel = '';
+            let parsedColor: string | undefined = undefined;
+
+            let remaining = node.label.trim();
+            // Extract color starting with '#'
+            const colorMatch = remaining.match(/#([a-zA-Z0-9]+)/);
+            if (colorMatch) {
+                parsedColor = '#' + colorMatch[1];
+                remaining = remaining.replace(colorMatch[0], '').trim();
+            }
+
+            // Extract quoted text or keep unquoted
+            const quoteMatch = remaining.match(/^"([^"]*)"$/) || remaining.match(/^"([^"]*)"/);
+            if (quoteMatch) {
+                parsedLabel = quoteMatch[1];
+            } else {
+                parsedLabel = remaining.replace(/^"(.*)"$/, '$1');
+            }
+
+            const group = diagram.startGroup(node.groupType, parsedLabel);
+            if (parsedColor) {
+                group.color = parsedColor;
+            }
+        } else {
+            diagram.startGroup(node.groupType, node.label);
+        }
         
         for (const child of node.body) {
             this.compileNode(diagram, child);

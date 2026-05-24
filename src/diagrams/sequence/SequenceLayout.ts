@@ -33,11 +33,16 @@ export interface MessageLayout {
     lineStyle: 'solid' | 'dashed';
 }
 
-export interface GroupLayout extends Rect {
+export interface GroupLayout {
     group: Group;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
     type: string;
     label?: string;
     sections: { label: string; y: number }[];
+    color?: string;
 }
 
 export interface ActivationLayout extends Rect {
@@ -94,11 +99,15 @@ export class LayoutEngine {
         const maxStep = this.calculateMaxStep(diagram);
         this.finalizeEndSteps(diagram, maxStep);
 
+        const hasBoxWithLabel = diagram.groups.some(g => g.type === 'box' && g.label);
         let participantYStart = this.theme.padding;
+        if (hasBoxWithLabel) {
+            participantYStart += 25;
+        }
         if (diagram.title) {
-            participantYStart = 55; // Enough room for title at y=25 (occupying up to y=35) + 20px gap
+            participantYStart = Math.max(participantYStart, 55 + (hasBoxWithLabel ? 25 : 0));
         } else if (diagram.header) {
-            participantYStart = 35; // Enough room for header at y=15 (occupying up to y=20) + 15px gap
+            participantYStart = Math.max(participantYStart, 35 + (hasBoxWithLabel ? 25 : 0));
         }
 
         let bottomPadding = this.theme.padding;
@@ -168,7 +177,7 @@ export class LayoutEngine {
         });
 
         // Groups
-        const groupLayouts: GroupLayout[] = this.calculateGroupLayouts(diagram, participantLayouts, finalNoteLayouts, stepY, maxStep);
+        const groupLayouts: GroupLayout[] = this.calculateGroupLayouts(diagram, participantLayouts, finalNoteLayouts, stepY, maxStep, participantYStart, totalHeight, bottomPadding);
 
         // Calculate activations BEFORE messages so we can use them for self-message positioning
         const activationLayouts = this.calculateActivationLayouts(diagram, participantLayouts, stepY, diagram.messages);
@@ -747,7 +756,16 @@ export class LayoutEngine {
         return { minX, maxX };
     }
 
-    private calculateGroupLayouts(diagram: SequenceDiagram, participants: ParticipantLayout[], noteLayouts: NoteLayout[], stepY: number[], maxStep: number): GroupLayout[] {
+    private calculateGroupLayouts(
+        diagram: SequenceDiagram,
+        participants: ParticipantLayout[],
+        noteLayouts: NoteLayout[],
+        stepY: number[],
+        maxStep: number,
+        participantYStart: number,
+        totalHeight: number,
+        bottomPadding: number
+    ): GroupLayout[] {
         const maxGroupLevel = diagram.groups.length > 0 ? Math.max(...diagram.groups.map(g => g.level)) : 0;
 
         return diagram.groups.map(g => {
@@ -760,14 +778,6 @@ export class LayoutEngine {
             const hPadding = 10 + levelOffset * 10;
             const vPaddingTop = 25 + levelOffset * 8;
             const vPaddingBottom = 5 + levelOffset * 8;
-
-            let x = participants[minIdx].x + (participants[minIdx].width / 2) - (participants[minIdx].width / 2) - hPadding; // simplify to p[min].x?? No, pX was centerX-width/2
-            // Let's use the explicit checks
-
-            // Reconstruct logic:
-            // original: x = pX[minIdx] - hPadding
-            // where pX[i] = pCenterX[i] - pWidths[i] / 2
-            // In ParticipantLayout: x is exactly that.
 
             let rectX = participants[minIdx].x - hPadding;
             let rectW = (participants[maxIdx].x + participants[maxIdx].width + hPadding) - rectX;
@@ -811,8 +821,20 @@ export class LayoutEngine {
                 }
             });
 
-            const yStart = stepY[g.startStep] - vPaddingTop;
-            const yEnd = stepY[g.endStep!] + vPaddingBottom;
+            let yStart: number;
+            let height: number;
+
+            if (g.type === 'box') {
+                yStart = participantYStart - 15;
+                if (g.label) {
+                    yStart = participantYStart - 35;
+                }
+                const yEnd = totalHeight - bottomPadding - 10;
+                height = yEnd - yStart;
+            } else {
+                yStart = stepY[g.startStep] - vPaddingTop;
+                height = (stepY[g.endStep!] + vPaddingBottom) - yStart;
+            }
 
             // Calculate section Y positions
             const sections = g.sections.map(s => ({
@@ -825,10 +847,11 @@ export class LayoutEngine {
                 x: rectX,
                 y: yStart,
                 width: rectW,
-                height: yEnd - yStart,
+                height,
                 type: g.type,
                 label: g.label,
-                sections
+                sections,
+                color: g.color
             } as GroupLayout;
 
         }).filter(g => g !== null) as GroupLayout[];

@@ -54,7 +54,7 @@ export interface NoteAST extends ASTNode {
 
 export interface GroupAST extends ASTNode {
     type: 'Group';
-    groupType: 'alt' | 'opt' | 'loop' | 'par' | 'break' | 'critical' | 'group';
+    groupType: 'alt' | 'opt' | 'loop' | 'par' | 'break' | 'critical' | 'group' | 'partition' | 'box';
     label: string;
     body: SequenceASTNode[];
     sections: GroupSectionAST[];

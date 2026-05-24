@@ -59,6 +59,7 @@ export interface Group {
     sections: { label: string; startStep: number }[];
     level: number;
     participants: string[];
+    color?: string;
 }
 
 export interface Reference {

@@ -783,7 +783,14 @@ export class SequenceASTParser {
         }
         const token = this.peek();
         const rawLine = this.sourceLines[token.line - 1] || '';
-        const text = rawLine.substring(token.column - 1).trim();
+        let startIdx = token.column - 1;
+        while (startIdx > 0 && rawLine[startIdx] !== '"' && rawLine[startIdx - 1] !== ' ' && rawLine[startIdx - 1] !== '\t') {
+            startIdx--;
+        }
+        if (startIdx > 0 && rawLine[startIdx - 1] === '"') {
+            startIdx--;
+        }
+        const text = rawLine.substring(startIdx).trim();
         this.consumeLineEnd();
         return text;
     }
