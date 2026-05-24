@@ -15,6 +15,7 @@ export interface SequenceTheme {
         text: string;
     };
     fontFamily: string;
+    delayStyle?: 'dots' | 'space' | 'lifeline';
 }
 
 export const defaultTheme: SequenceTheme = {

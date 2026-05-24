@@ -433,32 +433,58 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
 
     private renderDelays(d: SequenceDiagram, l: LayoutResult): string {
         let svg = '';
+        const delayStyle = d.delayStyle || this.theme.delayStyle || 'dots';
+
+        const nonExternal = l.participants.filter(p => p.participant.name !== '[' && p.participant.name !== ']');
+        if (nonExternal.length === 0) return '';
+        const centerXs = nonExternal.map(p => p.centerX);
+        const minX = Math.min(...centerXs);
+        const maxX = Math.max(...centerXs);
+        const midX = (minX + maxX) / 2;
+
         l.delays.forEach(delay => {
             const y = delay.y;
-            const midX = l.width / 2;
             const dotGap = 10;
-            const dotCount = 5;
 
             // Render text if present
             if (delay.text) {
                 const textW = delay.text.length * 8 + 20;
                 svg += `<text x="${midX}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" fill="${this.theme.colors.text}">${delay.text}</text>`;
 
-                // Dots on the left
-                for (let i = 0; i < dotCount; i++) {
-                    const dx = midX - (textW / 2) - 10 - i * dotGap;
-                    svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
-                }
-                // Dots on the right
-                for (let i = 0; i < dotCount; i++) {
-                    const dx = midX + (textW / 2) + 10 + i * dotGap;
-                    svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+                if (delayStyle === 'dots') {
+                    // Dots on the left: from minX to (midX - textW/2 - 10)
+                    const leftEnd = midX - (textW / 2) - 10;
+                    for (let dx = minX; dx <= leftEnd; dx += dotGap) {
+                        svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+                    }
+                    // Dots on the right: from (midX + textW/2 + 10) to maxX
+                    const rightStart = midX + (textW / 2) + 10;
+                    for (let dx = rightStart; dx <= maxX; dx += dotGap) {
+                        svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+                    }
+                } else if (delayStyle === 'lifeline') {
+                    // Draw vertical dotted line along each lifeline
+                    nonExternal.forEach(pl => {
+                        svg += `<rect x="${pl.centerX - 2}" y="${y - 15}" width="4" height="30" fill="white" />`;
+                        svg += `<circle cx="${pl.centerX}" cy="${y - 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+                        svg += `<circle cx="${pl.centerX}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+                        svg += `<circle cx="${pl.centerX}" cy="${y + 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+                    });
                 }
             } else {
-                // Just dots across
-                for (let i = -10; i <= 10; i++) {
-                    if (i === 0) continue;
-                    svg += `<circle cx="${midX + i * dotGap}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+                if (delayStyle === 'dots') {
+                    // Just dots across from minX to maxX
+                    for (let dx = minX; dx <= maxX; dx += dotGap) {
+                        svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+                    }
+                } else if (delayStyle === 'lifeline') {
+                    // Draw vertical dotted line along each lifeline
+                    nonExternal.forEach(pl => {
+                        svg += `<rect x="${pl.centerX - 2}" y="${y - 15}" width="4" height="30" fill="white" />`;
+                        svg += `<circle cx="${pl.centerX}" cy="${y - 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+                        svg += `<circle cx="${pl.centerX}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+                        svg += `<circle cx="${pl.centerX}" cy="${y + 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+                    });
                 }
             }
         });

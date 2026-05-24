@@ -441,6 +441,19 @@ export class SequenceASTCompiler {
             diagram.setFooter(node.value || '');
         } else if (node.metaType === 'hide_footbox') {
             diagram.setHideFootbox(true);
+        } else if (node.metaType === 'skinparam' as any) {
+            if (node.value) {
+                const parts = node.value.trim().split(/\s+/);
+                if (parts.length >= 2) {
+                    const key = parts[0];
+                    const val = parts.slice(1).join(' ');
+                    if (key === 'sequenceDelayStyle') {
+                        if (val === 'space' || val === 'lifeline' || val === 'dots') {
+                            diagram.delayStyle = val;
+                        }
+                    }
+                }
+            }
         }
     }
 }

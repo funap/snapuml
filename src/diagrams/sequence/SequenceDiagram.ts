@@ -115,6 +115,7 @@ export class SequenceDiagram implements Diagram {
     header?: string;
     footer?: string;
     hideFootbox: boolean = false;
+    delayStyle: 'dots' | 'space' | 'lifeline' = 'space';
 
     private currentStep = 0;
     private groupStack: Group[] = [];
