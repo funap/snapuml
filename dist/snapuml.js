@@ -1069,10 +1069,17 @@ var snapuml = (() => {
       const token = this.peek();
       const rawLine = this.sourceLines[token.line - 1] || "";
       let startIdx = token.column - 1;
-      while (startIdx > 0 && rawLine[startIdx] !== '"' && rawLine[startIdx - 1] !== " " && rawLine[startIdx - 1] !== "	") {
+      let minStartIdx = 0;
+      if (this.current > 0 && this.tokens[this.current - 1].type === "COLON" /* COLON */) {
+        const colonToken = this.tokens[this.current - 1];
+        if (colonToken.line === token.line) {
+          minStartIdx = colonToken.column;
+        }
+      }
+      while (startIdx > minStartIdx && rawLine[startIdx] !== '"' && rawLine[startIdx - 1] !== " " && rawLine[startIdx - 1] !== "	") {
         startIdx--;
       }
-      if (startIdx > 0 && rawLine[startIdx - 1] === '"') {
+      if (startIdx > minStartIdx && rawLine[startIdx - 1] === '"') {
         startIdx--;
       }
       const text = rawLine.substring(startIdx).trim();
@@ -1139,6 +1146,7 @@ var snapuml = (() => {
       this.timeConstraints = [];
       this.taggedSteps = /* @__PURE__ */ new Map();
       this.hideFootbox = false;
+      this.delayStyle = "space";
       this.currentStep = 0;
       this.groupStack = [];
       this.autonumberConfig = null;
@@ -1324,7 +1332,7 @@ var snapuml = (() => {
       }
     }
     startGroup(type, label) {
-      const step = this.nextStep();
+      const step = type === "box" ? this.currentStep : this.nextStep();
       const group = {
         type,
         label,
@@ -1346,7 +1354,7 @@ var snapuml = (() => {
     endGroup() {
       const group = this.groupStack.pop();
       if (group) {
-        group.endStep = this.nextStep();
+        group.endStep = group.type === "box" ? this.currentStep : this.nextStep();
       }
     }
     addReference(participants, label) {
@@ -1736,6 +1744,19 @@ var snapuml = (() => {
         diagram.setFooter(node.value || "");
       } else if (node.metaType === "hide_footbox") {
         diagram.setHideFootbox(true);
+      } else if (node.metaType === "skinparam") {
+        if (node.value) {
+          const parts = node.value.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            const key = parts[0];
+            const val = parts.slice(1).join(" ");
+            if (key === "sequenceDelayStyle") {
+              if (val === "space" || val === "lifeline" || val === "dots") {
+                diagram.delayStyle = val;
+              }
+            }
+          }
+        }
       }
     }
   };
@@ -1778,7 +1799,7 @@ var snapuml = (() => {
       this.theme = theme;
     }
     calculateLayout(diagram) {
-      const participants = [...diagram.participants].sort((a, b) => {
+      const participants = [...diagram.participants].filter((p) => p.name !== "[" && p.name !== "]" && p.name !== "?").sort((a, b) => {
         if (a.order !== void 0 && b.order !== void 0) return a.order - b.order;
         if (a.order !== void 0) return -1;
         if (b.order !== void 0) return 1;
@@ -1863,17 +1884,40 @@ var snapuml = (() => {
       };
     }
     calculateMessageLayouts(diagram, participants, stepY, activations) {
+      const leftmostParticipant = participants[0];
+      const rightmostParticipant = participants[participants.length - 1];
       return diagram.messages.map((m) => {
         const fromIdx = participants.findIndex((p) => p.participant.name === m.from);
         const toIdx = participants.findIndex((p) => p.participant.name === m.to);
         const y = stepY[m.step];
-        let x1 = fromIdx !== -1 ? participants[fromIdx].centerX : 0;
-        let x2 = toIdx !== -1 ? participants[toIdx].centerX : 0;
-        if (fromIdx !== -1 && toIdx !== -1) {
-          const fromActivations = activations.filter((a) => a.activation.participantName === m.from && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step).sort((a, b) => b.activation.level - a.activation.level);
-          const toActivations = activations.filter((a) => a.activation.participantName === m.to && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step).sort((a, b) => b.activation.level - a.activation.level);
+        let x1 = 0;
+        if (fromIdx !== -1) {
+          x1 = participants[fromIdx].centerX;
+        } else if (m.from === "[") {
+          x1 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
+        } else if (m.from === "]") {
+          x1 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
+        } else if (m.from === "?") {
+          const toX = toIdx !== -1 ? participants[toIdx].centerX : 100;
+          x1 = toX - 50;
+        }
+        let x2 = 0;
+        if (toIdx !== -1) {
+          x2 = participants[toIdx].centerX;
+        } else if (m.to === "]") {
+          x2 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
+        } else if (m.to === "[") {
+          x2 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
+        } else if (m.to === "?") {
+          const fromX = fromIdx !== -1 ? participants[fromIdx].centerX : 50;
+          x2 = fromX + 50;
+        }
+        if (fromIdx !== -1 || toIdx !== -1) {
+          const fromActivations = fromIdx !== -1 ? activations.filter((a) => a.activation.participantName === m.from && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step).sort((a, b) => b.activation.level - a.activation.level) : [];
+          const toActivations = toIdx !== -1 ? activations.filter((a) => a.activation.participantName === m.to && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step).sort((a, b) => b.activation.level - a.activation.level) : [];
           if (fromIdx !== toIdx) {
-            if (fromIdx < toIdx) {
+            const isLeftToRight = fromIdx !== -1 && toIdx !== -1 ? fromIdx < toIdx : true;
+            if (isLeftToRight) {
               if (fromActivations.length > 0) {
                 x1 = fromActivations[0].x + fromActivations[0].width;
               }
@@ -2078,7 +2122,8 @@ var snapuml = (() => {
         bottomExtension[n.step] = Math.max(bottomExtension[n.step], noteHeight / 2);
       });
       diagram.messages.forEach((m) => {
-        const lines = m.text.split("\n");
+        const hasText = m.text && m.text.trim() !== "";
+        const lines = hasText ? m.text.split("\n") : [];
         const textLines = lines.length;
         const delay = m.arrowDelay || 0;
         if (m.from === m.to) {
@@ -2086,14 +2131,31 @@ var snapuml = (() => {
           topExtension[m.step] = Math.max(topExtension[m.step], 0);
           bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10 + delay);
         } else {
-          const textHeight = textLines * 15 + 5;
+          const textHeight = hasText ? textLines * 15 + 5 : 0;
           topExtension[m.step] = Math.max(topExtension[m.step], textHeight);
           bottomExtension[m.step] = Math.max(bottomExtension[m.step], delay);
+        }
+      });
+      const maxGroupLevel = diagram.groups.length > 0 ? Math.max(...diagram.groups.map((g) => g.level)) : 0;
+      diagram.groups.forEach((g) => {
+        if (g.type === "box") return;
+        const levelOffset = maxGroupLevel - g.level;
+        const vPaddingTop = 25 + levelOffset * 8;
+        const vPaddingBottom = 5 + levelOffset * 8;
+        topExtension[g.startStep] = Math.max(topExtension[g.startStep], vPaddingTop);
+        if (g.endStep !== void 0) {
+          bottomExtension[g.endStep] = Math.max(bottomExtension[g.endStep], vPaddingBottom);
         }
       });
       const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
       if (maxStep > 0) {
         baseHeights[maxStep - 1] = 40;
+      }
+      for (let i = 0; i <= maxStep; i++) {
+        const stepMessages = diagram.messages.filter((m) => m.step === i);
+        if (stepMessages.length > 0) {
+          baseHeights[i] = 20;
+        }
       }
       diagram.dividers.forEach((d) => {
         baseHeights[d.step] = 30;
@@ -2116,7 +2178,8 @@ var snapuml = (() => {
         stepHeights[i] = Math.max(baseHeights[i], requiredGap);
       }
       const stepY = new Array(maxStep + 1).fill(0);
-      let currentY = participantYStart + this.theme.participantHeight + 30;
+      const headerGap = Math.max(30, topExtension[0] + 10);
+      let currentY = participantYStart + this.theme.participantHeight + headerGap;
       for (let i = 0; i <= maxStep; i++) {
         stepY[i] = currentY;
         currentY += stepHeights[i];
@@ -2317,22 +2380,46 @@ var snapuml = (() => {
       messages.forEach((m) => {
         const fromIdx = participants.findIndex((p) => p.name === m.from);
         const toIdx = participants.findIndex((p) => p.name === m.to);
-        if (fromIdx === -1 || toIdx === -1) return;
         const textLines = m.text.split("\n");
         const textWidth = Math.max(...textLines.map((l) => l.length * 8)) + 20;
-        if (fromIdx === toIdx) {
+        if (fromIdx !== -1 && fromIdx === toIdx) {
           const cx = relpCenterX[fromIdx];
-          const textWidth2 = Math.max(...m.text.split("\n").map((l) => l.length * 8)) + 20;
-          const rightBound = cx + 40 + textWidth2 + 10;
+          const rightBound = cx + 40 + textWidth + 10;
           if (rightBound > maxX) maxX = rightBound;
         } else {
-          const x1 = relpCenterX[fromIdx];
-          const x2 = relpCenterX[toIdx];
+          let x1 = 0;
+          let x2 = 0;
+          const leftmostParticipant = participants[0];
+          const rightmostParticipant = participants[participants.length - 1];
+          if (fromIdx !== -1) {
+            x1 = relpCenterX[fromIdx] || 0;
+          } else if (m.from === "[") {
+            x1 = relpCenterX[0] !== void 0 ? relpCenterX[0] - 80 : 50;
+          } else if (m.from === "]") {
+            x1 = relpCenterX[relpCenterX.length - 1] !== void 0 ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
+          } else if (m.from === "?") {
+            const toRelIdx = toIdx !== -1 ? toIdx : 0;
+            x1 = relpCenterX[toRelIdx] !== void 0 ? relpCenterX[toRelIdx] - 50 : 50;
+          }
+          if (toIdx !== -1) {
+            x2 = relpCenterX[toIdx] || 0;
+          } else if (m.to === "]") {
+            x2 = relpCenterX[relpCenterX.length - 1] !== void 0 ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
+          } else if (m.to === "[") {
+            x2 = relpCenterX[0] !== void 0 ? relpCenterX[0] - 80 : 50;
+          } else if (m.to === "?") {
+            const fromRelIdx = fromIdx !== -1 ? fromIdx : 0;
+            x2 = relpCenterX[fromRelIdx] !== void 0 ? relpCenterX[fromRelIdx] + 50 : 100;
+          }
           const cx = (x1 + x2) / 2;
           const left = cx - textWidth / 2;
           const right = cx + textWidth / 2;
-          if (left < minX) minX = left;
-          if (right > maxX) maxX = right;
+          const arrowMin = Math.min(x1, x2);
+          const arrowMax = Math.max(x1, x2);
+          const finalLeft = Math.min(left, arrowMin);
+          const finalRight = Math.max(right, arrowMax);
+          if (finalLeft < minX) minX = finalLeft;
+          if (finalRight > maxX) maxX = finalRight;
         }
       });
       return { minX, maxX };
@@ -2516,7 +2603,7 @@ var snapuml = (() => {
         bottomPadding += 25;
       }
       layout.participants.forEach((pl) => {
-        if (pl.participant.name === "[" || pl.participant.name === "]") {
+        if (pl.participant.name === "[" || pl.participant.name === "]" || pl.participant.name === "?") {
           return;
         }
         const x = pl.centerX;
@@ -2631,7 +2718,7 @@ var snapuml = (() => {
         }
       };
       layout.participants.forEach((pl) => {
-        if (pl.participant.name === "[" || pl.participant.name === "]") {
+        if (pl.participant.name === "[" || pl.participant.name === "]" || pl.participant.name === "?") {
           return;
         }
         draw(pl, true);
@@ -2750,7 +2837,9 @@ var snapuml = (() => {
           }
           const formattedLine = this.formatRichText(line);
           const displayContent = i === 0 && numberPrefix ? `${numberPrefix} ${formattedLine}` : formattedLine;
-          svg += `<text x="${ml.labelPosition.x}" y="${y}" text-anchor="${anchor}" font-size="${this.theme.fontSize - 2}" fill="${strokeColor}">${displayContent}</text>`;
+          if (displayContent.trim() !== "") {
+            svg += `<text x="${ml.labelPosition.x}" y="${y}" text-anchor="${anchor}" font-size="${this.theme.fontSize - 2}" fill="${strokeColor}">${displayContent}</text>`;
+          }
         });
       });
       return svg;
@@ -2771,26 +2860,48 @@ var snapuml = (() => {
     }
     renderDelays(d, l) {
       let svg = "";
+      const delayStyle = d.delayStyle || this.theme.delayStyle || "dots";
+      const nonExternal = l.participants.filter((p) => p.participant.name !== "[" && p.participant.name !== "]" && p.participant.name !== "?");
+      if (nonExternal.length === 0) return "";
+      const centerXs = nonExternal.map((p) => p.centerX);
+      const minX = Math.min(...centerXs);
+      const maxX = Math.max(...centerXs);
+      const midX = (minX + maxX) / 2;
       l.delays.forEach((delay) => {
         const y = delay.y;
-        const midX = l.width / 2;
         const dotGap = 10;
-        const dotCount = 5;
         if (delay.text) {
           const textW = delay.text.length * 8 + 20;
           svg += `<text x="${midX}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" fill="${this.theme.colors.text}">${delay.text}</text>`;
-          for (let i = 0; i < dotCount; i++) {
-            const dx = midX - textW / 2 - 10 - i * dotGap;
-            svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
-          }
-          for (let i = 0; i < dotCount; i++) {
-            const dx = midX + textW / 2 + 10 + i * dotGap;
-            svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+          if (delayStyle === "dots") {
+            const leftEnd = midX - textW / 2 - 10;
+            for (let dx = minX; dx <= leftEnd; dx += dotGap) {
+              svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+            }
+            const rightStart = midX + textW / 2 + 10;
+            for (let dx = rightStart; dx <= maxX; dx += dotGap) {
+              svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+            }
+          } else if (delayStyle === "lifeline") {
+            nonExternal.forEach((pl) => {
+              svg += `<rect x="${pl.centerX - 2}" y="${y - 15}" width="4" height="30" fill="white" />`;
+              svg += `<circle cx="${pl.centerX}" cy="${y - 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+              svg += `<circle cx="${pl.centerX}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+              svg += `<circle cx="${pl.centerX}" cy="${y + 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+            });
           }
         } else {
-          for (let i = -10; i <= 10; i++) {
-            if (i === 0) continue;
-            svg += `<circle cx="${midX + i * dotGap}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+          if (delayStyle === "dots") {
+            for (let dx = minX; dx <= maxX; dx += dotGap) {
+              svg += `<circle cx="${dx}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+            }
+          } else if (delayStyle === "lifeline") {
+            nonExternal.forEach((pl) => {
+              svg += `<rect x="${pl.centerX - 2}" y="${y - 15}" width="4" height="30" fill="white" />`;
+              svg += `<circle cx="${pl.centerX}" cy="${y - 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+              svg += `<circle cx="${pl.centerX}" cy="${y}" r="1.5" fill="${this.theme.colors.text}" />`;
+              svg += `<circle cx="${pl.centerX}" cy="${y + 10}" r="1.5" fill="${this.theme.colors.text}" />`;
+            });
           }
         }
       });
