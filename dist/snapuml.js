@@ -771,6 +771,7 @@ var snapuml = (() => {
             text: text2,
             shape,
             color: color2,
+            sameStep: isSameStep,
             line: token.line,
             column: token.column
           };
@@ -804,6 +805,7 @@ var snapuml = (() => {
             text: lines.join("\n"),
             shape,
             color: color2,
+            sameStep: isSameStep,
             line: token.line,
             column: token.column
           };
@@ -1164,7 +1166,7 @@ var snapuml = (() => {
         if (!g.participants.includes(name)) g.participants.push(name);
       });
     }
-    addMessage(from, to, text, type = "arrow", arrowHead = "default", color, bidirectional, startHead = "none") {
+    addMessage(from, to, text, type = "arrow", arrowHead = "default", color, bidirectional, startHead = "none", arrowDelay) {
       const step = this.currentStep++;
       this.addParticipant(from);
       this.addParticipant(to);
@@ -1181,7 +1183,7 @@ var snapuml = (() => {
       const rawNum = this.currentAutonumbers.join(this.autonumberDelimiter);
       text = text.replace(/%autonumber%/g, rawNum);
       text = decodeUnicode(text);
-      this.messages.push({ from, to, text, type, step, arrowHead, startHead, color, bidirectional, number: msgNumber });
+      this.messages.push({ from, to, text, type, step, arrowHead, startHead, color, bidirectional, number: msgNumber, arrowDelay });
       if (this.autoactivateEnabled && from !== to && type === "arrow") {
         this.activate(to, step, step);
       }
@@ -1478,6 +1480,16 @@ var snapuml = (() => {
         arrow = arrow.substring(1).trim();
         diagram.rewindStep();
       }
+      let arrowDelay = void 0;
+      const startDelayMatch = arrow.match(/^\((\d+)\)/);
+      const endDelayMatch = arrow.match(/\((\d+)\)$/);
+      if (startDelayMatch) {
+        arrowDelay = parseInt(startDelayMatch[1], 10);
+        arrow = arrow.substring(startDelayMatch[0].length);
+      } else if (endDelayMatch) {
+        arrowDelay = parseInt(endDelayMatch[1], 10);
+        arrow = arrow.substring(0, arrow.length - endDelayMatch[0].length);
+      }
       let shorthand = node.shorthand;
       let autoActivColor = node.color;
       const arrowMatch = arrow.match(/^([<ox\\/]*)([-.]+)(?:\[(#\w+)\])?([-.]*)([>ox\\/]*)?(?:(--\+\+|\+\+--|--|\+\+|\*\*|!!))?$/i);
@@ -1508,7 +1520,7 @@ var snapuml = (() => {
         if (headEndStr === "x") arrowHead = "lost";
         if (from === "x") startHead = "found";
         const normalizedText = node.text.replace(/\\n/g, "\n");
-        const step = diagram.addMessage(from, to, normalizedText, isDotted ? "dotted" : "arrow", arrowHead, msgColor, isBidirectional, startHead);
+        const step = diagram.addMessage(from, to, normalizedText, isDotted ? "dotted" : "arrow", arrowHead, msgColor, isBidirectional, startHead, arrowDelay);
         if (node.tag) {
           diagram.addTaggedStep(node.tag, step);
         }
@@ -1568,6 +1580,9 @@ var snapuml = (() => {
       }
     }
     compileNote(diagram, node) {
+      if (node.sameStep) {
+        diagram.rewindStep();
+      }
       const normPos = node.position;
       let participants = node.participants.map((p) => p.replace(/^"(.*)"$/, "$1"));
       let associationStep;
@@ -1878,8 +1893,20 @@ var snapuml = (() => {
         if (toIdx !== -1 && participants[toIdx].participant.createdStep === m.step) {
           x2 = participants[toIdx].x;
         }
-        const points = [{ x: x1, y }, { x: x2, y }];
-        let labelPosition = { x: (x1 + x2) / 2, y };
+        const isHead = (h) => h && ["default", "open", "half", "arrow-circle"].includes(h);
+        const isReverse = isHead(m.startHead) && !isHead(m.arrowHead);
+        const delay = m.arrowDelay || 0;
+        let y1 = y;
+        let y2 = y;
+        if (delay > 0) {
+          if (isReverse) {
+            y1 = y + delay;
+          } else {
+            y2 = y + delay;
+          }
+        }
+        const points = [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+        let labelPosition = { x: (x1 + x2) / 2, y: y + delay / 2 };
         if (fromIdx === toIdx && fromIdx !== -1) {
           const activeActivations = activations.filter(
             (a) => a.activation.participantName === m.from && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step
@@ -1910,17 +1937,17 @@ var snapuml = (() => {
             const diff = 40;
             points[0] = { x: baseXStart, y };
             points[1] = { x: Math.max(baseXStart, baseXEnd) + diff, y };
-            points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + 25 });
-            points.push({ x: baseXEnd, y: y + 25 });
-            labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + 5, y: y + 10 };
+            points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + 25 + delay });
+            points.push({ x: baseXEnd, y: y + 25 + delay });
+            labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + 5, y: y + 10 + delay / 2 };
           } else {
             const baseX = participants[fromIdx].centerX;
             const diff = 40;
             points[0] = { x: baseX, y };
             points[1] = { x: baseX + diff, y };
-            points.push({ x: baseX + diff, y: y + 25 });
-            points.push({ x: baseX, y: y + 25 });
-            labelPosition = { x: baseX + diff + 5, y: y + 10 };
+            points.push({ x: baseX + diff, y: y + 25 + delay });
+            points.push({ x: baseX, y: y + 25 + delay });
+            labelPosition = { x: baseX + diff + 5, y: y + 10 + delay / 2 };
           }
         }
         return {
@@ -2053,14 +2080,15 @@ var snapuml = (() => {
       diagram.messages.forEach((m) => {
         const lines = m.text.split("\n");
         const textLines = lines.length;
+        const delay = m.arrowDelay || 0;
         if (m.from === m.to) {
           const loopHeight = Math.max(25, textLines * 20);
           topExtension[m.step] = Math.max(topExtension[m.step], 0);
-          bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10);
+          bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10 + delay);
         } else {
           const textHeight = textLines * 15 + 5;
           topExtension[m.step] = Math.max(topExtension[m.step], textHeight);
-          bottomExtension[m.step] = Math.max(bottomExtension[m.step], 0);
+          bottomExtension[m.step] = Math.max(bottomExtension[m.step], delay);
         }
       });
       const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
