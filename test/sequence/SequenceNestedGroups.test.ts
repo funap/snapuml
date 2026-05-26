@@ -77,4 +77,37 @@ describe('Sequence Diagram Nested Group Spacing', () => {
         console.log('msg3 Y:', msg3.y);
         expect(msg3.y).toBeGreaterThanOrEqual(groupBottom + 20);
     });
+
+    it('should include group box padding/extension in the total width to prevent clipping', () => {
+        const code = `
+        Alice -> Bob: Authentication Request
+        Bob -> Alice: Authentication Failure
+        
+        group My own label [My own label 2]
+            Alice -> Log : Log attack start
+            loop 1000 times
+                Alice -> Bob: DNS Attack
+            end
+            Alice -> Log : Log attack end
+        end
+        `;
+        const diagram = parser.parse(code);
+        const layout = layoutEngine.calculateLayout(diagram);
+
+        const aliceLayout = layout.participants.find(p => p.participant.name === 'Alice')!;
+        const logLayout = layout.participants.find(p => p.participant.name === 'Log')!;
+        
+        // Find the outermost group layout
+        const mainGroup = layout.groups.find(g => g.label === 'My own label [My own label 2]')!;
+
+        // The group box left edge (mainGroup.x) should be exactly (aliceLayout.x - hPadding).
+        // Since mainGroup.x is the absolute minimum boundary of the diagram's visual elements,
+        // it must be exactly equal to the theme padding (defaultTheme.padding).
+        expect(mainGroup.x).toBeGreaterThanOrEqual(defaultTheme.padding);
+        
+        // The total width of the diagram must be large enough to contain the rightmost group edge with padding.
+        const groupRightEdge = mainGroup.x + mainGroup.width;
+        expect(layout.width).toBeGreaterThanOrEqual(groupRightEdge + defaultTheme.padding);
+    });
 });
+
