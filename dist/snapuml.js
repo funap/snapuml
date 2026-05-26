@@ -1828,7 +1828,7 @@ var snapuml = (() => {
       const gaps = this.calculateGaps(diagram, participants, pWidths);
       const relpCenterX = this.calculateRelativepCenterXs(participants, pWidths, gaps);
       const noteLayoutsMap = this.preCalculateNoteLayouts(diagram, participants, relpCenterX, pWidths, stepY);
-      const bounds = this.calculateBounds(participants, relpCenterX, pWidths, noteLayoutsMap, diagram.messages);
+      const bounds = this.calculateBounds(participants, relpCenterX, pWidths, noteLayoutsMap, diagram.messages, diagram.groups);
       const offsetX = this.theme.padding - bounds.minX;
       const baseWidth = bounds.maxX - bounds.minX + this.theme.padding * 2;
       let totalWidth = baseWidth;
@@ -2372,7 +2372,7 @@ var snapuml = (() => {
       });
       return noteLayouts;
     }
-    calculateBounds(participants, relpCenterX, pWidths, noteLayouts, messages) {
+    calculateBounds(participants, relpCenterX, pWidths, noteLayouts, messages, groups) {
       let minX = 0;
       let maxX = 0;
       participants.forEach((p, i) => {
@@ -2389,6 +2389,19 @@ var snapuml = (() => {
       noteLayouts.forEach((l) => {
         if (l.x < minX) minX = l.x;
         if (l.x + l.width > maxX) maxX = l.x + l.width;
+      });
+      const maxGroupLevel = groups.length > 0 ? Math.max(...groups.map((g) => g.level)) : 0;
+      groups.forEach((g) => {
+        const pIdxs = g.participants.map((name) => participants.findIndex((p) => p.name === name)).filter((i) => i !== -1);
+        if (pIdxs.length === 0) return;
+        const minIdx = Math.min(...pIdxs);
+        const maxIdx = Math.max(...pIdxs);
+        const levelOffset = maxGroupLevel - g.level;
+        const hPadding = 10 + levelOffset * 10;
+        const groupLeft = relpCenterX[minIdx] - pWidths[minIdx] / 2 - hPadding;
+        const groupRight = relpCenterX[maxIdx] + pWidths[maxIdx] / 2 + hPadding;
+        if (groupLeft < minX) minX = groupLeft;
+        if (groupRight > maxX) maxX = groupRight;
       });
       messages.forEach((m) => {
         const fromIdx = participants.findIndex((p) => p.name === m.from);
