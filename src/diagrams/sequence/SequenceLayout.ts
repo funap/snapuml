@@ -551,8 +551,22 @@ export class LayoutEngine {
             }
         });
 
+        const isGroupStartStep = (step: number) => {
+            return diagram.groups.some(g => g.type !== 'box' && g.startStep === step);
+        };
+        const isGroupEndStep = (step: number) => {
+            return diagram.groups.some(g => g.type !== 'box' && g.endStep === step);
+        };
+
         for (let i = 0; i <= maxStep; i++) {
-            const requiredGap = bottomExtension[i] + topExtension[i + 1] + 10;
+            let margin = 10;
+            if (isGroupStartStep(i + 1)) {
+                margin = Math.max(margin, 25);
+            }
+            if (isGroupEndStep(i)) {
+                margin = Math.max(margin, 20);
+            }
+            const requiredGap = bottomExtension[i] + topExtension[i + 1] + margin;
             stepHeights[i] = Math.max(baseHeights[i], requiredGap);
         }
 

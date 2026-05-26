@@ -46,4 +46,35 @@ describe('Sequence Diagram Nested Group Spacing', () => {
 
         expect(g1.y).toBeGreaterThanOrEqual(participantBottom + 10);
     });
+
+    it('should calculate spacious margins (25px top, 20px bottom) for group boxes', () => {
+        const code = `
+        Alice -> Bob: Authentication Request
+        alt successful case
+            Bob -> Alice: Authentication Accepted
+        end
+        Alice -> Bob: Next Request
+        `;
+        const diagram = parser.parse(code);
+        const layout = layoutEngine.calculateLayout(diagram);
+
+        expect(diagram.groups).toHaveLength(1);
+        expect(diagram.messages).toHaveLength(3);
+
+        const g = layout.groups[0];
+        const msg1 = layout.messages.find(m => m.message.text === 'Authentication Request')!;
+        const msg2 = layout.messages.find(m => m.message.text === 'Authentication Accepted')!;
+        const msg3 = layout.messages.find(m => m.message.text === 'Next Request')!;
+
+        // The top of the alt group should be at least 25px below msg1
+        console.log('msg1 Y:', msg1.y);
+        console.log('group top Y:', g.y);
+        expect(g.y).toBeGreaterThanOrEqual(msg1.y + 25);
+
+        // The bottom of the alt group should be at least 20px above msg3
+        const groupBottom = g.y + g.height;
+        console.log('group bottom Y:', groupBottom);
+        console.log('msg3 Y:', msg3.y);
+        expect(msg3.y).toBeGreaterThanOrEqual(groupBottom + 20);
+    });
 });
