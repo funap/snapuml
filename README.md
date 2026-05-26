@@ -1,6 +1,6 @@
 # SnapUML ⚡
 
-A lightning-fast, 100% serverless, and local-first PlantUML-compatible diagram generator for the web.
+A lightning-fast, 100% client-side, and local-first PlantUML-like diagram generator for the web.
 
 **[✨ Try it Live!](https://funap.github.io/snapuml/)**
 
@@ -8,21 +8,23 @@ A lightning-fast, 100% serverless, and local-first PlantUML-compatible diagram g
 
 ## 🌟 Why SnapUML?
 
-Traditional PlantUML tools often require either a backend Java server (along with Graphviz installation) or sending your sensitive diagram data to public/third-party servers. 
+PlantUML is a fantastic, industry-standard tool loved by developers worldwide for defining diagrams as code. 
 
-**SnapUML changes that.** It is built to run entirely inside the user's browser, processing text and rendering high-quality SVGs locally. 
+**SnapUML brings that same intuitive, PlantUML-like writing experience directly to modern web browsers.** It is a lightweight, dependency-free compiler designed to parse and render diagrams entirely client-side, making it incredibly easy to integrate interactive diagrams into web applications, personal blogs, or internal wikis.
 
 ### Key Benefits:
-- **🔒 Maximum Privacy & Security**: Your code and software architecture diagrams never leave your machine. No external servers, no privacy leaks. Perfect for enterprise internal use and private repositories.
-- **☁️ Zero-Server, 100% Serverless**: No backend servers to maintain, no Java runtime to install, and no network dependencies. It runs completely client-side.
-- **⚡ Real-time, Local Rendering**: Experience instant rendering with zero network latency. As fast as you type, your SVGs are generated.
-- **📶 Offline Support**: Work anywhere, anytime. Since there are no server roundtrips, it works perfectly without an internet connection.
+
+- **✍️ Intuitive PlantUML-like Syntax**: Write your sequence and component diagrams using the clean, expressive syntax you already know and love.
+- **🔒 Private & Secure by Design**: Since the entire parsing and rendering process happens locally in the user's browser, your architecture data and code never leave your machine.
+- **⚡ Real-time, Local Rendering**: Experience instant preview generation as you type, with zero network latency or server roundtrips.
+- **📦 Zero External Dependencies**: No Java runtime, no Graphviz installation, and no backend servers required. It's a pure, lightweight TypeScript/JavaScript solution.
+- **📶 Works Offline**: Because it runs 100% client-side, you can generate and view diagrams anytime, anywhere, without an internet connection.
 
 ---
 
 ## 🚀 Features
 
-- **PlantUML-Compatible**: Use the intuitive and clean PlantUML syntax you already know.
+- **PlantUML-like Syntax**: Use familiar PlantUML-inspired declarations for rapid diagramming.
 - **Supported Diagrams**:
   - **Sequence Diagrams** (with actors, participants, boundaries, and control flows)
   - **Component Diagrams** (with components, interfaces, database, package structures)
@@ -64,12 +66,12 @@ API --> User: 200 OK (JSON)
 ```typescript
 import snapuml from 'snapuml';
 
-const plantumlCode = `
+const code = `
 [Component A] -> [Component B] : API Request
 `;
 
 // Render to SVG string
-const svgString = snapuml.render(plantumlCode);
+const svgString = snapuml.render(code);
 ```
 
 ---
