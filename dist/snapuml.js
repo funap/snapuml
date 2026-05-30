@@ -972,6 +972,17 @@ var snapuml = (() => {
     parseGroup() {
       const startToken = this.previous();
       const groupType = startToken.value.toLowerCase();
+      let headerColor = void 0;
+      let bodyColor = void 0;
+      if (this.check("COLOR" /* COLOR */)) {
+        const firstColor = this.advance().value;
+        if (this.check("COLOR" /* COLOR */)) {
+          headerColor = firstColor;
+          bodyColor = this.advance().value;
+        } else {
+          bodyColor = firstColor;
+        }
+      }
       let label = this.consumeLineText();
       const body = [];
       const sections = [];
@@ -985,6 +996,10 @@ var snapuml = (() => {
       }
       while (this.match("ELSE" /* ELSE */)) {
         const elseToken = this.previous();
+        let sectionColor = void 0;
+        if (this.check("COLOR" /* COLOR */)) {
+          sectionColor = this.advance().value;
+        }
         let sectionLabel = this.consumeLineText();
         const sectionBody = [];
         while (this.match("NEWLINE" /* NEWLINE */)) {
@@ -999,6 +1014,7 @@ var snapuml = (() => {
           type: "GroupSection",
           label: sectionLabel,
           body: sectionBody,
+          color: sectionColor,
           line: elseToken.line,
           column: elseToken.column
         });
@@ -1014,6 +1030,8 @@ var snapuml = (() => {
         label,
         body,
         sections,
+        headerColor,
+        bodyColor,
         line: startToken.line,
         column: startToken.column
       };
@@ -1345,10 +1363,10 @@ var snapuml = (() => {
       this.groupStack.push(group);
       return group;
     }
-    addGroupSection(label) {
+    addGroupSection(label, color) {
       const group = this.groupStack[this.groupStack.length - 1];
       if (group) {
-        group.sections.push({ label, startStep: this.nextStep() });
+        group.sections.push({ label, startStep: this.nextStep(), color });
       }
     }
     endGroup() {
@@ -1647,15 +1665,23 @@ var snapuml = (() => {
         const group = diagram.startGroup(node.groupType, parsedLabel);
         if (parsedColor) {
           group.color = parsedColor;
+        } else if (node.bodyColor) {
+          group.color = node.bodyColor;
         }
       } else {
-        diagram.startGroup(node.groupType, node.label);
+        const group = diagram.startGroup(node.groupType, node.label);
+        if (node.headerColor) {
+          group.headerColor = node.headerColor;
+        }
+        if (node.bodyColor) {
+          group.color = node.bodyColor;
+        }
       }
       for (const child of node.body) {
         this.compileNode(diagram, child);
       }
       for (const section of node.sections) {
-        diagram.addGroupSection(section.label);
+        diagram.addGroupSection(section.label, section.color);
         for (const child of section.body) {
           this.compileNode(diagram, child);
         }
@@ -2512,7 +2538,8 @@ var snapuml = (() => {
         }
         const sections = g.sections.map((s) => ({
           label: s.label,
-          y: stepY[s.startStep]
+          y: stepY[s.startStep],
+          color: s.color
         }));
         return {
           group: g,
@@ -2523,7 +2550,8 @@ var snapuml = (() => {
           type: g.type,
           label: g.label,
           sections,
-          color: g.color
+          color: g.color,
+          headerColor: g.headerColor
         };
       }).filter((g) => g !== null);
     }
@@ -2552,6 +2580,7 @@ var snapuml = (() => {
       let svg = `<svg width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" xmlns="http://www.w3.org/2000/svg" style="background: white; font-family: ${this.theme.fontFamily};">`;
       svg += this.renderDefs(diagram);
       svg += this.renderBoxes(layout);
+      svg += this.renderGroupBackgrounds(layout);
       svg += this.renderLifelines(diagram, layout);
       svg += this.renderActivations(diagram, layout);
       svg += this.renderGroups(layout);
@@ -2754,18 +2783,53 @@ var snapuml = (() => {
       });
       return svg;
     }
+    renderGroupBackgrounds(layout) {
+      let svg = "";
+      layout.groups.forEach((g) => {
+        if (g.type === "box") return;
+        const clipId = `group-clip-${g.x}-${g.y}-${g.width}-${g.height}`.replace(/[^a-zA-Z0-9-]/g, "");
+        let hasAnyBg = false;
+        const mainFill = g.color ? this.normalizeColor(g.color, "none") : "none";
+        if (mainFill !== "none") hasAnyBg = true;
+        g.sections.forEach((section) => {
+          const secFill = section.color ? this.normalizeColor(section.color, "none") : "none";
+          if (secFill !== "none") hasAnyBg = true;
+        });
+        if (!hasAnyBg) return;
+        svg += `<g clip-path="url(#${clipId})">`;
+        svg += `<clipPath id="${clipId}"><rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" rx="5" /></clipPath>`;
+        if (mainFill !== "none") {
+          const yStart = g.y;
+          const yEnd = g.sections.length > 0 ? g.sections[0].y : g.y + g.height;
+          svg += `<rect x="${g.x}" y="${yStart}" width="${g.width}" height="${yEnd - yStart}" fill="${mainFill}" stroke="none" />`;
+        }
+        g.sections.forEach((section, idx) => {
+          const secFill = section.color ? this.normalizeColor(section.color, "none") : "none";
+          if (secFill !== "none") {
+            const yStart = section.y;
+            const yEnd = idx + 1 < g.sections.length ? g.sections[idx + 1].y : g.y + g.height;
+            svg += `<rect x="${g.x}" y="${yStart}" width="${g.width}" height="${yEnd - yStart}" fill="${secFill}" stroke="none" />`;
+          }
+        });
+        svg += `</g>`;
+      });
+      return svg;
+    }
     renderGroups(layout) {
       let svg = "";
       layout.groups.forEach((g) => {
         if (g.type === "box") return;
+        const headerFill = this.normalizeColor(g.headerColor, "#eee");
         svg += `<rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" fill="none" stroke="#222" stroke-width="2" rx="5" />`;
-        svg += `<path d="M ${g.x} ${g.y} L ${g.x + 70} ${g.y} L ${g.x + 70} ${g.y + 10} L ${g.x + 60} ${g.y + 20} L ${g.x} ${g.y + 20} Z" fill="#eee" stroke="#222" stroke-width="2" />`;
+        svg += `<path d="M ${g.x} ${g.y} L ${g.x + 70} ${g.y} L ${g.x + 70} ${g.y + 10} L ${g.x + 60} ${g.y + 20} L ${g.x} ${g.y + 20} Z" fill="${headerFill}" stroke="#222" stroke-width="2" />`;
         svg += `<text x="${g.x + 5}" y="${g.y + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">${g.type}</text>`;
         if (g.label) svg += `<text x="${g.x + 75}" y="${g.y + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${g.label}]</text>`;
         g.sections.forEach((section) => {
           const sectionY = section.y;
           svg += `<line x1="${g.x}" y1="${sectionY}" x2="${g.x + g.width}" y2="${sectionY}" stroke="#222" stroke-width="1" stroke-dasharray="5,5" />`;
-          svg += `<text x="${g.x + 5}" y="${sectionY + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${section.label}]</text>`;
+          if (section.label) {
+            svg += `<text x="${g.x + 5}" y="${sectionY + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${section.label}]</text>`;
+          }
         });
       });
       return svg;
