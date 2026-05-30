@@ -664,6 +664,19 @@ export class SequenceASTParser {
         const startToken = this.previous();
         const groupType = startToken.value.toLowerCase() as any;
 
+        let headerColor: string | undefined = undefined;
+        let bodyColor: string | undefined = undefined;
+
+        if (this.check(TokenType.COLOR)) {
+            const firstColor = this.advance().value;
+            if (this.check(TokenType.COLOR)) {
+                headerColor = firstColor;
+                bodyColor = this.advance().value;
+            } else {
+                bodyColor = firstColor;
+            }
+        }
+
         // Use consumeLineText to capture multi-word labels
         let label = this.consumeLineText();
 
@@ -683,6 +696,12 @@ export class SequenceASTParser {
 
         while (this.match(TokenType.ELSE)) {
             const elseToken = this.previous();
+            
+            let sectionColor: string | undefined = undefined;
+            if (this.check(TokenType.COLOR)) {
+                sectionColor = this.advance().value;
+            }
+
             // Use consumeLineText to capture multi-word else labels
             let sectionLabel = this.consumeLineText();
 
@@ -701,6 +720,7 @@ export class SequenceASTParser {
                 type: 'GroupSection',
                 label: sectionLabel,
                 body: sectionBody,
+                color: sectionColor,
                 line: elseToken.line,
                 column: elseToken.column
             });
@@ -721,6 +741,8 @@ export class SequenceASTParser {
             label,
             body,
             sections,
+            headerColor,
+            bodyColor,
             line: startToken.line,
             column: startToken.column
         };

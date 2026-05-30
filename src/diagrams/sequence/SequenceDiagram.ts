@@ -57,10 +57,11 @@ export interface Group {
     label: string;
     startStep: number;
     endStep?: number;
-    sections: { label: string; startStep: number }[];
+    sections: { label: string; startStep: number; color?: string }[];
     level: number;
     participants: string[];
     color?: string;
+    headerColor?: string;
 }
 
 export interface Reference {
@@ -360,10 +361,10 @@ export class SequenceDiagram implements Diagram {
         return group;
     }
 
-    addGroupSection(label: string) {
+    addGroupSection(label: string, color?: string) {
         const group = this.groupStack[this.groupStack.length - 1];
         if (group) {
-            group.sections.push({ label, startStep: this.nextStep() });
+            group.sections.push({ label, startStep: this.nextStep(), color });
         }
     }
 

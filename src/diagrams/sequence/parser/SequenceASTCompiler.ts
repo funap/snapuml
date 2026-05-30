@@ -331,9 +331,17 @@ export class SequenceASTCompiler {
             const group = diagram.startGroup(node.groupType, parsedLabel);
             if (parsedColor) {
                 group.color = parsedColor;
+            } else if (node.bodyColor) {
+                group.color = node.bodyColor;
             }
         } else {
-            diagram.startGroup(node.groupType, node.label);
+            const group = diagram.startGroup(node.groupType, node.label);
+            if (node.headerColor) {
+                group.headerColor = node.headerColor;
+            }
+            if (node.bodyColor) {
+                group.color = node.bodyColor;
+            }
         }
         
         for (const child of node.body) {
@@ -341,7 +349,7 @@ export class SequenceASTCompiler {
         }
 
         for (const section of node.sections) {
-            diagram.addGroupSection(section.label);
+            diagram.addGroupSection(section.label, section.color);
             for (const child of section.body) {
                 this.compileNode(diagram, child);
             }

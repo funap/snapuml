@@ -59,12 +59,15 @@ export interface GroupAST extends ASTNode {
     label: string;
     body: SequenceASTNode[];
     sections: GroupSectionAST[];
+    headerColor?: string;
+    bodyColor?: string;
 }
 
 export interface GroupSectionAST extends ASTNode {
     type: 'GroupSection';
     label: string;
     body: SequenceASTNode[];
+    color?: string;
 }
 
 export interface DividerAST extends ASTNode {

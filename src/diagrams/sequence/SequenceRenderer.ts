@@ -36,6 +36,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
 
         svg += this.renderDefs(diagram);
         svg += this.renderBoxes(layout);
+        svg += this.renderGroupBackgrounds(layout);
         svg += this.renderLifelines(diagram, layout);
         svg += this.renderActivations(diagram, layout); // Activations need layout linkage, currently relying on stepY match. Ideally LayoutEngine returns ActivationLayouts.
         svg += this.renderGroups(layout);
@@ -269,13 +270,58 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
         return svg;
     }
 
+    private renderGroupBackgrounds(layout: LayoutResult): string {
+        let svg = '';
+        layout.groups.forEach(g => {
+            if (g.type === 'box') return;
+
+            const clipId = `group-clip-${g.x}-${g.y}-${g.width}-${g.height}`.replace(/[^a-zA-Z0-9-]/g, '');
+            let hasAnyBg = false;
+
+            const mainFill = g.color ? this.normalizeColor(g.color, 'none') : 'none';
+            if (mainFill !== 'none') hasAnyBg = true;
+
+            g.sections.forEach(section => {
+                const secFill = section.color ? this.normalizeColor(section.color, 'none') : 'none';
+                if (secFill !== 'none') hasAnyBg = true;
+            });
+
+            if (!hasAnyBg) return;
+
+            svg += `<g clip-path="url(#${clipId})">`;
+            svg += `<clipPath id="${clipId}"><rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" rx="5" /></clipPath>`;
+
+            // Fill main branch background
+            if (mainFill !== 'none') {
+                const yStart = g.y;
+                const yEnd = g.sections.length > 0 ? g.sections[0].y : g.y + g.height;
+                svg += `<rect x="${g.x}" y="${yStart}" width="${g.width}" height="${yEnd - yStart}" fill="${mainFill}" stroke="none" />`;
+            }
+
+            // Fill subsequent branch backgrounds
+            g.sections.forEach((section, idx) => {
+                const secFill = section.color ? this.normalizeColor(section.color, 'none') : 'none';
+                if (secFill !== 'none') {
+                    const yStart = section.y;
+                    const yEnd = idx + 1 < g.sections.length ? g.sections[idx + 1].y : g.y + g.height;
+                    svg += `<rect x="${g.x}" y="${yStart}" width="${g.width}" height="${yEnd - yStart}" fill="${secFill}" stroke="none" />`;
+                }
+            });
+
+            svg += `</g>`;
+        });
+        return svg;
+    }
+
     private renderGroups(layout: LayoutResult): string {
         let svg = '';
         layout.groups.forEach(g => {
             if (g.type === 'box') return;
 
+            const headerFill = this.normalizeColor(g.headerColor, '#eee');
+
             svg += `<rect x="${g.x}" y="${g.y}" width="${g.width}" height="${g.height}" fill="none" stroke="#222" stroke-width="2" rx="5" />`;
-            svg += `<path d="M ${g.x} ${g.y} L ${g.x + 70} ${g.y} L ${g.x + 70} ${g.y + 10} L ${g.x + 60} ${g.y + 20} L ${g.x} ${g.y + 20} Z" fill="#eee" stroke="#222" stroke-width="2" />`;
+            svg += `<path d="M ${g.x} ${g.y} L ${g.x + 70} ${g.y} L ${g.x + 70} ${g.y + 10} L ${g.x + 60} ${g.y + 20} L ${g.x} ${g.y + 20} Z" fill="${headerFill}" stroke="#222" stroke-width="2" />`;
             svg += `<text x="${g.x + 5}" y="${g.y + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">${g.type}</text>`;
             if (g.label) svg += `<text x="${g.x + 75}" y="${g.y + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${g.label}]</text>`;
 
@@ -284,7 +330,9 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
             g.sections.forEach(section => {
                 const sectionY = section.y;
                 svg += `<line x1="${g.x}" y1="${sectionY}" x2="${g.x + g.width}" y2="${sectionY}" stroke="#222" stroke-width="1" stroke-dasharray="5,5" />`;
-                svg += `<text x="${g.x + 5}" y="${sectionY + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${section.label}]</text>`;
+                if (section.label) {
+                    svg += `<text x="${g.x + 5}" y="${sectionY + 15}" font-size="${this.theme.fontSize - 2}" font-weight="bold">[${section.label}]</text>`;
+                }
             });
         });
         return svg;

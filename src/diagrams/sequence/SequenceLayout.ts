@@ -41,8 +41,9 @@ export interface GroupLayout {
     height: number;
     type: string;
     label?: string;
-    sections: { label: string; y: number }[];
+    sections: { label: string; y: number; color?: string }[];
     color?: string;
+    headerColor?: string;
 }
 
 export interface ActivationLayout extends Rect {
@@ -971,7 +972,8 @@ export class LayoutEngine {
             // Calculate section Y positions
             const sections = g.sections.map(s => ({
                 label: s.label,
-                y: stepY[s.startStep]
+                y: stepY[s.startStep],
+                color: s.color
             }));
 
             return {
@@ -983,7 +985,8 @@ export class LayoutEngine {
                 type: g.type,
                 label: g.label,
                 sections,
-                color: g.color
+                color: g.color,
+                headerColor: g.headerColor
             } as GroupLayout;
 
         }).filter(g => g !== null) as GroupLayout[];
