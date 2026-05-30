@@ -1,7 +1,7 @@
 import { Renderer } from '../../core/Renderer';
 import { SequenceDiagram, ArrowHead } from './SequenceDiagram';
 import { SequenceTheme, defaultTheme } from './SequenceTheme';
-import { LayoutEngine, LayoutResult } from './SequenceLayout';
+import { LayoutEngine, LayoutResult, parseStereotype } from './SequenceLayout';
 import { formatRichText } from '../../core/RichText';
 
 export class SequenceRenderer implements Renderer<SequenceDiagram> {
@@ -161,7 +161,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
             // Use destroyedY or default to bottom
             const yEnd = pl.destroyedY !== undefined ?
                 pl.destroyedY :
-                (diagram.hideFootbox ? (layout.height - bottomPadding) : (layout.height - bottomPadding - this.theme.participantHeight));
+                (diagram.hideFootbox ? (layout.height - bottomPadding) : (layout.height - bottomPadding - pl.height));
 
             svg += `<line x1="${x}" y1="${pl.y + pl.height}" x2="${x}" y2="${yEnd}" stroke="${this.theme.colors.line}" stroke-dasharray="4" />`;
         });
@@ -193,11 +193,46 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
         const draw = (pl: any, top: boolean) => {
             const fill = this.normalizeColor(pl.participant.color, this.theme.colors.actorFill);
             const x = pl.x;
-            const y = top ? pl.y : layout.height - bottomPadding - this.theme.participantHeight - 20;
+            const y = top ? pl.y : layout.height - bottomPadding - pl.height - 20;
             const cx = pl.centerX;
-            const cy = y + this.theme.participantHeight / 2;
+            const cy = y + pl.height / 2;
             const label = (pl.participant.label || pl.participant.name).replace(/\\n/g, '\n');
             const lines = label.split('\n');
+
+            const renderLabelAndStereotype = (cx: number, startY: number) => {
+                const parsed = parseStereotype(pl.participant.stereotype);
+                let nextY = startY;
+                if (parsed) {
+                    let stereoText = '';
+                    if (parsed.text) {
+                        stereoText = `«${parsed.text}»`;
+                    }
+                    if (parsed.spotChar && parsed.spotColor) {
+                        const spotDiameter = 14;
+                        const spotSpacing = 6;
+                        const textW = stereoText ? stereoText.length * 7.5 : 0;
+                        const totalStereoWidth = spotDiameter + (stereoText ? spotSpacing + textW : 0);
+                        
+                        const stereoStartX = cx - totalStereoWidth / 2;
+                        const spotCx = stereoStartX + spotDiameter / 2;
+                        const spotCy = nextY - 4;
+                        
+                        svg += `<circle cx="${spotCx}" cy="${spotCy}" r="7" fill="${parsed.spotColor}" stroke="${this.theme.colors.defaultStroke}" stroke-width="1" />`;
+                        svg += `<text x="${spotCx}" y="${spotCy}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="black">${parsed.spotChar}</text>`;
+                        
+                        if (stereoText) {
+                            const textX = stereoStartX + spotDiameter + spotSpacing;
+                            svg += `<text x="${textX}" y="${nextY}" text-anchor="start" font-size="${this.theme.fontSize - 2}" font-style="italic">${stereoText}</text>`;
+                        }
+                    } else if (stereoText) {
+                        svg += `<text x="${cx}" y="${nextY}" text-anchor="middle" font-size="${this.theme.fontSize - 2}" font-style="italic">${stereoText}</text>`;
+                    }
+                    nextY += 18;
+                }
+                lines.forEach((line: string, j: number) => {
+                    svg += `<text x="${cx}" y="${nextY + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
+                });
+            };
 
             switch (pl.participant.type) {
                 case 'actor':
@@ -206,31 +241,23 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     svg += `<line x1="${cx - 10}" y1="${y + 22}" x2="${cx + 10}" y2="${y + 22}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<line x1="${cx}" y1="${y + 30}" x2="${cx - 8}" y2="${y + 40}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<line x1="${cx}" y1="${y + 30}" x2="${cx + 8}" y2="${y + 40}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    lines.forEach((line: string, j: number) => {
-                        svg += `<text x="${cx}" y="${y + 55 + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    renderLabelAndStereotype(cx, y + 55);
                     break;
                 case 'boundary':
                     svg += `<line x1="${cx - 20}" y1="${cy}" x2="${cx - 10}" y2="${cy}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<line x1="${cx - 20}" y1="${cy - 10}" x2="${cx - 20}" y2="${cy + 10}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    lines.forEach((line: string, j: number) => {
-                        svg += `<text x="${cx}" y="${y + this.theme.participantHeight + 20 + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    renderLabelAndStereotype(cx, y + pl.height + 20);
                     break;
                 case 'control':
                     svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<path d="M ${cx + 4} ${cy - 18} L ${cx - 4} ${cy - 14} L ${cx + 4} ${cy - 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    lines.forEach((line: string, j: number) => {
-                        svg += `<text x="${cx}" y="${y + this.theme.participantHeight + 20 + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    renderLabelAndStereotype(cx, y + pl.height + 20);
                     break;
                 case 'entity':
                     svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<line x1="${cx - 14}" y1="${cy + 14}" x2="${cx + 14}" y2="${cy + 14}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    lines.forEach((line: string, j: number) => {
-                        svg += `<text x="${cx}" y="${y + this.theme.participantHeight + 20 + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    renderLabelAndStereotype(cx, y + pl.height + 20);
                     break;
                 case 'database':
                     const dbW = 34;
@@ -239,9 +266,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     const dbX = cx - dbW / 2;
                     svg += `<path d="M ${dbX} ${dbY + 10} L ${dbX} ${dbY + dbH - 10} A 17 8 0 0 0 ${dbX + dbW} ${dbY + dbH - 10} L ${dbX + dbW} ${dbY + 10} A 17 8 0 0 0 ${dbX} ${dbY + 10} M ${dbX} ${dbY + 10} A 17 8 0 0 1 ${dbX + dbW} ${dbY + 10}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<path d="M ${dbX} ${dbY + 10} A 17 8 0 0 0 ${dbX + dbW} ${dbY + 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    lines.forEach((line: string, j: number) => {
-                        svg += `<text x="${cx}" y="${y + this.theme.participantHeight + 20 + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    renderLabelAndStereotype(cx, y + pl.height + 20);
                     break;
                 case 'collections':
                     const colW = 34;
@@ -250,9 +275,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     const colX = cx - colW / 2;
                     svg += `<rect x="${colX + 4}" y="${colY - 4}" width="${colW}" height="${colH}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<rect x="${colX}" y="${colY}" width="${colW}" height="${colH}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    lines.forEach((line: string, j: number) => {
-                        svg += `<text x="${cx}" y="${y + this.theme.participantHeight + 20 + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    renderLabelAndStereotype(cx, y + pl.height + 20);
                     break;
                 case 'queue':
                     const qW = 40;
@@ -275,16 +298,54 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     // Right Face Outline (Full Ellipse)
                     svg += `<ellipse cx="${qX + qW}" cy="${qY + qRy}" rx="${qRx}" ry="${qRy}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
 
-                    lines.forEach((line: string, j: number) => {
-                        svg += `<text x="${cx}" y="${y + this.theme.participantHeight + 20 + j * 15}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    renderLabelAndStereotype(cx, y + pl.height + 20);
                     break;
                 default:
-                    svg += `<rect x="${x}" y="${y}" width="${pl.width}" height="${this.theme.participantHeight}" rx="5" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    lines.forEach((line: string, j: number) => {
-                        const lineY = lines.length > 1 ? (cy - (lines.length - 1) * 7.5 + j * 15) : cy;
-                        svg += `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
-                    });
+                    svg += `<rect x="${x}" y="${y}" width="${pl.width}" height="${pl.height}" rx="5" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    
+                    const parsed = parseStereotype(pl.participant.stereotype);
+                    if (parsed) {
+                        // We have a stereotype!
+                        const totalContentLines = 1 + lines.length;
+                        const contentHeight = totalContentLines * 16 - 4;
+                        let startY = cy - contentHeight / 2 + 10;
+                        
+                        let stereoText = '';
+                        if (parsed.text) {
+                            stereoText = `«${parsed.text}»`;
+                        }
+                        
+                        if (parsed.spotChar && parsed.spotColor) {
+                            const spotDiameter = 14;
+                            const spotSpacing = 6;
+                            const textW = stereoText ? stereoText.length * 7.5 : 0;
+                            const totalStereoWidth = spotDiameter + (stereoText ? spotSpacing + textW : 0);
+                            
+                            const stereoStartX = cx - totalStereoWidth / 2;
+                            const spotCx = stereoStartX + spotDiameter / 2;
+                            const spotCy = startY - 4;
+                            
+                            svg += `<circle cx="${spotCx}" cy="${spotCy}" r="7" fill="${parsed.spotColor}" stroke="${this.theme.colors.defaultStroke}" stroke-width="1" />`;
+                            svg += `<text x="${spotCx}" y="${spotCy}" text-anchor="middle" dominant-baseline="middle" font-size="9" font-weight="bold" fill="black">${parsed.spotChar}</text>`;
+                            
+                            if (stereoText) {
+                                const textX = stereoStartX + spotDiameter + spotSpacing;
+                                svg += `<text x="${textX}" y="${startY}" text-anchor="start" font-size="${this.theme.fontSize - 2}" font-style="italic">${stereoText}</text>`;
+                            }
+                        } else if (stereoText) {
+                            svg += `<text x="${cx}" y="${startY}" text-anchor="middle" font-size="${this.theme.fontSize - 2}" font-style="italic">${stereoText}</text>`;
+                        }
+                        
+                        lines.forEach((line: string, j: number) => {
+                            const lineY = startY + 18 + j * 15;
+                            svg += `<text x="${cx}" y="${lineY}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
+                        });
+                    } else {
+                        lines.forEach((line: string, j: number) => {
+                            const lineY = lines.length > 1 ? (cy - (lines.length - 1) * 7.5 + j * 15) : cy;
+                            svg += `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
+                        });
+                    }
             }
         };
 

@@ -1,6 +1,28 @@
 import { SequenceDiagram, Note, Participant, Message, Activation, Group, Reference, ArrowHead } from './SequenceDiagram';
 import { SequenceTheme } from './SequenceTheme';
 
+export interface ParsedStereotype {
+    spotChar?: string;
+    spotColor?: string;
+    text?: string;
+}
+
+export function parseStereotype(stereo: string | undefined): ParsedStereotype | null {
+    if (!stereo) return null;
+    const trimmed = stereo.trim();
+    const spotMatch = trimmed.match(/^\(([^,]+),([^)]+)\)\s*(.*)$/);
+    if (spotMatch) {
+        return {
+            spotChar: spotMatch[1].trim(),
+            spotColor: spotMatch[2].trim(),
+            text: spotMatch[3].trim()
+        };
+    }
+    return {
+        text: trimmed
+    };
+}
+
 export interface Point {
     x: number;
     y: number;
@@ -118,7 +140,10 @@ export class LayoutEngine {
             bottomPadding += 25; // Space for footer
         }
 
-        const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart);
+        const pHeights = participants.map(p => this.calculateParticipantHeight(p));
+        const maxPHeight = Math.max(this.theme.participantHeight, ...pHeights);
+
+        const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart, maxPHeight);
         const stepY = stepHeightResult.stepY;
         const currentY = stepHeightResult.totalHeight;
 
@@ -144,7 +169,7 @@ export class LayoutEngine {
             totalWidth += timeConstraintSpace;
         }
 
-        const footboxHeight = diagram.hideFootbox ? 0 : this.theme.participantHeight + 20;
+        const footboxHeight = diagram.hideFootbox ? 0 : maxPHeight + 20;
         const totalHeight = currentY + footboxHeight + bottomPadding;
 
         // Finalize X positions
@@ -154,9 +179,9 @@ export class LayoutEngine {
                 participant: p,
                 centerX: centerX,
                 x: centerX - pWidths[i] / 2,
-                y: p.createdStep !== undefined ? stepY[p.createdStep] - this.theme.participantHeight / 2 : participantYStart,
+                y: p.createdStep !== undefined ? stepY[p.createdStep] - maxPHeight / 2 : participantYStart,
                 width: pWidths[i],
-                height: this.theme.participantHeight,
+                height: maxPHeight,
                 destroyedY: p.destroyedStep !== undefined ? stepY[p.destroyedStep] : undefined
             };
         });
@@ -482,7 +507,7 @@ export class LayoutEngine {
         diagram.groups.forEach(g => { if (g.endStep === undefined) g.endStep = maxStep; });
     }
 
-    private calculateStepHeights(diagram: SequenceDiagram, maxStep: number, participantYStart: number) {
+    private calculateStepHeights(diagram: SequenceDiagram, maxStep: number, participantYStart: number, maxPHeight: number) {
         const stepHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
         const topExtension = new Array(maxStep + 2).fill(0);
         const bottomExtension = new Array(maxStep + 2).fill(0);
@@ -573,7 +598,7 @@ export class LayoutEngine {
 
         const stepY = new Array(maxStep + 1).fill(0);
         const headerGap = Math.max(30, topExtension[0] + 10);
-        let currentY = participantYStart + this.theme.participantHeight + headerGap;
+        let currentY = participantYStart + maxPHeight + headerGap;
         for (let i = 0; i <= maxStep; i++) {
             stepY[i] = currentY;
             currentY += stepHeights[i];
@@ -585,8 +610,34 @@ export class LayoutEngine {
     private calculateParticipantWidth(p: Participant): number {
         const label = (p.label || p.name).replace(/\\n/g, '\n');
         const lines = label.split('\n');
-        const maxLineLength = Math.max(...lines.map(l => l.length));
-        return Math.max(this.theme.participantWidth, maxLineLength * 9 + 30);
+        let maxLineLength = Math.max(...lines.map(l => l.length));
+        
+        let minWidth = this.theme.participantWidth;
+        let textWidth = maxLineLength * 9 + 30;
+
+        if (p.stereotype) {
+            const parsed = parseStereotype(p.stereotype);
+            if (parsed) {
+                let stereoText = '';
+                if (parsed.text) {
+                    stereoText = `«${parsed.text}»`;
+                }
+                let stereoWidth = stereoText.length * 8 + 30;
+                if (parsed.spotChar) {
+                    stereoWidth += 22;
+                }
+                textWidth = Math.max(textWidth, stereoWidth);
+            }
+        }
+
+        return Math.max(minWidth, textWidth);
+    }
+
+    private calculateParticipantHeight(p: Participant): number {
+        if (p.stereotype) {
+            return 60;
+        }
+        return this.theme.participantHeight;
     }
 
     // Simplified gap calculation for brevity in this first pass
