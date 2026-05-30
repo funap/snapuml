@@ -226,7 +226,7 @@ export class SequenceASTParser {
             const value = this.consumeLineText();
             return {
                 type: 'Meta',
-                metaType: 'skinparam' as any,
+                metaType: 'skinparam',
                 value,
                 line: token.line,
                 column: token.column
@@ -236,7 +236,7 @@ export class SequenceASTParser {
             const value = this.consumeLineText();
             return {
                 type: 'Meta',
-                metaType: 'mainframe' as any,
+                metaType: 'mainframe',
                 value,
                 line: token.line,
                 column: token.column
@@ -246,7 +246,7 @@ export class SequenceASTParser {
             const value = this.consumeLineText();
             return {
                 type: 'Meta',
-                metaType: 'newpage' as any,
+                metaType: 'newpage',
                 value,
                 line: token.line,
                 column: token.column

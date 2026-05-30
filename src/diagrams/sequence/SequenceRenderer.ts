@@ -32,9 +32,36 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
     }
 
     private generateSvg(diagram: SequenceDiagram, layout: LayoutResult): string {
-        let svg = `<svg width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}" xmlns="http://www.w3.org/2000/svg" style="background: white; font-family: ${this.theme.fontFamily};">`;
+        const hasMainframe = !!diagram.mainframe;
+        const shiftX = hasMainframe ? 15 : 0;
+        const shiftY = hasMainframe ? 35 : 0;
+        const svgWidth = layout.width + (hasMainframe ? 30 : 0);
+        const svgHeight = layout.height + (hasMainframe ? 50 : 0);
+
+        let svg = `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" xmlns="http://www.w3.org/2000/svg" style="background: white; font-family: ${this.theme.fontFamily};">`;
 
         svg += this.renderDefs(diagram);
+
+        if (hasMainframe && diagram.mainframe) {
+            const x1 = 8;
+            const y1 = 8;
+            const rWidth = svgWidth - 16;
+            const rHeight = svgHeight - 16;
+            svg += `<rect x="${x1}" y="${y1}" width="${rWidth}" height="${rHeight}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" rx="4" />`;
+
+            const mainframeText = diagram.mainframe;
+            const cleanTextLength = mainframeText.replace(/\*\*|\/\/|__/g, '').length;
+            const tabWidth = Math.max(100, cleanTextLength * 8 + 30);
+            const tabHeight = 25;
+            const tabPath = `M ${x1} ${y1} L ${x1 + tabWidth} ${y1} L ${x1 + tabWidth - 8} ${y1 + tabHeight} L ${x1} ${y1 + tabHeight} Z`;
+            svg += `<path d="${tabPath}" fill="#ECECEF" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+            svg += `<text x="${x1 + 10}" y="${y1 + tabHeight / 2}" dominant-baseline="middle" font-size="${this.theme.fontSize}" font-weight="bold" fill="${this.theme.colors.text}">${this.formatRichText(mainframeText)}</text>`;
+        }
+
+        if (hasMainframe) {
+            svg += `<g transform="translate(${shiftX}, ${shiftY})">`;
+        }
+
         svg += this.renderBoxes(layout);
         svg += this.renderGroupBackgrounds(layout);
         svg += this.renderLifelines(diagram, layout);
@@ -58,6 +85,10 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
         }
         if (diagram.footer) {
             svg += `<text x="${layout.width / 2}" y="${layout.height - 10}" text-anchor="middle" font-size="${this.theme.fontSize - 4}">${diagram.footer}</text>`;
+        }
+
+        if (hasMainframe) {
+            svg += `</g>`;
         }
 
         svg += '</svg>';

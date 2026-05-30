@@ -443,13 +443,15 @@ export class SequenceASTCompiler {
     private compileMeta(diagram: SequenceDiagram, node: MetaAST) {
         if (node.metaType === 'title') {
             diagram.setTitle(node.value || '');
+        } else if (node.metaType === 'mainframe') {
+            diagram.setMainframe(node.value || '');
         } else if (node.metaType === 'header') {
             diagram.setHeader(node.value || '');
         } else if (node.metaType === 'footer') {
             diagram.setFooter(node.value || '');
         } else if (node.metaType === 'hide_footbox') {
             diagram.setHideFootbox(true);
-        } else if (node.metaType === 'skinparam' as any) {
+        } else if (node.metaType === 'skinparam') {
             if (node.value) {
                 const parts = node.value.trim().split(/\s+/);
                 if (parts.length >= 2) {

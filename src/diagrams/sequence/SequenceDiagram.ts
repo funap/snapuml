@@ -113,6 +113,7 @@ export class SequenceDiagram implements Diagram {
     taggedSteps: Map<string, number> = new Map();
 
     title?: string;
+    mainframe?: string;
     header?: string;
     footer?: string;
     hideFootbox: boolean = false;
@@ -278,6 +279,7 @@ export class SequenceDiagram implements Diagram {
     }
 
     setTitle(title: string) { this.title = title; }
+    setMainframe(mainframe: string) { this.mainframe = mainframe; }
     setHeader(header: string) { this.header = header; }
     setFooter(footer: string) { this.footer = footer; }
 

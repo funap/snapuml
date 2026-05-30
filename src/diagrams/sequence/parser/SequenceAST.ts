@@ -132,7 +132,7 @@ export interface TimeConstraintAST extends ASTNode {
 
 export interface MetaAST extends ASTNode {
     type: 'Meta';
-    metaType: 'title' | 'header' | 'footer' | 'hide_footbox';
+    metaType: 'title' | 'header' | 'footer' | 'hide_footbox' | 'skinparam' | 'mainframe' | 'newpage';
     value?: string;
 }
 export class ParseError extends Error {
