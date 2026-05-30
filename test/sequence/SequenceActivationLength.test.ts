@@ -222,4 +222,29 @@ deactivate A
         // deactivate A after [<- A should be ALIGNED with the message
         expect(aLevel0.y + aLevel0.height).toBeCloseTo(doneMsg.y, 0);
     });
+
+    it('should align activation start and end Y coordinates with slanted/delayed arrows', () => {
+        const content = `
+            A ->(40) B++: Rq
+            B -->(20) A--: Rs
+        `;
+        const parser = new SequenceParser();
+        const diagram = parser.parse(content);
+        const engine = new LayoutEngine(defaultTheme);
+        const layout = engine.calculateLayout(diagram);
+
+        const bAct = layout.activations.find(a => a.activation.participantName === 'B')!;
+        const rqMsg = layout.messages.find(m => m.message.text === 'Rq')!;
+        const rsMsg = layout.messages.find(m => m.message.text === 'Rs')!;
+
+        // Rq goes A -> B, delay is 40. B's activation starts at B's end of the arrow (arrowhead).
+        // Since it's normal (non-reverse), the arrowhead Y coordinate is stepY[0] + 40 (i.e. rqMsg.points[1].y).
+        expect(bAct.y).toBe(rqMsg.points[1].y);
+        expect(bAct.y).toBe(layout.messages[0].y + 40);
+
+        // Rs goes B -> A, delay is 20. B's activation ends at B's end of the arrow (departure/start).
+        // The departure Y coordinate is stepY[1] (i.e. rsMsg.points[0].y).
+        expect(bAct.y + bAct.height).toBe(rsMsg.points[0].y);
+        expect(bAct.y + bAct.height).toBe(layout.messages[1].y);
+    });
 });

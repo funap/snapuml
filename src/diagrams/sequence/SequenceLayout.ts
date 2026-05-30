@@ -447,6 +447,8 @@ export class LayoutEngine {
     }
 
     private calculateActivationLayouts(diagram: SequenceDiagram, participants: ParticipantLayout[], stepY: number[], messages: Message[]): ActivationLayout[] {
+        const isHead = (h?: ArrowHead) => h && ['default', 'open', 'half', 'arrow-circle'].includes(h);
+
         return diagram.activations.map(a => {
             const pIdx = participants.findIndex(p => p.participant.name === a.participantName);
             if (pIdx === -1) return null;
@@ -457,15 +459,33 @@ export class LayoutEngine {
 
             if (a.sourceStep !== undefined) {
                 const triggerMsg = messages.find(m => m.step === a.sourceStep);
-                if (triggerMsg && triggerMsg.from === a.participantName && triggerMsg.to === a.participantName) {
-                    y += 25;
+                if (triggerMsg) {
+                    const delay = triggerMsg.arrowDelay || 0;
+                    if (triggerMsg.from === a.participantName && triggerMsg.to === a.participantName) {
+                        y += 25 + delay;
+                    } else {
+                        const isReverse = isHead(triggerMsg.startHead) && !isHead(triggerMsg.arrowHead);
+                        const endsAtParticipant = (!isReverse && triggerMsg.to === a.participantName) || (isReverse && triggerMsg.from === a.participantName);
+                        if (endsAtParticipant) {
+                            y += delay;
+                        }
+                    }
                 }
             }
             let yEnd = stepY[a.endStep!];
             if (a.endSourceStep !== undefined) {
                 const closeMsg = messages.find(m => m.step === a.endSourceStep);
-                if (closeMsg && closeMsg.from === a.participantName && closeMsg.to === a.participantName) {
-                    yEnd += 25;
+                if (closeMsg) {
+                    const delay = closeMsg.arrowDelay || 0;
+                    if (closeMsg.from === a.participantName && closeMsg.to === a.participantName) {
+                        yEnd += 25 + delay;
+                    } else {
+                        const isReverse = isHead(closeMsg.startHead) && !isHead(closeMsg.arrowHead);
+                        const endsAtParticipant = (!isReverse && closeMsg.to === a.participantName) || (isReverse && closeMsg.from === a.participantName);
+                        if (endsAtParticipant) {
+                            yEnd += delay;
+                        }
+                    }
                 }
             }
 
