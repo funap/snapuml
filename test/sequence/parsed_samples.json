@@ -1,0 +1,198 @@
+[
+  {
+    "title": "Basic Examples",
+    "code": "Alice -> Bob: Authentication Request\nBob --> Alice: Authentication Response\n\nAlice -> Bob: Another authentication Request\nAlice <-- Bob: Another authentication Response"
+  },
+  {
+    "title": "Declaring participant",
+    "code": "participant Participant as Foo\nactor       Actor       as Foo1\nboundary    Boundary    as Foo2\ncontrol     Control     as Foo3\nentity      Entity      as Foo4\ndatabase    Database    as Foo5\ncollections Collections as Foo6\nqueue       Queue       as Foo7\nFoo -> Foo1 : To actor \nFoo -> Foo2 : To boundary\nFoo -> Foo3 : To control\nFoo -> Foo4 : To entity\nFoo -> Foo5 : To database\nFoo -> Foo6 : To collections\nFoo -> Foo7: To queue"
+  },
+  {
+    "title": "Declaring participant on multiline",
+    "code": "participant Participant [\n    =Title\n    ----\n    \"\"SubTitle\"\"\n]\n\nparticipant Bob\n\nParticipant -> Bob"
+  },
+  {
+    "title": "Use non-letters in participants",
+    "code": "Alice -> \"Bob()\" : Hello\n\"Bob()\" -> \"This is very\\nlong\" as Long\n' You can also declare:\n' \"Bob()\" -> Long as \"This is very\\nlong\"\nLong --> \"Bob()\" : ok"
+  },
+  {
+    "title": "Message to Self",
+    "code": "Alice -> Alice: This is a signal to self.\\nIt also demonstrates\\nmultiline \\ntext"
+  },
+  {
+    "title": "Text alignment",
+    "code": "skinparam sequenceMessageAlign right\nBob -> Alice : Request\nAlice -> Bob : Response"
+  },
+  {
+    "title": "Change Actor style",
+    "code": "actor Alice\nactor Bob\nAlice -> Bob : hello\nhide footbox"
+  },
+  {
+    "title": "Change arrow style",
+    "code": "Bob ->x Alice\nBob -> Alice\nBob ->> Alice\nBob -\\ Alice\nBob \\\\- Alice\nBob //-- Alice\n\nBob ->o Alice\nBob o\\\\-- Alice\n\nBob <-> Alice\nBob <->o Alice"
+  },
+  {
+    "title": "Change arrow color",
+    "code": "Bob -[#red]> Alice : hello\nAlice -[#0000FF]->Bob : ok"
+  },
+  {
+    "title": "Message sequence numbering",
+    "code": "autonumber\nBob -> Alice : Authentication Request\nBob <- Alice : Authentication Response"
+  },
+  {
+    "title": "Page Title, Header and Footer",
+    "code": "header Page Header\nfooter Page %page% of %lastpage%\n\ntitle Example Title\n\nAlice -> Bob : message 1\nAlice -> Bob : message 2"
+  },
+  {
+    "title": "Splitting diagrams",
+    "code": "Alice -> Bob : message 1\nAlice -> Bob : message 2\n\nnewpage\n\nAlice -> Bob : message 3\nAlice -> Bob : message 4\n\nnewpage A title for the\\nlast page\n\nAlice -> Bob : message 5\nAlice -> Bob : message 6"
+  },
+  {
+    "title": "Grouping message",
+    "code": "Alice -> Bob: Authentication Request\n\nalt successful case\n\n    Bob -> Alice: Authentication Accepted\n\nelse some kind of failure\n\n    Bob -> Alice: Authentication Failure\n    group My own label\n    Alice -> Log : Log attack start\n        loop 1000 times\n            Alice -> Bob: DNS Attack\n        end\n    Alice -> Log : Log attack end\n    end\n\nelse Another type of failure\n\n   Bob -> Alice: Please repeat\n\nend"
+  },
+  {
+    "title": "Secondary group label",
+    "code": "Alice -> Bob: Authentication Request\nBob -> Alice: Authentication Failure\ngroup My own label [My own label 2]\n    Alice -> Log : Log attack start\n    loop 1000 times\n        Alice -> Bob: DNS Attack\n    end\n    Alice -> Log : Log attack end\nend"
+  },
+  {
+    "title": "Partition across the entire width",
+    "code": "participant a\n\npartition p1\nb -> c: msg\nc --> b: OK\nnote right: Some right note\nend\n\npartition p2\na -> b: msg\nnote left: Some left note\nend"
+  },
+  {
+    "title": "Notes on messages",
+    "code": "Alice->Bob : hello\nnote left: this is a first note\n\nBob->Alice : ok\nnote right: this is another note\n\nBob->Bob : I am thinking\nnote left\na note\ncan also be defined\non several lines\nend note"
+  },
+  {
+    "title": "Some other notes",
+    "code": "participant Alice\nparticipant Bob\nnote left of Alice #aqua\nThis is displayed\nleft of Alice.\nend note\n\nnote right of Alice: This is displayed right of Alice.\n\nnote over Alice: This is displayed over Alice.\n\nnote over Alice, Bob #FFAAAA: This is displayed\\n over Bob and Alice.\n\nnote over Bob, Alice\nThis is yet another\nexample of\na long note.\nend note"
+  },
+  {
+    "title": "Changing notes shape [hnote, rnote]",
+    "code": "caller -> server : conReq\nhnote over caller : idle\ncaller <- server : conConf\nrnote over server\n \"r\" as rectangle\n \"h\" as hexagon\nendrnote\nrnote over server\n this is\n on several\n lines\nendrnote\nhnote over caller\n this is\n on several\n lines\nendhnote"
+  },
+  {
+    "title": "Note over all participants [across]",
+    "code": "Alice->Bob:m1\nBob->Charlie:m2\nnote over Alice, Charlie: Old method for note over all part. with:\\n \"\"note over //FirstPart, LastPart//\"\".\nnote across: New method with:\\n\"\"note across\"\"\nBob->Alice\nhnote across:Note across all part."
+  },
+  {
+    "title": "Several notes aligned at the same level [/]",
+    "code": "note over Alice : initial state of Alice\nnote over Bob : initial state of Bob\nBob -> Alice : hello"
+  },
+  {
+    "title": "Creole and HTML",
+    "code": "participant Alice\nparticipant \"The **Famous** Bob\" as Bob\n\nAlice -> Bob : hello --there--\n... Some ~~long delay~~ ...\nBob -> Alice : ok\nnote left\n  This is **bold**\n  This is //italics//\n  This is \"\"monospaced\"\"\n  This is --stroked--\n  This is __underlined__\n  This is ~~waved~~\nend note\n\nAlice -> Bob : A //well formatted// message\nnote right of Alice\n This is <back:cadetblue><size:18>displayed</size></back>\n __left of__ Alice.\nend note\nnote left of Bob\n <u:red>This</u> is <color #118888>displayed</color>\n **<color purple>left of</color> <s:red>Alice</strike> Bob**.\nend note\nnote over Alice, Bob\n <w:#FF33FF>This is hosted</w> by <img:https://plantuml.com/sourceforge.jpg>\nend note"
+  },
+  {
+    "title": "Divider or separator",
+    "code": "== Initialization ==\n\nAlice -> Bob: Authentication Request\nBob --> Alice: Authentication Response\n\n== Repetition ==\n\nAlice -> Bob: Another authentication Request\nAlice <-- Bob: another authentication Response"
+  },
+  {
+    "title": "Reference",
+    "code": "participant Alice\nactor Bob\n\nref over Alice, Bob : init\n\nAlice -> Bob : hello\n\nref over Bob\n  This can be on\n  several lines\nend ref"
+  },
+  {
+    "title": "Delay",
+    "code": "Alice -> Bob: Authentication Request\n...\nBob --> Alice: Authentication Response\n...5 minutes later...\nBob --> Alice: Good Bye !"
+  },
+  {
+    "title": "Text wrapping",
+    "code": "skinparam maxMessageSize 50\nparticipant a\nparticipant b\na -> b :this\\nis\\nmanually\\ndone\na -> b :this is a very long message on several words"
+  },
+  {
+    "title": "Message text spans beyond the involved participants",
+    "code": "ParticipantNumber1 -> ParticipantNumber2 : this is a very long message that is very long\nParticipantNumber1 -> ParticipantNumber1 : this is a very long message that is very long \nParticipantNumber2 -> ParticipantNumber3 : foo2"
+  },
+  {
+    "title": "Space",
+    "code": "Alice -> Bob: message 1\nBob --> Alice: ok\n|||\nAlice -> Bob: message 2\nBob --> Alice: ok\n||45||\nAlice -> Bob: message 3\nBob --> Alice: ok"
+  },
+  {
+    "title": "Lifeline Activation and Destruction",
+    "code": "participant User\n\nUser -> A: DoWork\nactivate A\n\nA -> B: << createRequest >>\nactivate B\n\nB -> C: DoWork\nactivate C\nC --> B: WorkDone\ndestroy C\n\nB --> A: RequestCreated\ndeactivate B\n\nA -> User: Done\ndeactivate A"
+  },
+  {
+    "title": "Return",
+    "code": "Bob -> Alice : hello\nactivate Alice\nAlice -> Alice : some action\nreturn bye"
+  },
+  {
+    "title": "Participant creation",
+    "code": "Bob -> Alice : hello\n\ncreate Other\nAlice -> Other : new\n\ncreate control String\nAlice -> String\nnote right : You can also put notes!\n\nAlice --> Bob : ok"
+  },
+  {
+    "title": "Shortcut syntax for activation, deactivation, creation",
+    "code": "alice -> bob ++ : hello\nbob -> bob ++ : self call\nbob -> bib ++  #005500 : hello\nbob -> george ** : create\nreturn done\nreturn rc\nbob -> george !! : delete\nreturn success"
+  },
+  {
+    "title": "Incoming and outgoing messages",
+    "code": "[-> A: DoWork\n\nactivate A\n\nA -> A: Internal call\nactivate A\n\nA ->] : << createRequest >>\n\nA<--] : RequestCreated\ndeactivate A\n[<- A: Done\ndeactivate A"
+  },
+  {
+    "title": "Short arrows for incoming and outgoing messages",
+    "code": "?-> Alice    : \"\"?->\"\"\\n**short** to actor1\n[-> Alice    : \"\"[->\"\"\\n**from start** to actor1\n[-> Bob      : \"\"[->\"\"\\n**from start** to actor2\n?-> Bob      : \"\"?->\"\"\\n**short** to actor2\nAlice ->]    : \"\"->]\"\"\\nfrom actor1 **to end**\nAlice ->?    : \"\"->?\"\"\\n**short** from actor1\nAlice -> Bob : \"\"->\"\" \\nfrom actor1 to actor2"
+  },
+  {
+    "title": "Anchors and Duration",
+    "code": "!pragma teoz true\n\n{start} Alice -> Bob : start doing things during duration\nBob -> Max : something\nMax -> Bob : something else\n{end} Bob -> Alice : finish\n\n{start} <-> {end} : some time"
+  },
+  {
+    "title": "Stereotypes and Spots",
+    "code": "participant \"Famous Bob\" as Bob << Generated >>\nparticipant Alice << (C,#ADD1B2) Testable >>\n\nBob->Alice: First message"
+  },
+  {
+    "title": "Position of the stereotypes",
+    "code": "skinparam stereotypePosition top\n\nparticipant A<<st1>>\nparticipant B<<st2>>\nA --> B : stereo test"
+  },
+  {
+    "title": "More information on titles",
+    "code": "title __Simple__ **communication** example\n\nAlice -> Bob: Authentication Request\nBob -> Alice: Authentication Response"
+  },
+  {
+    "title": "Participants encompass",
+    "code": "box \"Internal Service\" #LightBlue\nparticipant Bob\nparticipant Alice\nend box\nparticipant Other\n\nBob -> Alice : hello\nAlice -> Other : hello"
+  },
+  {
+    "title": "Removing Foot Boxes",
+    "code": "hide footbox\ntitle Foot Box removed\n\nAlice -> Bob: Authentication Request\nBob --> Alice: Authentication Response"
+  },
+  {
+    "title": "Skinparam",
+    "code": "skinparam sequenceArrowThickness 2\nskinparam roundcorner 20\nskinparam maxmessagesize 60\nskinparam sequenceParticipant underline\n\nactor User\nparticipant \"First Class\" as A\nparticipant \"Second Class\" as B\nparticipant \"Last Class\" as C\n\nUser -> A: DoWork\nactivate A\n\nA -> B: Create Request\nactivate B\n\nB -> C: DoWork\nactivate C\nC --> B: WorkDone\ndestroy C\n\nB --> A: Request Created\ndeactivate B\n\nA --> User: Done\ndeactivate A"
+  },
+  {
+    "title": "Changing padding",
+    "code": "skinparam ParticipantPadding 20\nskinparam BoxPadding 10\n\nbox \"Foo1\"\nparticipant Alice1\nparticipant Alice2\nend box\nbox \"Foo2\"\nparticipant Bob1\nparticipant Bob2\nend box\nAlice1 -> Bob1 : hello\nAlice1 -> Out : out"
+  },
+  {
+    "title": "Appendix: Examples of all arrow type",
+    "code": "participant Alice as a\nparticipant Bob   as b\na ->     b : \"\"->   \"\"\na ->>    b : \"\"->>  \"\"\na -\\     b : \"\"-\\   \"\"\na -\\\\    b : \"\"-\\\\\\\\\"\"\na -/     b : \"\"-/   \"\"\na -//    b : \"\"-//  \"\"\na ->x    b : \"\"->x  \"\"\na x->    b : \"\"x->  \"\"\na o->    b : \"\"o->  \"\"\na ->o    b : \"\"->o  \"\"\na o->o   b : \"\"o->o \"\"\na <->    b : \"\"<->  \"\"\na o<->o  b : \"\"o<->o\"\"\na x<->x  b : \"\"x<->x\"\"\na ->>o   b : \"\"->>o \"\"\na -\\o    b : \"\"-\\o  \"\"\na -\\\\o   b : \"\"-\\\\\\\\o\"\"\na -/o    b : \"\"-/o  \"\"\na -//o   b : \"\"-//o \"\"\na x->o   b : \"\"x->o \"\""
+  },
+  {
+    "title": "Specific SkinParameter",
+    "code": "Bob -> Alice : hello\n...\nAlice -> Bob : ok"
+  },
+  {
+    "title": "Hide unlinked participant",
+    "code": "participant Alice\nparticipant Bob\nparticipant Carol\n\nAlice -> Bob : hello"
+  },
+  {
+    "title": "Color a group message",
+    "code": "Alice -> Bob: Authentication Request\nalt#Gold #LightBlue Successful case\n    Bob -> Alice: Authentication Accepted\nelse #Pink Failure\n    Bob -> Alice: Authentication Rejected\nend"
+  },
+  {
+    "title": "Mainframe",
+    "code": "mainframe This is a **mainframe**\nAlice->Bob : Hello"
+  },
+  {
+    "title": "Slanted or odd arrows",
+    "code": "A ->(10) B: text 10\nB ->(10) A: text 10\n\nA ->(10) B: text 10\nA (10)<- B: text 10"
+  },
+  {
+    "title": "Parallel messages (with teoz)",
+    "code": "!pragma teoz true\nAlice -> Bob : hello\n& Bob -> Charlie : hi"
+  },
+  {
+    "title": "Style for Solid Lifeline",
+    "code": "Alice -> Bob : hello\n...\nAlice <- Bob : hello"
+  }
+]

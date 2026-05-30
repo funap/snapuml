@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { SequenceParser } from '../../src/diagrams/sequence/SequenceParser';
 import fs from 'fs';
+import path from 'path';
 
 describe('Sequence Diagram New Samples Parsing', () => {
     // Load parsed samples
     const parsedSamples = JSON.parse(
-        fs.readFileSync('/Users/af/.gemini/antigravity/scratch/parsed_samples.json', 'utf8')
+        fs.readFileSync(path.resolve(__dirname, 'parsed_samples.json'), 'utf8')
     );
 
     // List of titles that are already in index.html as basic/existing samples,

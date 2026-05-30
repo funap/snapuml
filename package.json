@@ -9,7 +9,7 @@
     "type-check": "tsc --noEmit",
     "build": "npm run type-check && esbuild src/index.ts --bundle --outfile=dist/snapuml.js --platform=browser --format=iife --global-name=snapuml && esbuild src/index.ts --bundle --minify --outfile=dist/snapuml.min.js --platform=browser --format=iife --global-name=snapuml && esbuild src/index.ts --bundle --outfile=dist/snapuml.esm.mjs --platform=browser --format=esm && esbuild src/index.ts --bundle --minify --outfile=dist/snapuml.esm.min.mjs --platform=browser --format=esm",
     "test": "vitest run",
-    "deploy": "npm test && npm run build && mkdir -p build/dist && cp index.html build/ && cp -r dist/* build/dist/ && gh-pages -d build",
+    "deploy": "npm test && npm run build && mkdir -p build/dist && cp index.html build/ && cp -r dist/* build/dist/ && touch build/.nojekyll && gh-pages -d build",
     "preview": "npm run build && open index.html"
   },
   "keywords": [
