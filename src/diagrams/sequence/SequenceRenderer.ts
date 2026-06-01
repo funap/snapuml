@@ -197,7 +197,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
             const cx = pl.centerX;
             const cy = y + pl.height / 2;
             const label = (pl.participant.label || pl.participant.name).replace(/\\n/g, '\n');
-            const lines = label.split('\n');
+            const lines = label.split('\n').map((line: string) => line.trim());
 
             const renderLabelAndStereotype = (cx: number, startY: number) => {
                 const parsed = parseStereotype(pl.participant.stereotype);
@@ -303,6 +303,23 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                 default:
                     svg += `<rect x="${x}" y="${y}" width="${pl.width}" height="${pl.height}" rx="5" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     
+                    const renderParticipantLine = (line: string, lineY: number) => {
+                        const isDivider = /^[-=_]{3,}$/.test(line);
+                        if (isDivider) {
+                            return `<line x1="${x}" y1="${lineY}" x2="${x + pl.width}" y2="${lineY}" stroke="${this.theme.colors.defaultStroke}" stroke-width="1.5" />`;
+                        }
+
+                        const headingMatch = line.match(/^(=+)\s*(.*)$/);
+                        if (headingMatch) {
+                            const level = headingMatch[1].length;
+                            const cleanText = headingMatch[2];
+                            const headingFontSize = this.theme.fontSize + Math.max(1, 4 - level) * 2;
+                            return `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${headingFontSize}" font-weight="bold">${this.formatRichText(cleanText)}</text>`;
+                        }
+
+                        return `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" font-weight="bold">${this.formatRichText(line)}</text>`;
+                    };
+
                     const parsed = parseStereotype(pl.participant.stereotype);
                     if (parsed) {
                         // We have a stereotype!
@@ -338,12 +355,12 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                         
                         lines.forEach((line: string, j: number) => {
                             const lineY = startY + 18 + j * 15;
-                            svg += `<text x="${cx}" y="${lineY}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
+                            svg += renderParticipantLine(line, lineY);
                         });
                     } else {
                         lines.forEach((line: string, j: number) => {
                             const lineY = lines.length > 1 ? (cy - (lines.length - 1) * 7.5 + j * 15) : cy;
-                            svg += `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
+                            svg += renderParticipantLine(line, lineY);
                         });
                     }
             }

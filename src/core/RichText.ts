@@ -32,7 +32,7 @@ export function formatRichText(text: string): string {
     // Support Markdown-like syntax (Legacy/Alternative)
     escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<tspan font-weight="bold">$1</tspan>');
     escaped = escaped.replace(/\/\/(.*?)\/\//g, '<tspan font-style="italic">$1</tspan>');
-    escaped = escaped.replace(/""(.*?)""/g, '<tspan font-family="monospace">$1</tspan>');
+    escaped = escaped.replace(/&quot;&quot;(.*?)&quot;&quot;/g, '<tspan font-family="monospace">$1</tspan>');
     escaped = escaped.replace(/--(.*?)--/g, '<tspan text-decoration="line-through">$1</tspan>');
     escaped = escaped.replace(/__(.*?)__/g, '<tspan text-decoration="underline">$1</tspan>');
     escaped = escaped.replace(/~~(.*?)~~/g, '<tspan style="text-decoration: underline; text-decoration-style: wavy">$1</tspan>');

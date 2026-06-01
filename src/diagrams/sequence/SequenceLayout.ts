@@ -629,7 +629,7 @@ export class LayoutEngine {
 
     private calculateParticipantWidth(p: Participant): number {
         const label = (p.label || p.name).replace(/\\n/g, '\n');
-        const lines = label.split('\n');
+        const lines = label.split('\n').map(l => l.trim());
         let maxLineLength = Math.max(...lines.map(l => l.length));
         
         let minWidth = this.theme.participantWidth;
@@ -654,10 +654,18 @@ export class LayoutEngine {
     }
 
     private calculateParticipantHeight(p: Participant): number {
-        if (p.stereotype) {
-            return 60;
+        const label = (p.label || p.name).replace(/\\n/g, '\n');
+        const lines = label.split('\n').map(l => l.trim());
+        const numLines = lines.length;
+
+        let baseHeight = this.theme.participantHeight;
+        if (numLines > 1) {
+            baseHeight = Math.max(baseHeight, 30 + numLines * 15);
         }
-        return this.theme.participantHeight;
+        if (p.stereotype) {
+            baseHeight = Math.max(baseHeight, 60 + (numLines - 1) * 15);
+        }
+        return baseHeight;
     }
 
     // Simplified gap calculation for brevity in this first pass

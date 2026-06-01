@@ -101,7 +101,10 @@ export class SequenceASTCompiler {
         let participantName: string;
         let participantLabel: string | undefined;
 
-        if (label) {
+        if (node.isMultiline) {
+            participantName = name;
+            participantLabel = label;
+        } else if (label) {
             if (label.startsWith('"')) {
                 // participant ID as "Label"
                 participantName = name;

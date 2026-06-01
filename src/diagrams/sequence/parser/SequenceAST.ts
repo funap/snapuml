@@ -30,6 +30,7 @@ export interface ParticipantDeclAST extends ASTNode {
     stereotype?: string;
     order?: number;
     color?: string;
+    isMultiline?: boolean;
 }
 
 export interface MessageAST extends ASTNode {

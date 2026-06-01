@@ -264,6 +264,7 @@ export class SequenceASTParser {
 
             // Check if it's a multiline declaration starting with '['
             if (this.match(TokenType.LBRACKET)) {
+                this.consumeLineEnd();
                 const lines: string[] = [];
                 while (!this.check(TokenType.RBRACKET) && !this.isAtEnd()) {
                     lines.push(this.consumeLineRawText());
@@ -277,6 +278,7 @@ export class SequenceASTParser {
                     declType,
                     name: nameToken.value,
                     label: lines.join('\n'),
+                    isMultiline: true,
                     line: token.line,
                     column: token.column
                 };
