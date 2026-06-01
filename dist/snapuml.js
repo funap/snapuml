@@ -627,6 +627,7 @@ var snapuml = (() => {
         const declType = this.previous().value.toLowerCase();
         const nameToken = this.consumeIdentifier("Expected participant name");
         if (this.match("LBRACKET" /* LBRACKET */)) {
+          this.consumeLineEnd();
           const lines = [];
           while (!this.check("RBRACKET" /* RBRACKET */) && !this.isAtEnd()) {
             lines.push(this.consumeLineRawText());
@@ -640,6 +641,7 @@ var snapuml = (() => {
             declType,
             name: nameToken.value,
             label: lines.join("\n"),
+            isMultiline: true,
             line: token.line,
             column: token.column
           };
@@ -1137,7 +1139,7 @@ var snapuml = (() => {
     escaped = escaped.replace(/&lt;font\s+color=(?:&quot;)?(.*?)(?:&quot;)?&gt;(?!.*&lt;\/font&gt;)(.*)/gi, '<tspan fill="$1">$2</tspan>');
     escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<tspan font-weight="bold">$1</tspan>');
     escaped = escaped.replace(/\/\/(.*?)\/\//g, '<tspan font-style="italic">$1</tspan>');
-    escaped = escaped.replace(/""(.*?)""/g, '<tspan font-family="monospace">$1</tspan>');
+    escaped = escaped.replace(/&quot;&quot;(.*?)&quot;&quot;/g, '<tspan font-family="monospace">$1</tspan>');
     escaped = escaped.replace(/--(.*?)--/g, '<tspan text-decoration="line-through">$1</tspan>');
     escaped = escaped.replace(/__(.*?)__/g, '<tspan text-decoration="underline">$1</tspan>');
     escaped = escaped.replace(/~~(.*?)~~/g, '<tspan style="text-decoration: underline; text-decoration-style: wavy">$1</tspan>');
@@ -1469,7 +1471,10 @@ var snapuml = (() => {
       const label = node.label ? node.label.replace(/^"(.*)"$/, "$1") : void 0;
       let participantName;
       let participantLabel;
-      if (label) {
+      if (node.isMultiline) {
+        participantName = name;
+        participantLabel = label;
+      } else if (label) {
         if (label.startsWith('"')) {
           participantName = name;
           participantLabel = label.replace(/^"(.*)"$/, "$1");
@@ -2268,7 +2273,7 @@ var snapuml = (() => {
     }
     calculateParticipantWidth(p) {
       const label = (p.label || p.name).replace(/\\n/g, "\n");
-      const lines = label.split("\n");
+      const lines = label.split("\n").map((l) => l.trim());
       let maxLineLength = Math.max(...lines.map((l) => l.length));
       let minWidth = this.theme.participantWidth;
       let textWidth = maxLineLength * 9 + 30;
@@ -2289,10 +2294,17 @@ var snapuml = (() => {
       return Math.max(minWidth, textWidth);
     }
     calculateParticipantHeight(p) {
-      if (p.stereotype) {
-        return 60;
+      const label = (p.label || p.name).replace(/\\n/g, "\n");
+      const lines = label.split("\n").map((l) => l.trim());
+      const numLines = lines.length;
+      let baseHeight = this.theme.participantHeight;
+      if (numLines > 1) {
+        baseHeight = Math.max(baseHeight, 30 + numLines * 15);
       }
-      return this.theme.participantHeight;
+      if (p.stereotype) {
+        baseHeight = Math.max(baseHeight, 60 + (numLines - 1) * 15);
+      }
+      return baseHeight;
     }
     // Simplified gap calculation for brevity in this first pass
     calculateGaps(diagram, participants, pWidths) {
@@ -2781,7 +2793,7 @@ var snapuml = (() => {
         const cx = pl.centerX;
         const cy = y + pl.height / 2;
         const label = (pl.participant.label || pl.participant.name).replace(/\\n/g, "\n");
-        const lines = label.split("\n");
+        const lines = label.split("\n").map((line) => line.trim());
         const renderLabelAndStereotype = (cx2, startY) => {
           const parsed = parseStereotype(pl.participant.stereotype);
           let nextY = startY;
@@ -2871,6 +2883,20 @@ var snapuml = (() => {
             break;
           default:
             svg += `<rect x="${x}" y="${y}" width="${pl.width}" height="${pl.height}" rx="5" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+            const renderParticipantLine = (line, lineY) => {
+              const isDivider = /^[-=_]{3,}$/.test(line);
+              if (isDivider) {
+                return `<line x1="${x}" y1="${lineY}" x2="${x + pl.width}" y2="${lineY}" stroke="${this.theme.colors.defaultStroke}" stroke-width="1.5" />`;
+              }
+              const headingMatch = line.match(/^(=+)\s*(.*)$/);
+              if (headingMatch) {
+                const level = headingMatch[1].length;
+                const cleanText = headingMatch[2];
+                const headingFontSize = this.theme.fontSize + Math.max(1, 4 - level) * 2;
+                return `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${headingFontSize}" font-weight="bold">${this.formatRichText(cleanText)}</text>`;
+              }
+              return `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" font-weight="bold">${this.formatRichText(line)}</text>`;
+            };
             const parsed = parseStereotype(pl.participant.stereotype);
             if (parsed) {
               const totalContentLines = 1 + lines.length;
@@ -2899,12 +2925,12 @@ var snapuml = (() => {
               }
               lines.forEach((line, j) => {
                 const lineY = startY + 18 + j * 15;
-                svg += `<text x="${cx}" y="${lineY}" text-anchor="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
+                svg += renderParticipantLine(line, lineY);
               });
             } else {
               lines.forEach((line, j) => {
                 const lineY = lines.length > 1 ? cy - (lines.length - 1) * 7.5 + j * 15 : cy;
-                svg += `<text x="${cx}" y="${lineY}" text-anchor="middle" dominant-baseline="middle" font-size="${this.theme.fontSize}" font-weight="bold">${line}</text>`;
+                svg += renderParticipantLine(line, lineY);
               });
             }
         }
