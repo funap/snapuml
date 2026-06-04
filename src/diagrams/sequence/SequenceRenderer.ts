@@ -244,20 +244,23 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     renderLabelAndStereotype(cx, y + 55);
                     break;
                 case 'boundary':
-                    svg += `<line x1="${cx - 20}" y1="${cy}" x2="${cx - 10}" y2="${cy}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    svg += `<line x1="${cx - 20}" y1="${cy - 10}" x2="${cx - 20}" y2="${cy + 10}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    renderLabelAndStereotype(cx, y + pl.height + 20);
+                    const cyBoundary = y + 20;
+                    svg += `<line x1="${cx - 20}" y1="${cyBoundary}" x2="${cx - 10}" y2="${cyBoundary}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    svg += `<line x1="${cx - 20}" y1="${cyBoundary - 10}" x2="${cx - 20}" y2="${cyBoundary + 10}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    svg += `<circle cx="${cx}" cy="${cyBoundary}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    renderLabelAndStereotype(cx, y + 55);
                     break;
                 case 'control':
-                    svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    svg += `<path d="M ${cx + 4} ${cy - 18} L ${cx - 4} ${cy - 14} L ${cx + 4} ${cy - 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    renderLabelAndStereotype(cx, y + pl.height + 20);
+                    const cyControl = y + 20;
+                    svg += `<circle cx="${cx}" cy="${cyControl}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    svg += `<path d="M ${cx + 4} ${cyControl - 18} L ${cx - 4} ${cyControl - 14} L ${cx + 4} ${cyControl - 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    renderLabelAndStereotype(cx, y + 55);
                     break;
                 case 'entity':
-                    svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    svg += `<line x1="${cx - 14}" y1="${cy + 14}" x2="${cx + 14}" y2="${cy + 14}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    renderLabelAndStereotype(cx, y + pl.height + 20);
+                    const cyEntity = y + 20;
+                    svg += `<circle cx="${cx}" cy="${cyEntity}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    svg += `<line x1="${cx - 14}" y1="${cyEntity + 14}" x2="${cx + 14}" y2="${cyEntity + 14}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+                    renderLabelAndStereotype(cx, y + 55);
                     break;
                 case 'database':
                     const dbW = 34;
@@ -266,7 +269,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     const dbX = cx - dbW / 2;
                     svg += `<path d="M ${dbX} ${dbY + 10} L ${dbX} ${dbY + dbH - 10} A 17 8 0 0 0 ${dbX + dbW} ${dbY + dbH - 10} L ${dbX + dbW} ${dbY + 10} A 17 8 0 0 0 ${dbX} ${dbY + 10} M ${dbX} ${dbY + 10} A 17 8 0 0 1 ${dbX + dbW} ${dbY + 10}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<path d="M ${dbX} ${dbY + 10} A 17 8 0 0 0 ${dbX + dbW} ${dbY + 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    renderLabelAndStereotype(cx, y + pl.height + 20);
+                    renderLabelAndStereotype(cx, y + 55);
                     break;
                 case 'collections':
                     const colW = 34;
@@ -275,7 +278,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     const colX = cx - colW / 2;
                     svg += `<rect x="${colX + 4}" y="${colY - 4}" width="${colW}" height="${colH}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
                     svg += `<rect x="${colX}" y="${colY}" width="${colW}" height="${colH}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-                    renderLabelAndStereotype(cx, y + pl.height + 20);
+                    renderLabelAndStereotype(cx, y + 55);
                     break;
                 case 'queue':
                     const qW = 40;
@@ -298,7 +301,7 @@ export class SequenceRenderer implements Renderer<SequenceDiagram> {
                     // Right Face Outline (Full Ellipse)
                     svg += `<ellipse cx="${qX + qW}" cy="${qY + qRy}" rx="${qRx}" ry="${qRy}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
 
-                    renderLabelAndStereotype(cx, y + pl.height + 20);
+                    renderLabelAndStereotype(cx, y + 55);
                     break;
                 default:
                     svg += `<rect x="${x}" y="${y}" width="${pl.width}" height="${pl.height}" rx="5" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;

@@ -1,6 +1,146 @@
 import { SequenceDiagram, Note, Participant, Message, Activation, Group, Reference, ArrowHead } from './SequenceDiagram';
 import { SequenceTheme } from './SequenceTheme';
 
+export const LAYOUT = {
+    // Participant vertical adjustments
+    BOX_LABEL_OFFSET_Y: 25,
+    TITLE_MIN_Y: 55,
+    HEADER_MIN_Y: 35,
+    FOOTER_EXTRA_PADDING: 25,
+    FOOTBOX_GAP: 20,
+    PARTICIPANT_ICON_MIN_HEIGHT: 20,
+
+    // Time constraints
+    TIME_CONSTRAINT_BASE_SPACE: 50,
+    TIME_CONSTRAINT_CHAR_WIDTH: 8,
+    TIME_CONSTRAINT_OFFSET_X: 20,
+
+    // References
+    REFERENCE_OFFSET_Y: 10,
+    REFERENCE_MIN_HEIGHT_PER_LINE: 15,
+    REFERENCE_HEADER_HEIGHT: 40,
+
+    // Activations
+    ACTIVATION_LEVEL_OFFSET: 5,
+    ACTIVATION_MIN_HEIGHT: 5,
+
+    // Notes
+    NOTE_MIN_WIDTH: 60,
+    NOTE_HEIGHT_PER_LINE: 20,
+    NOTE_PADDING_Y: 10,
+    NOTE_CHAR_WIDTH: 8.5,
+    NOTE_PADDING_X: 20,
+    NOTE_COLLISION_GAP: 10,
+    NOTE_POSITION_OFFSET_X: 5,
+    NOTE_LEFT_MARGIN: 15,
+    NOTE_RIGHT_MARGIN: 15,
+
+    // Messages
+    MESSAGE_CHAR_WIDTH: 8,
+    MESSAGE_PADDING_X: 20,
+    MESSAGE_SELF_LOOP_HEIGHT: 25,
+    MESSAGE_SELF_LINE_HEIGHT: 20,
+    MESSAGE_SELF_PADDING_Y: 10,
+    MESSAGE_TEXT_LINE_HEIGHT: 15,
+    MESSAGE_TEXT_PADDING_Y: 5,
+    MESSAGE_SELF_DIFF_X: 40,
+    MESSAGE_SELF_LOOP_Y_OFFSET: 25,
+    MESSAGE_SELF_LABEL_OFFSET_X: 5,
+    MESSAGE_SELF_LABEL_OFFSET_Y: 10,
+    MESSAGE_COMPACT_GAP: 20,
+    MESSAGE_LAST_STEP_GAP: 40,
+    MESSAGE_PSEUDO_PARTICIPANT_GAP: 80,
+    MESSAGE_DEFAULT_LEFTMOST_X: 50,
+    MESSAGE_DEFAULT_RIGHTMOST_X: 150,
+    MESSAGE_DEFAULT_UNKNOWN_X: 100,
+    MESSAGE_UNKNOWN_OFFSET_X: 50,
+
+    // Groups
+    GROUP_LEVEL_OFFSET_X: 10,
+    GROUP_LEVEL_OFFSET_Y: 8,
+    GROUP_MIN_PADDING_X: 10,
+    GROUP_MIN_PADDING_TOP: 25,
+    GROUP_MIN_PADDING_BOTTOM: 5,
+    GROUP_BOX_MARGIN_Y: 15,
+    GROUP_BOX_LABEL_MARGIN_Y: 35,
+    GROUP_BOX_END_MARGIN_Y: 10,
+    GROUP_START_MARGIN_Y: 25,
+    GROUP_END_MARGIN_Y: 20,
+    GROUP_STEP_GAP_DIVIDER: 30,
+    GROUP_STEP_GAP_DELAY: 40,
+
+    // Gaps and Spacing
+    GAP_BASE: 60,
+    PARTICIPANT_CREATION_PADDING: 20,
+    RIGHT_SPACE_BASE: 15,
+    LEFT_SPACE_BASE: 15,
+
+    // Participant size calculation
+    PARTICIPANT_CHAR_WIDTH: 9,
+    PARTICIPANT_PADDING_X: 30,
+    STEREO_CHAR_WIDTH: 8,
+    STEREO_PADDING_X: 30,
+    STEREO_SPOT_EXTRA: 22,
+    STEREO_EXTRA_HEIGHT: 18,
+    PARTICIPANT_NON_BOX_BASE_HEIGHT: 55,
+    PARTICIPANT_LINE_HEIGHT: 15,
+    PARTICIPANT_BOX_BASE_HEIGHT: 30,
+    PARTICIPANT_STEREO_BOX_BASE_HEIGHT: 60,
+
+    // Header/margin gaps
+    HEADER_GAP_MIN: 30,
+    HEADER_GAP_PADDING: 10,
+};
+
+export function calculateNoteWidth(text: string): number {
+    const lines = text.split('\n');
+    const calculatedWidth = Math.max(...lines.map(l => l.length * LAYOUT.NOTE_CHAR_WIDTH)) + LAYOUT.NOTE_PADDING_X;
+    return Math.max(calculatedWidth, LAYOUT.NOTE_MIN_WIDTH);
+}
+
+export function calculateNoteHeight(text: string): number {
+    const lines = text.split('\n');
+    return lines.length * LAYOUT.NOTE_HEIGHT_PER_LINE + LAYOUT.NOTE_PADDING_Y;
+}
+
+export function resolveMessageEndpoints(
+    from: string,
+    to: string,
+    fromIdx: number,
+    toIdx: number,
+    centerXs: number[],
+    leftmostCenterX: number | undefined,
+    rightmostCenterX: number | undefined
+): { x1: number; x2: number } {
+    let x1 = 0;
+    if (fromIdx !== -1) {
+        x1 = centerXs[fromIdx];
+    } else if (from === '[') {
+        x1 = leftmostCenterX !== undefined ? leftmostCenterX - LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_LEFTMOST_X;
+    } else if (from === ']') {
+        x1 = rightmostCenterX !== undefined ? rightmostCenterX + LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_RIGHTMOST_X;
+    } else if (from === '?') {
+        const fallback = centerXs[0] ?? LAYOUT.MESSAGE_DEFAULT_UNKNOWN_X;
+        const toX = toIdx !== -1 ? centerXs[toIdx] : fallback;
+        x1 = toX - LAYOUT.MESSAGE_UNKNOWN_OFFSET_X;
+    }
+
+    let x2 = 0;
+    if (toIdx !== -1) {
+        x2 = centerXs[toIdx];
+    } else if (to === ']') {
+        x2 = rightmostCenterX !== undefined ? rightmostCenterX + LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_RIGHTMOST_X;
+    } else if (to === '[') {
+        x2 = leftmostCenterX !== undefined ? leftmostCenterX - LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_LEFTMOST_X;
+    } else if (to === '?') {
+        const fallback = centerXs[0] ?? LAYOUT.MESSAGE_DEFAULT_LEFTMOST_X;
+        const fromX = fromIdx !== -1 ? centerXs[fromIdx] : fallback;
+        x2 = fromX + LAYOUT.MESSAGE_UNKNOWN_OFFSET_X;
+    }
+
+    return { x1, x2 };
+}
+
 export interface ParsedStereotype {
     spotChar?: string;
     spotColor?: string;
@@ -127,23 +267,28 @@ export class LayoutEngine {
         const hasBoxWithLabel = diagram.groups.some(g => g.type === 'box' && g.label);
         let participantYStart = this.theme.padding;
         if (hasBoxWithLabel) {
-            participantYStart += 25;
+            participantYStart += LAYOUT.BOX_LABEL_OFFSET_Y;
         }
         if (diagram.title) {
-            participantYStart = Math.max(participantYStart, 55 + (hasBoxWithLabel ? 25 : 0));
+            participantYStart = Math.max(participantYStart, LAYOUT.TITLE_MIN_Y + (hasBoxWithLabel ? LAYOUT.BOX_LABEL_OFFSET_Y : 0));
         } else if (diagram.header) {
-            participantYStart = Math.max(participantYStart, 35 + (hasBoxWithLabel ? 25 : 0));
+            participantYStart = Math.max(participantYStart, LAYOUT.HEADER_MIN_Y + (hasBoxWithLabel ? LAYOUT.BOX_LABEL_OFFSET_Y : 0));
         }
 
         let bottomPadding = this.theme.padding;
         if (diagram.footer) {
-            bottomPadding += 25; // Space for footer
+            bottomPadding += LAYOUT.FOOTER_EXTRA_PADDING; // Space for footer
         }
 
         const pHeights = participants.map(p => this.calculateParticipantHeight(p));
         const maxPHeight = Math.max(this.theme.participantHeight, ...pHeights);
 
-        const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart, maxPHeight);
+        const headerPHeights = participants
+            .filter(p => p.createdStep === undefined)
+            .map(p => this.calculateParticipantHeight(p));
+        const maxHeaderPHeight = Math.max(this.theme.participantHeight, ...headerPHeights);
+
+        const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart, maxHeaderPHeight);
         const stepY = stepHeightResult.stepY;
         const currentY = stepHeightResult.totalHeight;
 
@@ -165,23 +310,25 @@ export class LayoutEngine {
         // Add space for time constraints if they exist
         if (diagram.timeConstraints.length > 0) {
             const maxLabelLength = Math.max(...diagram.timeConstraints.map(tc => tc.label.length), 0);
-            const timeConstraintSpace = 50 + (maxLabelLength * 8); // 50px for arrow + label width
+            const timeConstraintSpace = LAYOUT.TIME_CONSTRAINT_BASE_SPACE + (maxLabelLength * LAYOUT.TIME_CONSTRAINT_CHAR_WIDTH); // arrow + label width
             totalWidth += timeConstraintSpace;
         }
 
-        const footboxHeight = diagram.hideFootbox ? 0 : maxPHeight + 20;
+        const footboxHeight = diagram.hideFootbox ? 0 : maxPHeight + LAYOUT.FOOTBOX_GAP;
         const totalHeight = currentY + footboxHeight + bottomPadding;
 
         // Finalize X positions
         const participantLayouts: ParticipantLayout[] = participants.map((p, i) => {
             const centerX = relpCenterX[i] + offsetX;
+            const pH = pHeights[i];
+            const pIconYOffset = p.type === 'participant' ? pH / 2 : LAYOUT.PARTICIPANT_ICON_MIN_HEIGHT;
             return {
                 participant: p,
                 centerX: centerX,
                 x: centerX - pWidths[i] / 2,
-                y: p.createdStep !== undefined ? stepY[p.createdStep] - maxPHeight / 2 : participantYStart,
+                y: p.createdStep !== undefined ? stepY[p.createdStep] - pIconYOffset : participantYStart,
                 width: pWidths[i],
-                height: maxPHeight,
+                height: pH,
                 destroyedY: p.destroyedStep !== undefined ? stepY[p.destroyedStep] : undefined
             };
         });
@@ -226,8 +373,7 @@ export class LayoutEngine {
     }
 
     private calculateMessageLayouts(diagram: SequenceDiagram, participants: ParticipantLayout[], stepY: number[], activations: ActivationLayout[]): MessageLayout[] {
-        const leftmostParticipant = participants[0];
-        const rightmostParticipant = participants[participants.length - 1];
+        const centerXs = participants.map(p => p.centerX);
 
         return diagram.messages.map(m => {
             const fromIdx = participants.findIndex(p => p.participant.name === m.from);
@@ -235,29 +381,15 @@ export class LayoutEngine {
             const y = stepY[m.step];
 
             // Default center positions
-            let x1 = 0;
-            if (fromIdx !== -1) {
-                x1 = participants[fromIdx].centerX;
-            } else if (m.from === '[') {
-                x1 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
-            } else if (m.from === ']') {
-                x1 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
-            } else if (m.from === '?') {
-                const toX = toIdx !== -1 ? participants[toIdx].centerX : 100;
-                x1 = toX - 50;
-            }
-
-            let x2 = 0;
-            if (toIdx !== -1) {
-                x2 = participants[toIdx].centerX;
-            } else if (m.to === ']') {
-                x2 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
-            } else if (m.to === '[') {
-                x2 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
-            } else if (m.to === '?') {
-                const fromX = fromIdx !== -1 ? participants[fromIdx].centerX : 50;
-                x2 = fromX + 50;
-            }
+            let { x1, x2 } = resolveMessageEndpoints(
+                m.from,
+                m.to,
+                fromIdx,
+                toIdx,
+                centerXs,
+                centerXs[0],
+                centerXs[centerXs.length - 1]
+            );
 
             // Adjust x1 and x2 based on activations
             if (fromIdx !== -1 || toIdx !== -1) {
@@ -369,21 +501,21 @@ export class LayoutEngine {
                         ? activeActivations[endLevelIdx].x + activeActivations[endLevelIdx].width
                         : participants[fromIdx].centerX;
 
-                    const diff = 40;
+                    const diff = LAYOUT.MESSAGE_SELF_DIFF_X;
                     points[0] = { x: baseXStart, y };
                     points[1] = { x: Math.max(baseXStart, baseXEnd) + diff, y };
-                    points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + 25 + delay });
-                    points.push({ x: baseXEnd, y: y + 25 + delay });
-                    labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + 5, y: y + 10 + delay / 2 };
+                    points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+                    points.push({ x: baseXEnd, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+                    labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_X, y: y + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_Y + delay / 2 };
                 } else {
                     // No activation, use participant center
                     const baseX = participants[fromIdx].centerX;
-                    const diff = 40;
+                    const diff = LAYOUT.MESSAGE_SELF_DIFF_X;
                     points[0] = { x: baseX, y };
                     points[1] = { x: baseX + diff, y };
-                    points.push({ x: baseX + diff, y: y + 25 + delay });
-                    points.push({ x: baseX, y: y + 25 + delay });
-                    labelPosition = { x: baseX + diff + 5, y: y + 10 + delay / 2 };
+                    points.push({ x: baseX + diff, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+                    points.push({ x: baseX, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+                    labelPosition = { x: baseX + diff + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_X, y: y + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_Y + delay / 2 };
                 }
             }
 
@@ -421,7 +553,7 @@ export class LayoutEngine {
             }
 
             return {
-                x: totalWidth - this.theme.padding + 20, // Position to the right of the diagram
+                x: totalWidth - this.theme.padding + LAYOUT.TIME_CONSTRAINT_OFFSET_X, // Position to the right of the diagram
                 startY: stepY[startStep],
                 endY: stepY[endStep],
                 label: tc.label
@@ -437,7 +569,7 @@ export class LayoutEngine {
             const maxIdx = Math.max(...pIdxs);
             const x = participants[minIdx].x; // Start of first participant box
             const w = (participants[maxIdx].x + participants[maxIdx].width) - x;
-            const y = stepY[r.startStep] - 10;
+            const y = stepY[r.startStep] - LAYOUT.REFERENCE_OFFSET_Y;
             const h = stepY[r.endStep!] - y;
             return {
                 reference: r,
@@ -454,7 +586,7 @@ export class LayoutEngine {
             if (pIdx === -1) return null;
 
             const p = participants[pIdx];
-            const x = p.centerX - (this.theme.activationWidth / 2) + (a.level * 5);
+            const x = p.centerX - (this.theme.activationWidth / 2) + (a.level * LAYOUT.ACTIVATION_LEVEL_OFFSET);
             let y = stepY[a.startStep];
 
             if (a.sourceStep !== undefined) {
@@ -462,7 +594,7 @@ export class LayoutEngine {
                 if (triggerMsg) {
                     const delay = triggerMsg.arrowDelay || 0;
                     if (triggerMsg.from === a.participantName && triggerMsg.to === a.participantName) {
-                        y += 25 + delay;
+                        y += LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay;
                     } else {
                         const isReverse = isHead(triggerMsg.startHead) && !isHead(triggerMsg.arrowHead);
                         const endsAtParticipant = (!isReverse && triggerMsg.to === a.participantName) || (isReverse && triggerMsg.from === a.participantName);
@@ -478,7 +610,7 @@ export class LayoutEngine {
                 if (closeMsg) {
                     const delay = closeMsg.arrowDelay || 0;
                     if (closeMsg.from === a.participantName && closeMsg.to === a.participantName) {
-                        yEnd += 25 + delay;
+                        yEnd += LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay;
                     } else {
                         const isReverse = isHead(closeMsg.startHead) && !isHead(closeMsg.arrowHead);
                         const endsAtParticipant = (!isReverse && closeMsg.to === a.participantName) || (isReverse && closeMsg.from === a.participantName);
@@ -489,7 +621,7 @@ export class LayoutEngine {
                 }
             }
 
-            const minHeight = 5; // Minimum height to ensure activation is visible
+            const minHeight = LAYOUT.ACTIVATION_MIN_HEIGHT; // Minimum height to ensure activation is visible
             const height = Math.max(minHeight, yEnd - y);
             return {
                 activation: a,
@@ -527,14 +659,23 @@ export class LayoutEngine {
         diagram.groups.forEach(g => { if (g.endStep === undefined) g.endStep = maxStep; });
     }
 
-    private calculateStepHeights(diagram: SequenceDiagram, maxStep: number, participantYStart: number, maxPHeight: number) {
+    private calculateStepHeights(diagram: SequenceDiagram, maxStep: number, participantYStart: number, maxHeaderPHeight: number) {
         const stepHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
         const topExtension = new Array(maxStep + 2).fill(0);
         const bottomExtension = new Array(maxStep + 2).fill(0);
 
+        diagram.participants.forEach(p => {
+            if (p.name === '[' || p.name === ']' || p.name === '?') return;
+            if (p.createdStep !== undefined) {
+                const pH = this.calculateParticipantHeight(p);
+                const pIconYOffset = p.type === 'participant' ? pH / 2 : 20;
+                topExtension[p.createdStep] = Math.max(topExtension[p.createdStep], pIconYOffset);
+                bottomExtension[p.createdStep] = Math.max(bottomExtension[p.createdStep], pH - pIconYOffset);
+            }
+        });
+
         diagram.notes.forEach(n => {
-            const lines = n.text.split('\n');
-            const noteHeight = lines.length * 20 + 10;
+            const noteHeight = calculateNoteHeight(n.text);
             // Center the note at the step height, regardless of whether there's a message
             topExtension[n.step] = Math.max(topExtension[n.step], noteHeight / 2);
             bottomExtension[n.step] = Math.max(bottomExtension[n.step], noteHeight / 2);
@@ -546,11 +687,11 @@ export class LayoutEngine {
             const textLines = lines.length;
             const delay = m.arrowDelay || 0;
             if (m.from === m.to) {
-                const loopHeight = Math.max(25, textLines * 20);
+                const loopHeight = Math.max(LAYOUT.MESSAGE_SELF_LOOP_HEIGHT, textLines * LAYOUT.MESSAGE_SELF_LINE_HEIGHT);
                 topExtension[m.step] = Math.max(topExtension[m.step], 0);
-                bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10 + delay);
+                bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + LAYOUT.MESSAGE_SELF_PADDING_Y + delay);
             } else {
-                const textHeight = hasText ? textLines * 15 + 5 : 0;
+                const textHeight = hasText ? textLines * LAYOUT.MESSAGE_TEXT_LINE_HEIGHT + LAYOUT.MESSAGE_TEXT_PADDING_Y : 0;
                 topExtension[m.step] = Math.max(topExtension[m.step], textHeight);
                 bottomExtension[m.step] = Math.max(bottomExtension[m.step], delay);
             }
@@ -561,8 +702,8 @@ export class LayoutEngine {
         diagram.groups.forEach(g => {
             if (g.type === 'box') return;
             const levelOffset = (maxGroupLevel - g.level);
-            const vPaddingTop = 25 + levelOffset * 8;
-            const vPaddingBottom = 5 + levelOffset * 8;
+            const vPaddingTop = LAYOUT.GROUP_MIN_PADDING_TOP + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
+            const vPaddingBottom = LAYOUT.GROUP_MIN_PADDING_BOTTOM + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
 
             topExtension[g.startStep] = Math.max(topExtension[g.startStep], vPaddingTop);
             if (g.endStep !== undefined) {
@@ -572,22 +713,22 @@ export class LayoutEngine {
 
         const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
         if (maxStep > 0) {
-            baseHeights[maxStep - 1] = 40; // Compact spacing for the last step before the footbox
+            baseHeights[maxStep - 1] = LAYOUT.MESSAGE_LAST_STEP_GAP; // Compact spacing for the last step before the footbox
         }
 
         // Apply compact spacing (baseHeight = 20) for all steps containing messages (with or without labels)
         for (let i = 0; i <= maxStep; i++) {
             const stepMessages = diagram.messages.filter(m => m.step === i);
             if (stepMessages.length > 0) {
-                baseHeights[i] = 20;
+                baseHeights[i] = LAYOUT.MESSAGE_COMPACT_GAP;
             }
         }
-        diagram.dividers.forEach(d => { baseHeights[d.step] = 30; });
-        diagram.delays.forEach(d => { baseHeights[d.step] = 40; });
+        diagram.dividers.forEach(d => { baseHeights[d.step] = LAYOUT.GROUP_STEP_GAP_DIVIDER; });
+        diagram.delays.forEach(d => { baseHeights[d.step] = LAYOUT.GROUP_STEP_GAP_DELAY; });
         diagram.spacings.forEach(s => { baseHeights[s.step] = s.height; });
         diagram.references.forEach(r => {
             const lines = r.label.split('\n');
-            const textHeight = lines.length * 15 + 40; // Approx height for ref with header
+            const textHeight = lines.length * LAYOUT.REFERENCE_MIN_HEIGHT_PER_LINE + LAYOUT.REFERENCE_HEADER_HEIGHT; // Approx height for ref with header
             // A ref spans from startStep to endStep.
             // We need to ensure the TOTAL height between startStep and endStep is at least textHeight.
             // Since endStep = startStep + 1 usually (from addReference implementation), 
@@ -605,20 +746,20 @@ export class LayoutEngine {
         };
 
         for (let i = 0; i <= maxStep; i++) {
-            let margin = 10;
+            let margin = LAYOUT.NOTE_PADDING_Y;
             if (isGroupStartStep(i + 1)) {
-                margin = Math.max(margin, 25);
+                margin = Math.max(margin, LAYOUT.GROUP_START_MARGIN_Y);
             }
             if (isGroupEndStep(i)) {
-                margin = Math.max(margin, 20);
+                margin = Math.max(margin, LAYOUT.GROUP_END_MARGIN_Y);
             }
             const requiredGap = bottomExtension[i] + topExtension[i + 1] + margin;
             stepHeights[i] = Math.max(baseHeights[i], requiredGap);
         }
 
         const stepY = new Array(maxStep + 1).fill(0);
-        const headerGap = Math.max(30, topExtension[0] + 10);
-        let currentY = participantYStart + maxPHeight + headerGap;
+        const headerGap = Math.max(LAYOUT.HEADER_GAP_MIN, topExtension[0] + LAYOUT.HEADER_GAP_PADDING);
+        let currentY = participantYStart + maxHeaderPHeight + headerGap;
         for (let i = 0; i <= maxStep; i++) {
             stepY[i] = currentY;
             currentY += stepHeights[i];
@@ -633,7 +774,7 @@ export class LayoutEngine {
         let maxLineLength = Math.max(...lines.map(l => l.length));
         
         let minWidth = this.theme.participantWidth;
-        let textWidth = maxLineLength * 9 + 30;
+        let textWidth = maxLineLength * LAYOUT.PARTICIPANT_CHAR_WIDTH + LAYOUT.PARTICIPANT_PADDING_X;
 
         if (p.stereotype) {
             const parsed = parseStereotype(p.stereotype);
@@ -642,9 +783,9 @@ export class LayoutEngine {
                 if (parsed.text) {
                     stereoText = `«${parsed.text}»`;
                 }
-                let stereoWidth = stereoText.length * 8 + 30;
+                let stereoWidth = stereoText.length * LAYOUT.STEREO_CHAR_WIDTH + LAYOUT.STEREO_PADDING_X;
                 if (parsed.spotChar) {
-                    stereoWidth += 22;
+                    stereoWidth += LAYOUT.STEREO_SPOT_EXTRA;
                 }
                 textWidth = Math.max(textWidth, stereoWidth);
             }
@@ -659,11 +800,19 @@ export class LayoutEngine {
         const numLines = lines.length;
 
         let baseHeight = this.theme.participantHeight;
-        if (numLines > 1) {
-            baseHeight = Math.max(baseHeight, 30 + numLines * 15);
-        }
-        if (p.stereotype) {
-            baseHeight = Math.max(baseHeight, 60 + (numLines - 1) * 15);
+        if (p.type !== 'participant') {
+            let extra = 0;
+            if (p.stereotype) {
+                extra = LAYOUT.STEREO_EXTRA_HEIGHT;
+            }
+            baseHeight = LAYOUT.PARTICIPANT_NON_BOX_BASE_HEIGHT + extra + numLines * LAYOUT.PARTICIPANT_LINE_HEIGHT;
+        } else {
+            if (numLines > 1) {
+                baseHeight = Math.max(baseHeight, LAYOUT.PARTICIPANT_BOX_BASE_HEIGHT + numLines * LAYOUT.PARTICIPANT_LINE_HEIGHT);
+            }
+            if (p.stereotype) {
+                baseHeight = Math.max(baseHeight, LAYOUT.PARTICIPANT_STEREO_BOX_BASE_HEIGHT + (numLines - 1) * LAYOUT.PARTICIPANT_LINE_HEIGHT);
+            }
         }
         return baseHeight;
     }
@@ -671,7 +820,7 @@ export class LayoutEngine {
     // Simplified gap calculation for brevity in this first pass
     private calculateGaps(diagram: SequenceDiagram, participants: Participant[], pWidths: number[]): number[] {
         const numGaps = Math.max(0, participants.length - 1);
-        const gaps = new Array(numGaps).fill(60);
+        const gaps = new Array(numGaps).fill(LAYOUT.GAP_BASE);
         const maxStep = this.calculateMaxStep(diagram);
 
         // 1. Handle localized requirements per step and per participant (Notes & Self-messages)
@@ -688,36 +837,36 @@ export class LayoutEngine {
                     const boxWidth = pWidths[i];
                     // Add space for the created participant box
                     if (i < numGaps) {
-                        gapRequirements[i] = Math.max(gapRequirements[i], boxWidth / 2 + 20);
+                        gapRequirements[i] = Math.max(gapRequirements[i], boxWidth / 2 + LAYOUT.PARTICIPANT_CREATION_PADDING);
                     }
                 }
 
                 // Right side of P_i
-                let rightSpace = 15;
+                let rightSpace = LAYOUT.RIGHT_SPACE_BASE;
                 const selfMsg = diagram.messages.find(m => m.step === s && m.from === name && m.to === name);
                 if (selfMsg) {
-                    const textWidth = Math.max(...selfMsg.text.split('\n').map(l => l.length * 8)) + 20;
-                    rightSpace = 40 + textWidth + 10;
+                    const textWidth = Math.max(...selfMsg.text.split('\n').map(l => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X;
+                    rightSpace = LAYOUT.MESSAGE_SELF_DIFF_X + textWidth + LAYOUT.NOTE_COLLISION_GAP;
                 }
                 const activeAlt = diagram.activations.filter(a => a.participantName === name && a.startStep <= s && (a.endStep ?? Infinity) >= s);
                 if (activeAlt.length > 0) {
                     const maxL = Math.max(...activeAlt.map(a => a.level));
-                    rightSpace = Math.max(rightSpace, (this.theme.activationWidth / 2) + (maxL * 5) + 10);
+                    rightSpace = Math.max(rightSpace, (this.theme.activationWidth / 2) + (maxL * LAYOUT.ACTIVATION_LEVEL_OFFSET) + LAYOUT.NOTE_COLLISION_GAP);
                 }
                 const notesR = diagram.notes.filter(n => n.step === s && n.position === 'right' && n.participants?.includes(name));
                 notesR.forEach(n => {
-                    const w = Math.max(60, Math.max(...n.text.split('\n').map(l => l.length * 8.5)) + 20);
-                    rightSpace += w + 10;
+                    const w = calculateNoteWidth(n.text);
+                    rightSpace += w + LAYOUT.NOTE_COLLISION_GAP;
                 });
 
                 if (i < numGaps) gapRequirements[i] += rightSpace;
 
                 // Left side of P_i
-                let leftSpace = 15;
+                let leftSpace = LAYOUT.LEFT_SPACE_BASE;
                 const notesL = diagram.notes.filter(n => n.step === s && n.position === 'left' && n.participants?.includes(name));
                 notesL.forEach(n => {
-                    const w = Math.max(60, Math.max(...n.text.split('\n').map(l => l.length * 8.5)) + 20);
-                    leftSpace += w + 10;
+                    const w = calculateNoteWidth(n.text);
+                    leftSpace += w + LAYOUT.NOTE_COLLISION_GAP;
                 });
 
                 if (i > 0) gapRequirements[i - 1] += leftSpace;
@@ -734,7 +883,7 @@ export class LayoutEngine {
             const tIdx = participants.findIndex(p => p.name === m.to);
             if (fIdx === -1 || tIdx === -1 || fIdx === tIdx) return;
 
-            const textWidth = Math.max(...m.text.split('\n').map(l => l.length * 8)) + 20;
+            const textWidth = Math.max(...m.text.split('\n').map(l => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X;
             const s = Math.min(fIdx, tIdx);
             const e = Math.max(fIdx, tIdx);
             let currentSpace = 0;
@@ -751,8 +900,7 @@ export class LayoutEngine {
         // 3. Handle over/across notes
         diagram.notes.forEach(n => {
             if (n.position !== 'over' && n.position !== 'across') return;
-            const lines = n.text.split('\n');
-            const noteWidth = Math.max(60, Math.max(...lines.map(l => l.length * 8.5)) + 20);
+            const noteWidth = calculateNoteWidth(n.text);
 
             if (n.participants && n.participants.length > 0) {
                 const sIdx = participants.findIndex(p => p.name === n.participants![0]);
@@ -762,7 +910,7 @@ export class LayoutEngine {
                 const s = Math.min(sIdx, eIdx);
                 const e = Math.max(sIdx, eIdx);
                 if (s === e) {
-                    const required = noteWidth / 2 + 10;
+                    const required = noteWidth / 2 + LAYOUT.NOTE_COLLISION_GAP;
                     if (s < numGaps) {
                         if (gaps[s] < required) gaps[s] = required;
                     }
@@ -801,11 +949,8 @@ export class LayoutEngine {
         const stepOccupancy = new Map<string, number>();
 
         diagram.notes.forEach(note => {
-            const lines = note.text.split('\n');
-            const calculatedWidth = Math.max(...lines.map(l => l.length * 8.5)) + 20;
-            const minWidth = 60;
-            const noteWidth = Math.max(calculatedWidth, minWidth);
-            const noteHeight = lines.length * 20 + 10;
+            const noteWidth = calculateNoteWidth(note.text);
+            const noteHeight = calculateNoteHeight(note.text);
             // Align the note center with the step Y (where the arrow is)
             const y = stepY[note.step] - (noteHeight / 2);
             let x = 0;
@@ -836,9 +981,9 @@ export class LayoutEngine {
                     const effectiveBoxOffset = isCreatedStep ? halfWidth : 0;
 
                     if (note.position === 'left') {
-                        const currentRightEdge = stepOccupancy.get(key) ?? (cx - effectiveBoxOffset - 5);
+                        const currentRightEdge = stepOccupancy.get(key) ?? (cx - effectiveBoxOffset - LAYOUT.NOTE_POSITION_OFFSET_X);
                         x = currentRightEdge - noteWidth;
-                        stepOccupancy.set(key, x - 10);
+                        stepOccupancy.set(key, x - LAYOUT.NOTE_COLLISION_GAP);
                     } else {
                         // Check if there's a self-message at this step for this participant
                         const selfMessage = diagram.messages.find(m =>
@@ -849,8 +994,8 @@ export class LayoutEngine {
                         let selfMsgRightOffset = 0;
                         if (selfMessage) {
                             const textLines = selfMessage.text.split('\n');
-                            const textWidth = Math.max(...textLines.map(l => l.length * 8)) + 20;
-                            selfMsgRightOffset = 40 + textWidth;
+                            const textWidth = Math.max(...textLines.map(l => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X;
+                            selfMsgRightOffset = LAYOUT.MESSAGE_SELF_DIFF_X + textWidth;
                         }
 
                         // Also account for activations
@@ -860,13 +1005,13 @@ export class LayoutEngine {
                             (a.endStep ?? Infinity) >= note.step
                         );
                         const maxLevel = activeAlt.length > 0 ? Math.max(...activeAlt.map(a => a.level)) : 0;
-                        const activationOffset = (this.theme.activationWidth / 2) + (maxLevel * 5);
+                        const activationOffset = (this.theme.activationWidth / 2) + (maxLevel * LAYOUT.ACTIVATION_LEVEL_OFFSET);
 
                         const baseRight = Math.max(effectiveBoxOffset, activationOffset, selfMsgRightOffset);
 
-                        const currentLeftEdge = stepOccupancy.get(key) ?? (cx + baseRight + 5);
+                        const currentLeftEdge = stepOccupancy.get(key) ?? (cx + baseRight + LAYOUT.NOTE_POSITION_OFFSET_X);
                         x = currentLeftEdge;
-                        stepOccupancy.set(key, x + noteWidth + 10);
+                        stepOccupancy.set(key, x + noteWidth + LAYOUT.NOTE_COLLISION_GAP);
                     }
                     noteLayouts.set(note, { x, y, width: noteWidth, height: noteHeight });
                 }
@@ -900,7 +1045,7 @@ export class LayoutEngine {
             const maxIdx = Math.max(...pIdxs);
 
             const levelOffset = (maxGroupLevel - g.level);
-            const hPadding = 10 + levelOffset * 10;
+            const hPadding = LAYOUT.GROUP_MIN_PADDING_X + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_X;
 
             const groupLeft = (relpCenterX[minIdx] - pWidths[minIdx] / 2) - hPadding;
             const groupRight = (relpCenterX[maxIdx] + pWidths[maxIdx] / 2) + hPadding;
@@ -914,40 +1059,22 @@ export class LayoutEngine {
             const toIdx = participants.findIndex(p => p.name === m.to);
             
             const textLines = m.text.split('\n');
-            const textWidth = Math.max(...textLines.map(l => l.length * 8)) + 20; // simplified calc
+            const textWidth = Math.max(...textLines.map(l => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X; // simplified calc
 
             if (fromIdx !== -1 && fromIdx === toIdx) {
                 const cx = relpCenterX[fromIdx];
-                const rightBound = cx + 40 + textWidth + 10;
+                const rightBound = cx + LAYOUT.MESSAGE_SELF_DIFF_X + textWidth + LAYOUT.NOTE_COLLISION_GAP;
                 if (rightBound > maxX) maxX = rightBound;
             } else {
-                // Get horizontal coordinates similar to calculateMessageLayouts
-                let x1 = 0;
-                let x2 = 0;
-                const leftmostParticipant = participants[0];
-                const rightmostParticipant = participants[participants.length - 1];
-
-                if (fromIdx !== -1) {
-                    x1 = relpCenterX[fromIdx] || 0;
-                } else if (m.from === '[') {
-                    x1 = relpCenterX[0] !== undefined ? relpCenterX[0] - 80 : 50;
-                } else if (m.from === ']') {
-                    x1 = relpCenterX[relpCenterX.length - 1] !== undefined ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
-                } else if (m.from === '?') {
-                    const toRelIdx = toIdx !== -1 ? toIdx : 0;
-                    x1 = relpCenterX[toRelIdx] !== undefined ? relpCenterX[toRelIdx] - 50 : 50;
-                }
-
-                if (toIdx !== -1) {
-                    x2 = relpCenterX[toIdx] || 0;
-                } else if (m.to === ']') {
-                    x2 = relpCenterX[relpCenterX.length - 1] !== undefined ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
-                } else if (m.to === '[') {
-                    x2 = relpCenterX[0] !== undefined ? relpCenterX[0] - 80 : 50;
-                } else if (m.to === '?') {
-                    const fromRelIdx = fromIdx !== -1 ? fromIdx : 0;
-                    x2 = relpCenterX[fromRelIdx] !== undefined ? relpCenterX[fromRelIdx] + 50 : 100;
-                }
+                let { x1, x2 } = resolveMessageEndpoints(
+                    m.from,
+                    m.to,
+                    fromIdx,
+                    toIdx,
+                    relpCenterX,
+                    relpCenterX[0],
+                    relpCenterX[relpCenterX.length - 1]
+                );
 
                 const cx = (x1 + x2) / 2;
                 const left = cx - textWidth / 2;
@@ -987,9 +1114,9 @@ export class LayoutEngine {
             const maxIdx = Math.max(...pIdxs);
 
             const levelOffset = (maxGroupLevel - g.level);
-            const hPadding = 10 + levelOffset * 10;
-            const vPaddingTop = 25 + levelOffset * 8;
-            const vPaddingBottom = 5 + levelOffset * 8;
+            const hPadding = LAYOUT.GROUP_MIN_PADDING_X + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_X;
+            const vPaddingTop = LAYOUT.GROUP_MIN_PADDING_TOP + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
+            const vPaddingBottom = LAYOUT.GROUP_MIN_PADDING_BOTTOM + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
 
             let rectX = participants[minIdx].x - hPadding;
             let rectW = (participants[maxIdx].x + participants[maxIdx].width + hPadding) - rectX;
@@ -1015,8 +1142,8 @@ export class LayoutEngine {
                     if (nPIdxs.length > 0 && Math.max(...nPIdxs) === maxIdx) {
                         const noteRight = nl.x + nl.width;
                         const groupRight = rectX + rectW;
-                        if (noteRight + 10 > groupRight) {
-                            rectW = (noteRight + 10) - rectX;
+                        if (noteRight + LAYOUT.GROUP_MIN_PADDING_X > groupRight) {
+                            rectW = (noteRight + LAYOUT.GROUP_MIN_PADDING_X) - rectX;
                         }
                     }
                 } else if (n.position === 'left') {
@@ -1024,8 +1151,8 @@ export class LayoutEngine {
                     if (nPIdxs.length > 0 && Math.min(...nPIdxs) === minIdx) {
                         const noteLeft = nl.x;
                         const groupLeft = rectX;
-                        if (noteLeft - 10 < groupLeft) {
-                            const diff = groupLeft - (noteLeft - 10);
+                        if (noteLeft - LAYOUT.GROUP_MIN_PADDING_X < groupLeft) {
+                            const diff = groupLeft - (noteLeft - LAYOUT.GROUP_MIN_PADDING_X);
                             rectX -= diff;
                             rectW += diff;
                         }
@@ -1037,11 +1164,11 @@ export class LayoutEngine {
             let height: number;
 
             if (g.type === 'box') {
-                yStart = participantYStart - 15;
+                yStart = participantYStart - LAYOUT.GROUP_BOX_MARGIN_Y;
                 if (g.label) {
-                    yStart = participantYStart - 35;
+                    yStart = participantYStart - LAYOUT.GROUP_BOX_LABEL_MARGIN_Y;
                 }
-                const yEnd = totalHeight - bottomPadding - 10;
+                const yEnd = totalHeight - bottomPadding - LAYOUT.GROUP_BOX_END_MARGIN_Y;
                 height = yEnd - yStart;
             } else {
                 yStart = stepY[g.startStep] - vPaddingTop;
