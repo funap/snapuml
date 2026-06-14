@@ -50,4 +50,17 @@ describe('Rich Text Refactoring', () => {
         const diagram = parser.parse('A -> B: char <U+3042>');
         expect(diagram.messages[0].text).toContain('char あ');
     });
+
+    it('should preserve **** and ---- as literal text to avoid eating password fields or dividers', () => {
+        const parser = new SequenceParser();
+        const renderer = new SequenceRenderer();
+        const diagram = parser.parse('A -> B: text with **** and ----');
+        const svg = renderer.render(diagram);
+
+        expect(svg).toContain('****');
+        expect(svg).toContain('----');
+        // It should not contain empty tspans from bold or strike-through
+        expect(svg).not.toContain('font-weight="bold"></tspan>');
+        expect(svg).not.toContain('text-decoration="line-through"></tspan>');
+    });
 });

@@ -434,6 +434,7 @@ describe('Salt Diagram Parser & Renderer', () => {
         // External border should be drawn
         expect(svg).toContain('<rect');
         expect(svg).toContain('stroke="#d1d5db"');
+        expect(svg).toContain('****');
     });
 
     it('should render internal grid lines in SVG output', () => {
@@ -449,6 +450,7 @@ describe('Salt Diagram Parser & Renderer', () => {
         expect(svg).toContain('<svg');
         // Both vertical/horizontal divider lines should be drawn
         expect(svg).toContain('<line');
+        expect(svg).toContain('****');
     });
 });
 
