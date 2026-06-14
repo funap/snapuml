@@ -2,6 +2,8 @@ import { SequenceParser } from './diagrams/sequence/SequenceParser';
 import { SequenceRenderer } from './diagrams/sequence/SequenceRenderer';
 import { ComponentParser } from './diagrams/component/ComponentParser';
 import { ComponentRenderer } from './diagrams/component/ComponentRenderer';
+import { SaltParser } from './diagrams/salt/SaltParser';
+import { SaltRenderer } from './diagrams/salt/SaltRenderer';
 
 export interface InitializeConfig {
     startOnLoad?: boolean;
@@ -30,6 +32,17 @@ export function renderComponentDiagram(content: string): string {
     }
 }
 
+export function renderSaltDiagram(content: string): string {
+    const parser = new SaltParser();
+    const renderer = new SaltRenderer();
+    try {
+        const diagram = parser.parse(content);
+        return renderer.render(diagram);
+    } catch (e: any) {
+        return renderError(e);
+    }
+}
+
 function renderError(e: any): string {
     const errorMsg = e.message || 'Unknown error occurred during parsing';
     const escapedError = errorMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -44,6 +57,9 @@ function renderError(e: any): string {
 }
 
 export function render(content: string): string {
+    const isSalt = /@startsalt/i.test(content) || /\{\{salt/i.test(content);
+    if (isSalt) return renderSaltDiagram(content);
+
     // Sequence-specific keywords that strongly indicate a sequence diagram.
     // These take absolute priority because they never appear in component diagrams.
     const hasSequenceKeywords = /\b(participant|actor|boundary|control|entity|collections|queue)\b/.test(content);
@@ -123,6 +139,7 @@ if (typeof window !== 'undefined') {
     (window as any).snapuml = {
         renderSequenceDiagram,
         renderComponentDiagram,
+        renderSaltDiagram,
         render,
         renderAll,
         initialize
@@ -133,6 +150,7 @@ if (typeof window !== 'undefined') {
 export default {
     renderSequenceDiagram,
     renderComponentDiagram,
+    renderSaltDiagram,
     render,
     renderAll,
     initialize

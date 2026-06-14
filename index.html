@@ -1030,6 +1030,7 @@ end</textarea>
                 <div class="tabs-nav">
                     <button class="tab-btn active" onclick="switchTab('sequence')">Sequence Diagrams</button>
                     <button class="tab-btn" onclick="switchTab('component')">Component Diagrams</button>
+                    <button class="tab-btn" onclick="switchTab('salt')">Salt Wireframes</button>
                 </div>
 
                 <div id="sequence-tab" class="tab-content active">
@@ -1047,6 +1048,12 @@ end</textarea>
                 <div id="component-tab" class="tab-content">
                     <div class="gallery-grid" id="gallery-component">
                         <!-- Component items injected via JS -->
+                    </div>
+                </div>
+
+                <div id="salt-tab" class="tab-content">
+                    <div class="gallery-grid" id="gallery-salt">
+                        <!-- Salt items injected via JS -->
                     </div>
                 </div>
             </section>
@@ -2021,6 +2028,7 @@ Alice <- Bob : hello`
         const closeModal = document.getElementById('close-modal');
         const modalCopyBtn = document.getElementById('modal-copy-btn');
         const galleryComponent = document.getElementById('gallery-component');
+        const gallerySalt = document.getElementById('gallery-salt');
 
         function switchTab(type) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -2029,9 +2037,12 @@ Alice <- Bob : hello`
             if (type === 'sequence') {
                 document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
                 document.getElementById('sequence-tab').classList.add('active');
-            } else {
+            } else if (type === 'component') {
                 document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
                 document.getElementById('component-tab').classList.add('active');
+            } else if (type === 'salt') {
+                document.querySelector('.tab-btn:nth-child(3)').classList.add('active');
+                document.getElementById('salt-tab').classList.add('active');
             }
         }
 
@@ -2267,6 +2278,580 @@ p2 --> c1`
             }
         };
 
+const saltSamples = {
+            basic_widgets: {
+                title: "Basic widgets",
+                code: `@startsalt
+{
+  Just plain text
+  [This is my button]
+  ()  Unchecked radio
+  (X) Checked radio
+  []  Unchecked box
+  [X] Checked box
+  "Enter text here   "
+  ^This is a droplist^
+}
+@endsalt`
+            },
+            text_area: {
+                title: "Text area",
+                code: `@startsalt
+{+
+   This is a long
+   text in a textarea
+   .
+   "                         "
+}
+@endsalt`
+            },
+            text_area_1: {
+                title: "Text area",
+                code: `@startsalt
+{SI
+   This is a long
+   text in a textarea
+   .
+   "                         "
+}
+@endsalt`
+            },
+            text_area_2: {
+                title: "Text area",
+                code: `@startsalt
+{S-
+   This is a long
+   text in a textarea
+   .
+   "                         "
+}
+@endsalt`
+            },
+            open_close_droplist: {
+                title: "Open, close droplist",
+                code: `@startsalt
+{
+  ^This is a closed droplist^ |
+  ^This is an open droplist^^ item 1^^ item 2^ |
+  ^This is another open droplist^ item 1^ item 2^ 
+}
+@endsalt`
+            },
+            using_grid_and: {
+                title: "Using grid [| and #, !, -, +]",
+                code: `@startsalt
+{
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            },
+            using_grid_and_1: {
+                title: "Using grid [| and #, !, -, +]",
+                code: `@startsalt
+{+
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            },
+            group_box: {
+                title: "Group box [^]",
+                code: `@startsalt
+{^"My group box"
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            },
+            using_separator: {
+                title: "Using separator [.., ==, ~~, --]",
+                code: `@startsalt
+{
+  Text1
+  ..
+  "Some field"
+  ==
+  Note on usage
+  ~~
+  Another text
+  --
+  [Ok]
+}
+@endsalt`
+            },
+            tree_widget_t: {
+                title: "Tree widget [T]",
+                code: `@startsalt
+{
+{T
+ + World
+ ++ America
+ +++ Canada
+ +++ USA
+ ++++ New York
+ ++++ Boston
+ +++ Mexico
+ ++ Europe
+ +++ Italy
+ +++ Germany
+ ++++ Berlin
+ ++ Africa
+}
+}
+@endsalt`
+            },
+            tree_table_t: {
+                title: "Tree table [T]",
+                code: `@startsalt
+{
+{T
++Region        | Population    | Age
++ World        | 7.13 billion  | 30
+++ America     | 964 million   | 30
++++ Canada     | 35 million    | 30
++++ USA        | 319 million   | 30
+++++ NYC       | 8 million     | 30
+++++ Boston    | 617 thousand  | 30
++++ Mexico     | 117 million   | 30
+++ Europe      | 601 million   | 30
++++ Italy      | 61 million    | 30
++++ Germany    | 82 million    | 30
+++++ Berlin    | 3 million     | 30
+++ Africa      | 1 billion     | 30
+}
+}
+@endsalt`
+            },
+            tree_table_t_1: {
+                title: "Tree table [T]",
+                code: `@startsalt
+{
+..
+== with T!
+{T!
++Region        | Population    | Age
++ World        | 7.13 billion  | 30
+++ America     | 964 million   | 30
+}
+..
+== with T-
+{T-
++Region        | Population    | Age
++ World        | 7.13 billion  | 30
+++ America     | 964 million   | 30
+}
+..
+== with T+
+{T+
++Region        | Population    | Age
++ World        | 7.13 billion  | 30
+++ America     | 964 million   | 30
+}
+..
+== with T#
+{T#
++Region        | Population    | Age
++ World        | 7.13 billion  | 30
+++ America     | 964 million   | 30
+}
+..
+}
+@endsalt`
+            },
+            enclosing_brackets: {
+                title: "Enclosing brackets [{, }]",
+                code: `@startsalt
+{
+Name         | "                 "
+Modifiers:   | { (X) public | () default | () private | () protected
+                [] abstract | [] final   | [] static }
+Superclass:  | { "java.lang.Object " | [Browse...] }
+}
+@endsalt`
+            },
+            adding_tabs: {
+                title: "Adding tabs [/]",
+                code: `@startsalt
+{+
+{/ <b>General | Fullscreen | Behavior | Saving }
+{
+{ Open image in: | ^Smart Mode^ }
+[X] Smooth images when zoomed
+[X] Confirm image deletion
+[ ] Show hidden images
+}
+[Close]
+}
+@endsalt`
+            },
+            adding_tabs_1: {
+                title: "Adding tabs [/]",
+                code: `@startsalt
+{+
+{/ <b>General
+Fullscreen
+Behavior
+Saving } |
+{
+{ Open image in: | ^Smart Mode^ }
+[X] Smooth images when zoomed
+[X] Confirm image deletion
+[ ] Show hidden images
+[Close]
+}
+}
+@endsalt`
+            },
+            using_menu: {
+                title: "Using menu [*]",
+                code: `@startsalt
+{+
+{* File | Edit | Source | Refactor }
+{/ General | Fullscreen | Behavior | Saving }
+{
+{ Open image in: | ^Smart Mode^ }
+[X] Smooth images when zoomed
+[X] Confirm image deletion
+[ ] Show hidden images
+}
+[Close]
+}
+@endsalt`
+            },
+            using_menu_1: {
+                title: "Using menu [*]",
+                code: `@startsalt
+{+
+{* File | Edit | Source | Refactor
+ Refactor | New | Open File | - | Close | Close All }
+{/ General | Fullscreen | Behavior | Saving }
+{
+{ Open image in: | ^Smart Mode^ }
+[X] Smooth images when zoomed
+[X] Confirm image deletion
+[ ] Show hidden images
+}
+[Close]
+}
+@endsalt`
+            },
+            using_menu_2: {
+                title: "Using menu [*]",
+                code: `@startsalt
+{+
+{* File | Edit | Source | Refactor }
+{/ General | Fullscreen | Behavior | Saving }
+{
+{ Open image in: | ^Smart Mode^^Normal Mode^ }
+[X] Smooth images when zoomed
+[X] Confirm image deletion
+[ ] Show hidden images
+}
+[Close]
+}
+@endsalt`
+            },
+            advanced_table: {
+                title: "Advanced table",
+                code: `@startsalt
+{#
+. | Column 2 | Column 3
+Row header 1 | value 1 | value 2
+Row header 2 | A long cell | *
+}
+@endsalt`
+            },
+            scroll_bars_s_si_s: {
+                title: "Scroll Bars [S, SI, S-]",
+                code: `@startsalt
+{S
+Message
+.
+.
+.
+.
+}
+@endsalt`
+            },
+            scroll_bars_s_si_s_1: {
+                title: "Scroll Bars [S, SI, S-]",
+                code: `@startsalt
+{SI
+Message
+.
+.
+.
+.
+}
+@endsalt`
+            },
+            scroll_bars_s_si_s_2: {
+                title: "Scroll Bars [S, SI, S-]",
+                code: `@startsalt
+{S-
+Message
+.
+.
+.
+.
+}
+@endsalt`
+            },
+            colors: {
+                title: "Colors",
+                code: `@startsalt
+{
+  <color:Blue>Just plain text
+  [This is my default button]
+  [<color:green>This is my green button]
+  [<color:#9a9a9a>This is my disabled button]
+  []  <color:red>Unchecked box
+  [X] <color:green>Checked box
+  "Enter text here   "
+  ^This is a droplist^
+  ^<color:#9a9a9a>This is a disabled droplist^
+  ^<color:red>This is a red droplist^
+}
+@endsalt`
+            },
+            creole_on_salt: {
+                title: "Creole on Salt",
+                code: `@startsalt
+{{^==Creole
+  This is **bold**
+  This is //italics//
+  This is ""monospaced""
+  This is --stricken-out--
+  This is __underlined__
+  This is ~~wave-underlined~~
+  --test Unicode and icons--
+  This is <U+221E> long
+  This is a <&code> icon
+  Use image : <img:https://plantuml.com/logo3.png>
+}|
+{^<b>HTML Creole 
+ This is <b>bold</b>
+  This is <i>italics</i>
+  This is <font:monospaced>monospaced</font>
+  This is <s>stroked</s>
+  This is <u>underlined</u>
+  This is <w>waved</w>
+  This is <s:green>stroked</s>
+  This is <u:red>underlined</u>
+  This is <w:#0000FF>waved</w>
+  -- other examples --
+  This is <color:blue>Blue</color>
+  This is <back:orange>Orange background</back>
+  This is <size:20>big</size>
+}|
+{^Creole line
+You can have horizontal line
+----
+Or double line
+====
+Or strong line
+____
+Or dotted line
+..My title..
+Or dotted title
+//and title... //
+==Title==
+Or double-line title
+--Another title--
+Or single-line title
+Enjoy!
+}|
+{^Creole list item
+**test list 1**
+* Bullet list
+* Second item
+** Sub item
+*** Sub sub item
+* Third item
+----
+**test list 2**
+# Numbered list
+# Second item
+## Sub item
+## Another sub item
+# Third item
+}|
+{^Mix on salt
+  ==<color:Blue>Just plain text
+  [This is my default button]
+  [<b><color:green>This is my green button]
+  [ ---<color:#9a9a9a>This is my disabled button-- ]
+  []  <size:20><color:red>Unchecked box
+  [X] <color:green>Checked box
+  "//Enter text here//   "
+  ^This is a droplist^
+  ^<color:#9a9a9a>This is a disabled droplist^
+  ^<b><color:red>This is a red droplist^
+}}
+@endsalt`
+            },
+            pseudo_sprite_lt_lt_gt_gt: {
+                title: "Pseudo sprite [&lt;&lt;, &gt;&gt;]",
+                code: `@startsalt
+ {
+ [X] checkbox|[] checkbox
+ () radio | (X) radio
+ This is a text|[This is my button]|This is another text
+ "A field"|"Another long Field"|[A button]
+ <<folder
+ ............
+ .XXXXX......
+ .X...X......
+ .XXXXXXXXXX.
+ .X........X.
+ .X........X.
+ .X........X.
+ .X........X.
+ .XXXXXXXXXX.
+ ............
+ >>|<color:blue>other folder|<<folder>>
+^Droplist^
+}
+@endsalt`
+            },
+            openiconic: {
+                title: "OpenIconic",
+                code: `@startsalt
+{
+  Login<&person> | "MyName   "
+  Password<&key> | "****     "
+  [Cancel <&circle-x>] | [OK <&account-login>]
+}
+@endsalt`
+            },
+            add_title_header_footer_caption_or_legend: {
+                title: "Add title, header, footer, caption or legend",
+                code: `@startsalt
+title My title
+header some header
+footer some footer
+caption This is caption
+legend
+The legend
+end legend
+
+{+
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+
+@endsalt`
+            },
+            whitout_zoom_by_default: {
+                title: "Whitout zoom (by default)",
+                code: `@startsalt
+{
+  <&person> Login  | "MyName   "
+  <&key> Password  | "****     "
+  [<&circle-x> Cancel ] | [ <&account-login> OK   ]
+}
+@endsalt`
+            },
+            scale: {
+                title: "Scale",
+                code: `@startsalt
+scale 2
+{
+  <&person> Login  | "MyName   "
+  <&key> Password  | "****     "
+  [<&circle-x> Cancel ] | [ <&account-login> OK   ]
+}
+@endsalt`
+            },
+            dpi: {
+                title: "DPI",
+                code: `@startsalt
+skinparam dpi 200
+{
+  <&person> Login  | "MyName   "
+  <&key> Password  | "****     "
+  [<&circle-x> Cancel ] | [ <&account-login> OK   ]
+}
+@endsalt`
+            },
+            skinparam: {
+                title: "Skinparam",
+                code: `@startsalt
+skinparam Backgroundcolor palegreen
+{+
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            },
+            skinparam_1: {
+                title: "Skinparam",
+                code: `@startsalt
+!option handwritten true
+{+
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            },
+            skinparam_2: {
+                title: "Skinparam",
+                code: `@startsalt
+skinparam defaultFontName monospaced
+{+
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            },
+            style: {
+                title: "Style",
+                code: `@startsalt
+<style>
+saltDiagram {
+  BackgroundColor palegreen
+}
+</style>
+{+
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            },
+            style_1: {
+                title: "Style",
+                code: `@startsalt
+<style>
+saltDiagram {
+  Fontname Monospaced
+  FontSize 10
+  FontStyle italic
+  LineThickness 0.5
+  LineColor red
+}
+</style>
+{+
+  Login    | "MyName   "
+  Password | "****     "
+  [Cancel] | [  OK   ]
+}
+@endsalt`
+            }
+        };
+
+
+
+
+
         setupCopyButton(copyBtn, output);
         setupCopyButton(modalCopyBtn, modalBody);
 
@@ -2287,6 +2872,12 @@ p2 --> c1`
                 const item = createGalleryItem(sample, 'component');
                 galleryComponent.appendChild(item);
             });
+
+            // Salt Samples
+            Object.entries(saltSamples).forEach(([key, sample]) => {
+                const item = createGalleryItem(sample, 'salt');
+                gallerySalt.appendChild(item);
+            });
         }
 
         function createGalleryItem(sample, type) {
@@ -2298,8 +2889,10 @@ p2 --> c1`
             try {
                 if (type === 'sequence') {
                     previewSvg = window.snapuml.renderSequenceDiagram(sample.code);
-                } else {
+                } else if (type === 'component') {
                     previewSvg = window.snapuml.renderComponentDiagram(sample.code);
+                } else {
+                    previewSvg = window.snapuml.renderSaltDiagram(sample.code);
                 }
             } catch (e) { previewSvg = 'Error'; }
 
