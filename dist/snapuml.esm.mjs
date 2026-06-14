@@ -1106,12 +1106,12 @@ function formatRichText(text) {
   escaped = escaped.replace(/&lt;font\s+color=(?:&quot;)?(.*?)(?:&quot;)?&gt;(.*?)&lt;\/font&gt;/gi, '<tspan fill="$1">$2</tspan>');
   escaped = escaped.replace(/&lt;b&gt;(?!.*&lt;\/b&gt;)(.*)/gi, '<tspan font-weight="bold">$1</tspan>');
   escaped = escaped.replace(/&lt;font\s+color=(?:&quot;)?(.*?)(?:&quot;)?&gt;(?!.*&lt;\/font&gt;)(.*)/gi, '<tspan fill="$1">$2</tspan>');
-  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<tspan font-weight="bold">$1</tspan>');
-  escaped = escaped.replace(/\/\/(.*?)\/\//g, '<tspan font-style="italic">$1</tspan>');
-  escaped = escaped.replace(/&quot;&quot;(.*?)&quot;&quot;/g, '<tspan font-family="monospace">$1</tspan>');
-  escaped = escaped.replace(/--(.*?)--/g, '<tspan text-decoration="line-through">$1</tspan>');
-  escaped = escaped.replace(/__(.*?)__/g, '<tspan text-decoration="underline">$1</tspan>');
-  escaped = escaped.replace(/~~(.*?)~~/g, '<tspan style="text-decoration: underline; text-decoration-style: wavy">$1</tspan>');
+  escaped = escaped.replace(/\*\*([^*].*?)\*\*/g, '<tspan font-weight="bold">$1</tspan>');
+  escaped = escaped.replace(/\/\/([^/].*?)\/\//g, '<tspan font-style="italic">$1</tspan>');
+  escaped = escaped.replace(/&quot;&quot;(?!&quot;&quot;)(.+?)&quot;&quot;/g, '<tspan font-family="monospace">$1</tspan>');
+  escaped = escaped.replace(/--([^-].*?)--/g, '<tspan text-decoration="line-through">$1</tspan>');
+  escaped = escaped.replace(/__([^_].*?)__/g, '<tspan text-decoration="underline">$1</tspan>');
+  escaped = escaped.replace(/~~([^~].*?)~~/g, '<tspan style="text-decoration: underline; text-decoration-style: wavy">$1</tspan>');
   return escaped;
 }
 function decodeUnicode(text) {
@@ -6310,11 +6310,11 @@ function layoutWidget(widget, x, y, width, height, sprites) {
 function formatSaltRichText(text) {
   if (!text) return "";
   let escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
-  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<tspan font-weight="bold">$1</tspan>');
-  escaped = escaped.replace(/\/\/(.*?)\/\//g, '<tspan font-style="italic">$1</tspan>');
-  escaped = escaped.replace(/&quot;&quot;(.*?)&quot;&quot;/g, '<tspan font-family="monospace">$1</tspan>');
-  escaped = escaped.replace(/__(.*?)__/g, '<tspan text-decoration="underline">$1</tspan>');
-  escaped = escaped.replace(/~~(.*?)~~/g, '<tspan style="text-decoration: underline; text-decoration-style: wavy">$1</tspan>');
+  escaped = escaped.replace(/\*\*([^*].*?)\*\*/g, '<tspan font-weight="bold">$1</tspan>');
+  escaped = escaped.replace(/\/\/([^/].*?)\/\//g, '<tspan font-style="italic">$1</tspan>');
+  escaped = escaped.replace(/&quot;&quot;(?!&quot;&quot;)(.+?)&quot;&quot;/g, '<tspan font-family="monospace">$1</tspan>');
+  escaped = escaped.replace(/__([^_].*?)__/g, '<tspan text-decoration="underline">$1</tspan>');
+  escaped = escaped.replace(/~~([^~].*?)~~/g, '<tspan style="text-decoration: underline; text-decoration-style: wavy">$1</tspan>');
   escaped = escaped.replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<tspan font-weight="bold">$1</tspan>');
   escaped = escaped.replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/gi, '<tspan text-decoration="underline">$1</tspan>');
   escaped = escaped.replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<tspan font-style="italic">$1</tspan>');
