@@ -1799,6 +1799,123 @@ var defaultTheme = {
 };
 
 // src/diagrams/sequence/SequenceLayout.ts
+var LAYOUT = {
+  // Participant vertical adjustments
+  BOX_LABEL_OFFSET_Y: 25,
+  TITLE_MIN_Y: 55,
+  HEADER_MIN_Y: 35,
+  FOOTER_EXTRA_PADDING: 25,
+  FOOTBOX_GAP: 20,
+  PARTICIPANT_ICON_MIN_HEIGHT: 20,
+  // Time constraints
+  TIME_CONSTRAINT_BASE_SPACE: 50,
+  TIME_CONSTRAINT_CHAR_WIDTH: 8,
+  TIME_CONSTRAINT_OFFSET_X: 20,
+  // References
+  REFERENCE_OFFSET_Y: 10,
+  REFERENCE_MIN_HEIGHT_PER_LINE: 15,
+  REFERENCE_HEADER_HEIGHT: 40,
+  // Activations
+  ACTIVATION_LEVEL_OFFSET: 5,
+  ACTIVATION_MIN_HEIGHT: 5,
+  // Notes
+  NOTE_MIN_WIDTH: 60,
+  NOTE_HEIGHT_PER_LINE: 20,
+  NOTE_PADDING_Y: 10,
+  NOTE_CHAR_WIDTH: 8.5,
+  NOTE_PADDING_X: 20,
+  NOTE_COLLISION_GAP: 10,
+  NOTE_POSITION_OFFSET_X: 5,
+  NOTE_LEFT_MARGIN: 15,
+  NOTE_RIGHT_MARGIN: 15,
+  // Messages
+  MESSAGE_CHAR_WIDTH: 8,
+  MESSAGE_PADDING_X: 20,
+  MESSAGE_SELF_LOOP_HEIGHT: 25,
+  MESSAGE_SELF_LINE_HEIGHT: 20,
+  MESSAGE_SELF_PADDING_Y: 10,
+  MESSAGE_TEXT_LINE_HEIGHT: 15,
+  MESSAGE_TEXT_PADDING_Y: 5,
+  MESSAGE_SELF_DIFF_X: 40,
+  MESSAGE_SELF_LOOP_Y_OFFSET: 25,
+  MESSAGE_SELF_LABEL_OFFSET_X: 5,
+  MESSAGE_SELF_LABEL_OFFSET_Y: 10,
+  MESSAGE_COMPACT_GAP: 20,
+  MESSAGE_LAST_STEP_GAP: 40,
+  MESSAGE_PSEUDO_PARTICIPANT_GAP: 80,
+  MESSAGE_DEFAULT_LEFTMOST_X: 50,
+  MESSAGE_DEFAULT_RIGHTMOST_X: 150,
+  MESSAGE_DEFAULT_UNKNOWN_X: 100,
+  MESSAGE_UNKNOWN_OFFSET_X: 50,
+  // Groups
+  GROUP_LEVEL_OFFSET_X: 10,
+  GROUP_LEVEL_OFFSET_Y: 8,
+  GROUP_MIN_PADDING_X: 10,
+  GROUP_MIN_PADDING_TOP: 25,
+  GROUP_MIN_PADDING_BOTTOM: 5,
+  GROUP_BOX_MARGIN_Y: 15,
+  GROUP_BOX_LABEL_MARGIN_Y: 35,
+  GROUP_BOX_END_MARGIN_Y: 10,
+  GROUP_START_MARGIN_Y: 25,
+  GROUP_END_MARGIN_Y: 20,
+  GROUP_STEP_GAP_DIVIDER: 30,
+  GROUP_STEP_GAP_DELAY: 40,
+  // Gaps and Spacing
+  GAP_BASE: 60,
+  PARTICIPANT_CREATION_PADDING: 20,
+  RIGHT_SPACE_BASE: 15,
+  LEFT_SPACE_BASE: 15,
+  // Participant size calculation
+  PARTICIPANT_CHAR_WIDTH: 9,
+  PARTICIPANT_PADDING_X: 30,
+  STEREO_CHAR_WIDTH: 8,
+  STEREO_PADDING_X: 30,
+  STEREO_SPOT_EXTRA: 22,
+  STEREO_EXTRA_HEIGHT: 18,
+  PARTICIPANT_NON_BOX_BASE_HEIGHT: 55,
+  PARTICIPANT_LINE_HEIGHT: 15,
+  PARTICIPANT_BOX_BASE_HEIGHT: 30,
+  PARTICIPANT_STEREO_BOX_BASE_HEIGHT: 60,
+  // Header/margin gaps
+  HEADER_GAP_MIN: 30,
+  HEADER_GAP_PADDING: 10
+};
+function calculateNoteWidth(text) {
+  const lines = text.split("\n");
+  const calculatedWidth = Math.max(...lines.map((l) => l.length * LAYOUT.NOTE_CHAR_WIDTH)) + LAYOUT.NOTE_PADDING_X;
+  return Math.max(calculatedWidth, LAYOUT.NOTE_MIN_WIDTH);
+}
+function calculateNoteHeight(text) {
+  const lines = text.split("\n");
+  return lines.length * LAYOUT.NOTE_HEIGHT_PER_LINE + LAYOUT.NOTE_PADDING_Y;
+}
+function resolveMessageEndpoints(from, to, fromIdx, toIdx, centerXs, leftmostCenterX, rightmostCenterX) {
+  let x1 = 0;
+  if (fromIdx !== -1) {
+    x1 = centerXs[fromIdx];
+  } else if (from === "[") {
+    x1 = leftmostCenterX !== void 0 ? leftmostCenterX - LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_LEFTMOST_X;
+  } else if (from === "]") {
+    x1 = rightmostCenterX !== void 0 ? rightmostCenterX + LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_RIGHTMOST_X;
+  } else if (from === "?") {
+    const fallback = centerXs[0] ?? LAYOUT.MESSAGE_DEFAULT_UNKNOWN_X;
+    const toX = toIdx !== -1 ? centerXs[toIdx] : fallback;
+    x1 = toX - LAYOUT.MESSAGE_UNKNOWN_OFFSET_X;
+  }
+  let x2 = 0;
+  if (toIdx !== -1) {
+    x2 = centerXs[toIdx];
+  } else if (to === "]") {
+    x2 = rightmostCenterX !== void 0 ? rightmostCenterX + LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_RIGHTMOST_X;
+  } else if (to === "[") {
+    x2 = leftmostCenterX !== void 0 ? leftmostCenterX - LAYOUT.MESSAGE_PSEUDO_PARTICIPANT_GAP : LAYOUT.MESSAGE_DEFAULT_LEFTMOST_X;
+  } else if (to === "?") {
+    const fallback = centerXs[0] ?? LAYOUT.MESSAGE_DEFAULT_LEFTMOST_X;
+    const fromX = fromIdx !== -1 ? centerXs[fromIdx] : fallback;
+    x2 = fromX + LAYOUT.MESSAGE_UNKNOWN_OFFSET_X;
+  }
+  return { x1, x2 };
+}
 function parseStereotype(stereo) {
   if (!stereo) return null;
   const trimmed = stereo.trim();
@@ -1830,20 +1947,22 @@ var LayoutEngine = class {
     const hasBoxWithLabel = diagram.groups.some((g) => g.type === "box" && g.label);
     let participantYStart = this.theme.padding;
     if (hasBoxWithLabel) {
-      participantYStart += 25;
+      participantYStart += LAYOUT.BOX_LABEL_OFFSET_Y;
     }
     if (diagram.title) {
-      participantYStart = Math.max(participantYStart, 55 + (hasBoxWithLabel ? 25 : 0));
+      participantYStart = Math.max(participantYStart, LAYOUT.TITLE_MIN_Y + (hasBoxWithLabel ? LAYOUT.BOX_LABEL_OFFSET_Y : 0));
     } else if (diagram.header) {
-      participantYStart = Math.max(participantYStart, 35 + (hasBoxWithLabel ? 25 : 0));
+      participantYStart = Math.max(participantYStart, LAYOUT.HEADER_MIN_Y + (hasBoxWithLabel ? LAYOUT.BOX_LABEL_OFFSET_Y : 0));
     }
     let bottomPadding = this.theme.padding;
     if (diagram.footer) {
-      bottomPadding += 25;
+      bottomPadding += LAYOUT.FOOTER_EXTRA_PADDING;
     }
     const pHeights = participants.map((p) => this.calculateParticipantHeight(p));
     const maxPHeight = Math.max(this.theme.participantHeight, ...pHeights);
-    const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart, maxPHeight);
+    const headerPHeights = participants.filter((p) => p.createdStep === void 0).map((p) => this.calculateParticipantHeight(p));
+    const maxHeaderPHeight = Math.max(this.theme.participantHeight, ...headerPHeights);
+    const stepHeightResult = this.calculateStepHeights(diagram, maxStep, participantYStart, maxHeaderPHeight);
     const stepY = stepHeightResult.stepY;
     const currentY = stepHeightResult.totalHeight;
     const pWidths = participants.map((p) => this.calculateParticipantWidth(p));
@@ -1856,20 +1975,22 @@ var LayoutEngine = class {
     let totalWidth = baseWidth;
     if (diagram.timeConstraints.length > 0) {
       const maxLabelLength = Math.max(...diagram.timeConstraints.map((tc) => tc.label.length), 0);
-      const timeConstraintSpace = 50 + maxLabelLength * 8;
+      const timeConstraintSpace = LAYOUT.TIME_CONSTRAINT_BASE_SPACE + maxLabelLength * LAYOUT.TIME_CONSTRAINT_CHAR_WIDTH;
       totalWidth += timeConstraintSpace;
     }
-    const footboxHeight = diagram.hideFootbox ? 0 : maxPHeight + 20;
+    const footboxHeight = diagram.hideFootbox ? 0 : maxPHeight + LAYOUT.FOOTBOX_GAP;
     const totalHeight = currentY + footboxHeight + bottomPadding;
     const participantLayouts = participants.map((p, i) => {
       const centerX = relpCenterX[i] + offsetX;
+      const pH = pHeights[i];
+      const pIconYOffset = p.type === "participant" ? pH / 2 : LAYOUT.PARTICIPANT_ICON_MIN_HEIGHT;
       return {
         participant: p,
         centerX,
         x: centerX - pWidths[i] / 2,
-        y: p.createdStep !== void 0 ? stepY[p.createdStep] - maxPHeight / 2 : participantYStart,
+        y: p.createdStep !== void 0 ? stepY[p.createdStep] - pIconYOffset : participantYStart,
         width: pWidths[i],
-        height: maxPHeight,
+        height: pH,
         destroyedY: p.destroyedStep !== void 0 ? stepY[p.destroyedStep] : void 0
       };
     });
@@ -1906,34 +2027,20 @@ var LayoutEngine = class {
     };
   }
   calculateMessageLayouts(diagram, participants, stepY, activations) {
-    const leftmostParticipant = participants[0];
-    const rightmostParticipant = participants[participants.length - 1];
+    const centerXs = participants.map((p) => p.centerX);
     return diagram.messages.map((m) => {
       const fromIdx = participants.findIndex((p) => p.participant.name === m.from);
       const toIdx = participants.findIndex((p) => p.participant.name === m.to);
       const y = stepY[m.step];
-      let x1 = 0;
-      if (fromIdx !== -1) {
-        x1 = participants[fromIdx].centerX;
-      } else if (m.from === "[") {
-        x1 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
-      } else if (m.from === "]") {
-        x1 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
-      } else if (m.from === "?") {
-        const toX = toIdx !== -1 ? participants[toIdx].centerX : 100;
-        x1 = toX - 50;
-      }
-      let x2 = 0;
-      if (toIdx !== -1) {
-        x2 = participants[toIdx].centerX;
-      } else if (m.to === "]") {
-        x2 = rightmostParticipant ? rightmostParticipant.centerX + 80 : 150;
-      } else if (m.to === "[") {
-        x2 = leftmostParticipant ? leftmostParticipant.centerX - 80 : 50;
-      } else if (m.to === "?") {
-        const fromX = fromIdx !== -1 ? participants[fromIdx].centerX : 50;
-        x2 = fromX + 50;
-      }
+      let { x1, x2 } = resolveMessageEndpoints(
+        m.from,
+        m.to,
+        fromIdx,
+        toIdx,
+        centerXs,
+        centerXs[0],
+        centerXs[centerXs.length - 1]
+      );
       if (fromIdx !== -1 || toIdx !== -1) {
         const fromActivations = fromIdx !== -1 ? activations.filter((a) => a.activation.participantName === m.from && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step).sort((a, b) => b.activation.level - a.activation.level) : [];
         const toActivations = toIdx !== -1 ? activations.filter((a) => a.activation.participantName === m.to && a.activation.startStep <= m.step && (a.activation.endStep ?? Infinity) >= m.step).sort((a, b) => b.activation.level - a.activation.level) : [];
@@ -2000,20 +2107,20 @@ var LayoutEngine = class {
           }
           const baseXStart = startLevelIdx !== void 0 && activeActivations.length > startLevelIdx ? activeActivations[startLevelIdx].x + activeActivations[startLevelIdx].width : participants[fromIdx].centerX;
           const baseXEnd = endLevelIdx !== void 0 && activeActivations.length > endLevelIdx ? activeActivations[endLevelIdx].x + activeActivations[endLevelIdx].width : participants[fromIdx].centerX;
-          const diff = 40;
+          const diff = LAYOUT.MESSAGE_SELF_DIFF_X;
           points[0] = { x: baseXStart, y };
           points[1] = { x: Math.max(baseXStart, baseXEnd) + diff, y };
-          points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + 25 + delay });
-          points.push({ x: baseXEnd, y: y + 25 + delay });
-          labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + 5, y: y + 10 + delay / 2 };
+          points.push({ x: Math.max(baseXStart, baseXEnd) + diff, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+          points.push({ x: baseXEnd, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+          labelPosition = { x: Math.max(baseXStart, baseXEnd) + diff + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_X, y: y + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_Y + delay / 2 };
         } else {
           const baseX = participants[fromIdx].centerX;
-          const diff = 40;
+          const diff = LAYOUT.MESSAGE_SELF_DIFF_X;
           points[0] = { x: baseX, y };
           points[1] = { x: baseX + diff, y };
-          points.push({ x: baseX + diff, y: y + 25 + delay });
-          points.push({ x: baseX, y: y + 25 + delay });
-          labelPosition = { x: baseX + diff + 5, y: y + 10 + delay / 2 };
+          points.push({ x: baseX + diff, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+          points.push({ x: baseX, y: y + LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay });
+          labelPosition = { x: baseX + diff + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_X, y: y + LAYOUT.MESSAGE_SELF_LABEL_OFFSET_Y + delay / 2 };
         }
       }
       return {
@@ -2045,7 +2152,7 @@ var LayoutEngine = class {
         return null;
       }
       return {
-        x: totalWidth - this.theme.padding + 20,
+        x: totalWidth - this.theme.padding + LAYOUT.TIME_CONSTRAINT_OFFSET_X,
         // Position to the right of the diagram
         startY: stepY[startStep],
         endY: stepY[endStep],
@@ -2061,7 +2168,7 @@ var LayoutEngine = class {
       const maxIdx = Math.max(...pIdxs);
       const x = participants[minIdx].x;
       const w = participants[maxIdx].x + participants[maxIdx].width - x;
-      const y = stepY[r.startStep] - 10;
+      const y = stepY[r.startStep] - LAYOUT.REFERENCE_OFFSET_Y;
       const h = stepY[r.endStep] - y;
       return {
         reference: r,
@@ -2078,14 +2185,14 @@ var LayoutEngine = class {
       const pIdx = participants.findIndex((p2) => p2.participant.name === a.participantName);
       if (pIdx === -1) return null;
       const p = participants[pIdx];
-      const x = p.centerX - this.theme.activationWidth / 2 + a.level * 5;
+      const x = p.centerX - this.theme.activationWidth / 2 + a.level * LAYOUT.ACTIVATION_LEVEL_OFFSET;
       let y = stepY[a.startStep];
       if (a.sourceStep !== void 0) {
         const triggerMsg = messages.find((m) => m.step === a.sourceStep);
         if (triggerMsg) {
           const delay = triggerMsg.arrowDelay || 0;
           if (triggerMsg.from === a.participantName && triggerMsg.to === a.participantName) {
-            y += 25 + delay;
+            y += LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay;
           } else {
             const isReverse = isHead(triggerMsg.startHead) && !isHead(triggerMsg.arrowHead);
             const endsAtParticipant = !isReverse && triggerMsg.to === a.participantName || isReverse && triggerMsg.from === a.participantName;
@@ -2101,7 +2208,7 @@ var LayoutEngine = class {
         if (closeMsg) {
           const delay = closeMsg.arrowDelay || 0;
           if (closeMsg.from === a.participantName && closeMsg.to === a.participantName) {
-            yEnd += 25 + delay;
+            yEnd += LAYOUT.MESSAGE_SELF_LOOP_Y_OFFSET + delay;
           } else {
             const isReverse = isHead(closeMsg.startHead) && !isHead(closeMsg.arrowHead);
             const endsAtParticipant = !isReverse && closeMsg.to === a.participantName || isReverse && closeMsg.from === a.participantName;
@@ -2111,7 +2218,7 @@ var LayoutEngine = class {
           }
         }
       }
-      const minHeight = 5;
+      const minHeight = LAYOUT.ACTIVATION_MIN_HEIGHT;
       const height = Math.max(minHeight, yEnd - y);
       return {
         activation: a,
@@ -2152,13 +2259,21 @@ var LayoutEngine = class {
       if (g.endStep === void 0) g.endStep = maxStep;
     });
   }
-  calculateStepHeights(diagram, maxStep, participantYStart, maxPHeight) {
+  calculateStepHeights(diagram, maxStep, participantYStart, maxHeaderPHeight) {
     const stepHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
     const topExtension = new Array(maxStep + 2).fill(0);
     const bottomExtension = new Array(maxStep + 2).fill(0);
+    diagram.participants.forEach((p) => {
+      if (p.name === "[" || p.name === "]" || p.name === "?") return;
+      if (p.createdStep !== void 0) {
+        const pH = this.calculateParticipantHeight(p);
+        const pIconYOffset = p.type === "participant" ? pH / 2 : 20;
+        topExtension[p.createdStep] = Math.max(topExtension[p.createdStep], pIconYOffset);
+        bottomExtension[p.createdStep] = Math.max(bottomExtension[p.createdStep], pH - pIconYOffset);
+      }
+    });
     diagram.notes.forEach((n) => {
-      const lines = n.text.split("\n");
-      const noteHeight = lines.length * 20 + 10;
+      const noteHeight = calculateNoteHeight(n.text);
       topExtension[n.step] = Math.max(topExtension[n.step], noteHeight / 2);
       bottomExtension[n.step] = Math.max(bottomExtension[n.step], noteHeight / 2);
     });
@@ -2168,11 +2283,11 @@ var LayoutEngine = class {
       const textLines = lines.length;
       const delay = m.arrowDelay || 0;
       if (m.from === m.to) {
-        const loopHeight = Math.max(25, textLines * 20);
+        const loopHeight = Math.max(LAYOUT.MESSAGE_SELF_LOOP_HEIGHT, textLines * LAYOUT.MESSAGE_SELF_LINE_HEIGHT);
         topExtension[m.step] = Math.max(topExtension[m.step], 0);
-        bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + 10 + delay);
+        bottomExtension[m.step] = Math.max(bottomExtension[m.step], loopHeight + LAYOUT.MESSAGE_SELF_PADDING_Y + delay);
       } else {
-        const textHeight = hasText ? textLines * 15 + 5 : 0;
+        const textHeight = hasText ? textLines * LAYOUT.MESSAGE_TEXT_LINE_HEIGHT + LAYOUT.MESSAGE_TEXT_PADDING_Y : 0;
         topExtension[m.step] = Math.max(topExtension[m.step], textHeight);
         bottomExtension[m.step] = Math.max(bottomExtension[m.step], delay);
       }
@@ -2181,8 +2296,8 @@ var LayoutEngine = class {
     diagram.groups.forEach((g) => {
       if (g.type === "box") return;
       const levelOffset = maxGroupLevel - g.level;
-      const vPaddingTop = 25 + levelOffset * 8;
-      const vPaddingBottom = 5 + levelOffset * 8;
+      const vPaddingTop = LAYOUT.GROUP_MIN_PADDING_TOP + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
+      const vPaddingBottom = LAYOUT.GROUP_MIN_PADDING_BOTTOM + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
       topExtension[g.startStep] = Math.max(topExtension[g.startStep], vPaddingTop);
       if (g.endStep !== void 0) {
         bottomExtension[g.endStep] = Math.max(bottomExtension[g.endStep], vPaddingBottom);
@@ -2190,26 +2305,26 @@ var LayoutEngine = class {
     });
     const baseHeights = new Array(maxStep + 1).fill(this.theme.defaultMessageGap);
     if (maxStep > 0) {
-      baseHeights[maxStep - 1] = 40;
+      baseHeights[maxStep - 1] = LAYOUT.MESSAGE_LAST_STEP_GAP;
     }
     for (let i = 0; i <= maxStep; i++) {
       const stepMessages = diagram.messages.filter((m) => m.step === i);
       if (stepMessages.length > 0) {
-        baseHeights[i] = 20;
+        baseHeights[i] = LAYOUT.MESSAGE_COMPACT_GAP;
       }
     }
     diagram.dividers.forEach((d) => {
-      baseHeights[d.step] = 30;
+      baseHeights[d.step] = LAYOUT.GROUP_STEP_GAP_DIVIDER;
     });
     diagram.delays.forEach((d) => {
-      baseHeights[d.step] = 40;
+      baseHeights[d.step] = LAYOUT.GROUP_STEP_GAP_DELAY;
     });
     diagram.spacings.forEach((s) => {
       baseHeights[s.step] = s.height;
     });
     diagram.references.forEach((r) => {
       const lines = r.label.split("\n");
-      const textHeight = lines.length * 15 + 40;
+      const textHeight = lines.length * LAYOUT.REFERENCE_MIN_HEIGHT_PER_LINE + LAYOUT.REFERENCE_HEADER_HEIGHT;
       if (r.endStep === r.startStep + 1) {
         baseHeights[r.startStep] = Math.max(baseHeights[r.startStep], textHeight);
       }
@@ -2221,19 +2336,19 @@ var LayoutEngine = class {
       return diagram.groups.some((g) => g.type !== "box" && g.endStep === step);
     };
     for (let i = 0; i <= maxStep; i++) {
-      let margin = 10;
+      let margin = LAYOUT.NOTE_PADDING_Y;
       if (isGroupStartStep(i + 1)) {
-        margin = Math.max(margin, 25);
+        margin = Math.max(margin, LAYOUT.GROUP_START_MARGIN_Y);
       }
       if (isGroupEndStep(i)) {
-        margin = Math.max(margin, 20);
+        margin = Math.max(margin, LAYOUT.GROUP_END_MARGIN_Y);
       }
       const requiredGap = bottomExtension[i] + topExtension[i + 1] + margin;
       stepHeights[i] = Math.max(baseHeights[i], requiredGap);
     }
     const stepY = new Array(maxStep + 1).fill(0);
-    const headerGap = Math.max(30, topExtension[0] + 10);
-    let currentY = participantYStart + maxPHeight + headerGap;
+    const headerGap = Math.max(LAYOUT.HEADER_GAP_MIN, topExtension[0] + LAYOUT.HEADER_GAP_PADDING);
+    let currentY = participantYStart + maxHeaderPHeight + headerGap;
     for (let i = 0; i <= maxStep; i++) {
       stepY[i] = currentY;
       currentY += stepHeights[i];
@@ -2245,7 +2360,7 @@ var LayoutEngine = class {
     const lines = label.split("\n").map((l) => l.trim());
     let maxLineLength = Math.max(...lines.map((l) => l.length));
     let minWidth = this.theme.participantWidth;
-    let textWidth = maxLineLength * 9 + 30;
+    let textWidth = maxLineLength * LAYOUT.PARTICIPANT_CHAR_WIDTH + LAYOUT.PARTICIPANT_PADDING_X;
     if (p.stereotype) {
       const parsed = parseStereotype(p.stereotype);
       if (parsed) {
@@ -2253,9 +2368,9 @@ var LayoutEngine = class {
         if (parsed.text) {
           stereoText = `\xAB${parsed.text}\xBB`;
         }
-        let stereoWidth = stereoText.length * 8 + 30;
+        let stereoWidth = stereoText.length * LAYOUT.STEREO_CHAR_WIDTH + LAYOUT.STEREO_PADDING_X;
         if (parsed.spotChar) {
-          stereoWidth += 22;
+          stereoWidth += LAYOUT.STEREO_SPOT_EXTRA;
         }
         textWidth = Math.max(textWidth, stereoWidth);
       }
@@ -2267,18 +2382,26 @@ var LayoutEngine = class {
     const lines = label.split("\n").map((l) => l.trim());
     const numLines = lines.length;
     let baseHeight = this.theme.participantHeight;
-    if (numLines > 1) {
-      baseHeight = Math.max(baseHeight, 30 + numLines * 15);
-    }
-    if (p.stereotype) {
-      baseHeight = Math.max(baseHeight, 60 + (numLines - 1) * 15);
+    if (p.type !== "participant") {
+      let extra = 0;
+      if (p.stereotype) {
+        extra = LAYOUT.STEREO_EXTRA_HEIGHT;
+      }
+      baseHeight = LAYOUT.PARTICIPANT_NON_BOX_BASE_HEIGHT + extra + numLines * LAYOUT.PARTICIPANT_LINE_HEIGHT;
+    } else {
+      if (numLines > 1) {
+        baseHeight = Math.max(baseHeight, LAYOUT.PARTICIPANT_BOX_BASE_HEIGHT + numLines * LAYOUT.PARTICIPANT_LINE_HEIGHT);
+      }
+      if (p.stereotype) {
+        baseHeight = Math.max(baseHeight, LAYOUT.PARTICIPANT_STEREO_BOX_BASE_HEIGHT + (numLines - 1) * LAYOUT.PARTICIPANT_LINE_HEIGHT);
+      }
     }
     return baseHeight;
   }
   // Simplified gap calculation for brevity in this first pass
   calculateGaps(diagram, participants, pWidths) {
     const numGaps = Math.max(0, participants.length - 1);
-    const gaps = new Array(numGaps).fill(60);
+    const gaps = new Array(numGaps).fill(LAYOUT.GAP_BASE);
     const maxStep = this.calculateMaxStep(diagram);
     for (let s = 0; s <= maxStep; s++) {
       const gapRequirements = new Array(numGaps).fill(0);
@@ -2288,31 +2411,31 @@ var LayoutEngine = class {
         if (participant.createdStep === s) {
           const boxWidth = pWidths[i];
           if (i < numGaps) {
-            gapRequirements[i] = Math.max(gapRequirements[i], boxWidth / 2 + 20);
+            gapRequirements[i] = Math.max(gapRequirements[i], boxWidth / 2 + LAYOUT.PARTICIPANT_CREATION_PADDING);
           }
         }
-        let rightSpace = 15;
+        let rightSpace = LAYOUT.RIGHT_SPACE_BASE;
         const selfMsg = diagram.messages.find((m) => m.step === s && m.from === name && m.to === name);
         if (selfMsg) {
-          const textWidth = Math.max(...selfMsg.text.split("\n").map((l) => l.length * 8)) + 20;
-          rightSpace = 40 + textWidth + 10;
+          const textWidth = Math.max(...selfMsg.text.split("\n").map((l) => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X;
+          rightSpace = LAYOUT.MESSAGE_SELF_DIFF_X + textWidth + LAYOUT.NOTE_COLLISION_GAP;
         }
         const activeAlt = diagram.activations.filter((a) => a.participantName === name && a.startStep <= s && (a.endStep ?? Infinity) >= s);
         if (activeAlt.length > 0) {
           const maxL = Math.max(...activeAlt.map((a) => a.level));
-          rightSpace = Math.max(rightSpace, this.theme.activationWidth / 2 + maxL * 5 + 10);
+          rightSpace = Math.max(rightSpace, this.theme.activationWidth / 2 + maxL * LAYOUT.ACTIVATION_LEVEL_OFFSET + LAYOUT.NOTE_COLLISION_GAP);
         }
         const notesR = diagram.notes.filter((n) => n.step === s && n.position === "right" && n.participants?.includes(name));
         notesR.forEach((n) => {
-          const w = Math.max(60, Math.max(...n.text.split("\n").map((l) => l.length * 8.5)) + 20);
-          rightSpace += w + 10;
+          const w = calculateNoteWidth(n.text);
+          rightSpace += w + LAYOUT.NOTE_COLLISION_GAP;
         });
         if (i < numGaps) gapRequirements[i] += rightSpace;
-        let leftSpace = 15;
+        let leftSpace = LAYOUT.LEFT_SPACE_BASE;
         const notesL = diagram.notes.filter((n) => n.step === s && n.position === "left" && n.participants?.includes(name));
         notesL.forEach((n) => {
-          const w = Math.max(60, Math.max(...n.text.split("\n").map((l) => l.length * 8.5)) + 20);
-          leftSpace += w + 10;
+          const w = calculateNoteWidth(n.text);
+          leftSpace += w + LAYOUT.NOTE_COLLISION_GAP;
         });
         if (i > 0) gapRequirements[i - 1] += leftSpace;
       }
@@ -2324,7 +2447,7 @@ var LayoutEngine = class {
       const fIdx = participants.findIndex((p) => p.name === m.from);
       const tIdx = participants.findIndex((p) => p.name === m.to);
       if (fIdx === -1 || tIdx === -1 || fIdx === tIdx) return;
-      const textWidth = Math.max(...m.text.split("\n").map((l) => l.length * 8)) + 20;
+      const textWidth = Math.max(...m.text.split("\n").map((l) => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X;
       const s = Math.min(fIdx, tIdx);
       const e = Math.max(fIdx, tIdx);
       let currentSpace = 0;
@@ -2339,8 +2462,7 @@ var LayoutEngine = class {
     });
     diagram.notes.forEach((n) => {
       if (n.position !== "over" && n.position !== "across") return;
-      const lines = n.text.split("\n");
-      const noteWidth = Math.max(60, Math.max(...lines.map((l) => l.length * 8.5)) + 20);
+      const noteWidth = calculateNoteWidth(n.text);
       if (n.participants && n.participants.length > 0) {
         const sIdx = participants.findIndex((p) => p.name === n.participants[0]);
         const eIdx = n.participants.length > 1 ? participants.findIndex((p) => p.name === n.participants[1]) : sIdx;
@@ -2348,7 +2470,7 @@ var LayoutEngine = class {
         const s = Math.min(sIdx, eIdx);
         const e = Math.max(sIdx, eIdx);
         if (s === e) {
-          const required = noteWidth / 2 + 10;
+          const required = noteWidth / 2 + LAYOUT.NOTE_COLLISION_GAP;
           if (s < numGaps) {
             if (gaps[s] < required) gaps[s] = required;
           }
@@ -2382,11 +2504,8 @@ var LayoutEngine = class {
     const noteLayouts = /* @__PURE__ */ new Map();
     const stepOccupancy = /* @__PURE__ */ new Map();
     diagram.notes.forEach((note) => {
-      const lines = note.text.split("\n");
-      const calculatedWidth = Math.max(...lines.map((l) => l.length * 8.5)) + 20;
-      const minWidth = 60;
-      const noteWidth = Math.max(calculatedWidth, minWidth);
-      const noteHeight = lines.length * 20 + 10;
+      const noteWidth = calculateNoteWidth(note.text);
+      const noteHeight = calculateNoteHeight(note.text);
       const y = stepY[note.step] - noteHeight / 2;
       let x = 0;
       if (note.position === "across") {
@@ -2413,9 +2532,9 @@ var LayoutEngine = class {
           const isCreatedStep = note.step === participant.createdStep;
           const effectiveBoxOffset = isCreatedStep ? halfWidth : 0;
           if (note.position === "left") {
-            const currentRightEdge = stepOccupancy.get(key) ?? cx - effectiveBoxOffset - 5;
+            const currentRightEdge = stepOccupancy.get(key) ?? cx - effectiveBoxOffset - LAYOUT.NOTE_POSITION_OFFSET_X;
             x = currentRightEdge - noteWidth;
-            stepOccupancy.set(key, x - 10);
+            stepOccupancy.set(key, x - LAYOUT.NOTE_COLLISION_GAP);
           } else {
             const selfMessage = diagram.messages.find(
               (m) => m.step === note.step && m.from === participant.name && m.to === participant.name
@@ -2423,18 +2542,18 @@ var LayoutEngine = class {
             let selfMsgRightOffset = 0;
             if (selfMessage) {
               const textLines = selfMessage.text.split("\n");
-              const textWidth = Math.max(...textLines.map((l) => l.length * 8)) + 20;
-              selfMsgRightOffset = 40 + textWidth;
+              const textWidth = Math.max(...textLines.map((l) => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X;
+              selfMsgRightOffset = LAYOUT.MESSAGE_SELF_DIFF_X + textWidth;
             }
             const activeAlt = diagram.activations.filter(
               (a) => a.participantName === participant.name && a.startStep <= note.step && (a.endStep ?? Infinity) >= note.step
             );
             const maxLevel = activeAlt.length > 0 ? Math.max(...activeAlt.map((a) => a.level)) : 0;
-            const activationOffset = this.theme.activationWidth / 2 + maxLevel * 5;
+            const activationOffset = this.theme.activationWidth / 2 + maxLevel * LAYOUT.ACTIVATION_LEVEL_OFFSET;
             const baseRight = Math.max(effectiveBoxOffset, activationOffset, selfMsgRightOffset);
-            const currentLeftEdge = stepOccupancy.get(key) ?? cx + baseRight + 5;
+            const currentLeftEdge = stepOccupancy.get(key) ?? cx + baseRight + LAYOUT.NOTE_POSITION_OFFSET_X;
             x = currentLeftEdge;
-            stepOccupancy.set(key, x + noteWidth + 10);
+            stepOccupancy.set(key, x + noteWidth + LAYOUT.NOTE_COLLISION_GAP);
           }
           noteLayouts.set(note, { x, y, width: noteWidth, height: noteHeight });
         }
@@ -2467,7 +2586,7 @@ var LayoutEngine = class {
       const minIdx = Math.min(...pIdxs);
       const maxIdx = Math.max(...pIdxs);
       const levelOffset = maxGroupLevel - g.level;
-      const hPadding = 10 + levelOffset * 10;
+      const hPadding = LAYOUT.GROUP_MIN_PADDING_X + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_X;
       const groupLeft = relpCenterX[minIdx] - pWidths[minIdx] / 2 - hPadding;
       const groupRight = relpCenterX[maxIdx] + pWidths[maxIdx] / 2 + hPadding;
       if (groupLeft < minX) minX = groupLeft;
@@ -2477,36 +2596,21 @@ var LayoutEngine = class {
       const fromIdx = participants.findIndex((p) => p.name === m.from);
       const toIdx = participants.findIndex((p) => p.name === m.to);
       const textLines = m.text.split("\n");
-      const textWidth = Math.max(...textLines.map((l) => l.length * 8)) + 20;
+      const textWidth = Math.max(...textLines.map((l) => l.length * LAYOUT.MESSAGE_CHAR_WIDTH)) + LAYOUT.MESSAGE_PADDING_X;
       if (fromIdx !== -1 && fromIdx === toIdx) {
         const cx = relpCenterX[fromIdx];
-        const rightBound = cx + 40 + textWidth + 10;
+        const rightBound = cx + LAYOUT.MESSAGE_SELF_DIFF_X + textWidth + LAYOUT.NOTE_COLLISION_GAP;
         if (rightBound > maxX) maxX = rightBound;
       } else {
-        let x1 = 0;
-        let x2 = 0;
-        const leftmostParticipant = participants[0];
-        const rightmostParticipant = participants[participants.length - 1];
-        if (fromIdx !== -1) {
-          x1 = relpCenterX[fromIdx] || 0;
-        } else if (m.from === "[") {
-          x1 = relpCenterX[0] !== void 0 ? relpCenterX[0] - 80 : 50;
-        } else if (m.from === "]") {
-          x1 = relpCenterX[relpCenterX.length - 1] !== void 0 ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
-        } else if (m.from === "?") {
-          const toRelIdx = toIdx !== -1 ? toIdx : 0;
-          x1 = relpCenterX[toRelIdx] !== void 0 ? relpCenterX[toRelIdx] - 50 : 50;
-        }
-        if (toIdx !== -1) {
-          x2 = relpCenterX[toIdx] || 0;
-        } else if (m.to === "]") {
-          x2 = relpCenterX[relpCenterX.length - 1] !== void 0 ? relpCenterX[relpCenterX.length - 1] + 80 : 150;
-        } else if (m.to === "[") {
-          x2 = relpCenterX[0] !== void 0 ? relpCenterX[0] - 80 : 50;
-        } else if (m.to === "?") {
-          const fromRelIdx = fromIdx !== -1 ? fromIdx : 0;
-          x2 = relpCenterX[fromRelIdx] !== void 0 ? relpCenterX[fromRelIdx] + 50 : 100;
-        }
+        let { x1, x2 } = resolveMessageEndpoints(
+          m.from,
+          m.to,
+          fromIdx,
+          toIdx,
+          relpCenterX,
+          relpCenterX[0],
+          relpCenterX[relpCenterX.length - 1]
+        );
         const cx = (x1 + x2) / 2;
         const left = cx - textWidth / 2;
         const right = cx + textWidth / 2;
@@ -2528,9 +2632,9 @@ var LayoutEngine = class {
       const minIdx = Math.min(...pIdxs);
       const maxIdx = Math.max(...pIdxs);
       const levelOffset = maxGroupLevel - g.level;
-      const hPadding = 10 + levelOffset * 10;
-      const vPaddingTop = 25 + levelOffset * 8;
-      const vPaddingBottom = 5 + levelOffset * 8;
+      const hPadding = LAYOUT.GROUP_MIN_PADDING_X + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_X;
+      const vPaddingTop = LAYOUT.GROUP_MIN_PADDING_TOP + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
+      const vPaddingBottom = LAYOUT.GROUP_MIN_PADDING_BOTTOM + levelOffset * LAYOUT.GROUP_LEVEL_OFFSET_Y;
       let rectX = participants[minIdx].x - hPadding;
       let rectW = participants[maxIdx].x + participants[maxIdx].width + hPadding - rectX;
       const notesInGroup = noteLayouts.filter((nl) => {
@@ -2550,8 +2654,8 @@ var LayoutEngine = class {
           if (nPIdxs.length > 0 && Math.max(...nPIdxs) === maxIdx) {
             const noteRight = nl.x + nl.width;
             const groupRight = rectX + rectW;
-            if (noteRight + 10 > groupRight) {
-              rectW = noteRight + 10 - rectX;
+            if (noteRight + LAYOUT.GROUP_MIN_PADDING_X > groupRight) {
+              rectW = noteRight + LAYOUT.GROUP_MIN_PADDING_X - rectX;
             }
           }
         } else if (n.position === "left") {
@@ -2559,8 +2663,8 @@ var LayoutEngine = class {
           if (nPIdxs.length > 0 && Math.min(...nPIdxs) === minIdx) {
             const noteLeft = nl.x;
             const groupLeft = rectX;
-            if (noteLeft - 10 < groupLeft) {
-              const diff = groupLeft - (noteLeft - 10);
+            if (noteLeft - LAYOUT.GROUP_MIN_PADDING_X < groupLeft) {
+              const diff = groupLeft - (noteLeft - LAYOUT.GROUP_MIN_PADDING_X);
               rectX -= diff;
               rectW += diff;
             }
@@ -2570,11 +2674,11 @@ var LayoutEngine = class {
       let yStart;
       let height;
       if (g.type === "box") {
-        yStart = participantYStart - 15;
+        yStart = participantYStart - LAYOUT.GROUP_BOX_MARGIN_Y;
         if (g.label) {
-          yStart = participantYStart - 35;
+          yStart = participantYStart - LAYOUT.GROUP_BOX_LABEL_MARGIN_Y;
         }
-        const yEnd = totalHeight - bottomPadding - 10;
+        const yEnd = totalHeight - bottomPadding - LAYOUT.GROUP_BOX_END_MARGIN_Y;
         height = yEnd - yStart;
       } else {
         yStart = stepY[g.startStep] - vPaddingTop;
@@ -2804,20 +2908,23 @@ var SequenceRenderer = class {
           renderLabelAndStereotype(cx, y + 55);
           break;
         case "boundary":
-          svg += `<line x1="${cx - 20}" y1="${cy}" x2="${cx - 10}" y2="${cy}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          svg += `<line x1="${cx - 20}" y1="${cy - 10}" x2="${cx - 20}" y2="${cy + 10}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          renderLabelAndStereotype(cx, y + pl.height + 20);
+          const cyBoundary = y + 20;
+          svg += `<line x1="${cx - 20}" y1="${cyBoundary}" x2="${cx - 10}" y2="${cyBoundary}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+          svg += `<line x1="${cx - 20}" y1="${cyBoundary - 10}" x2="${cx - 20}" y2="${cyBoundary + 10}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+          svg += `<circle cx="${cx}" cy="${cyBoundary}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+          renderLabelAndStereotype(cx, y + 55);
           break;
         case "control":
-          svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          svg += `<path d="M ${cx + 4} ${cy - 18} L ${cx - 4} ${cy - 14} L ${cx + 4} ${cy - 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          renderLabelAndStereotype(cx, y + pl.height + 20);
+          const cyControl = y + 20;
+          svg += `<circle cx="${cx}" cy="${cyControl}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+          svg += `<path d="M ${cx + 4} ${cyControl - 18} L ${cx - 4} ${cyControl - 14} L ${cx + 4} ${cyControl - 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+          renderLabelAndStereotype(cx, y + 55);
           break;
         case "entity":
-          svg += `<circle cx="${cx}" cy="${cy}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          svg += `<line x1="${cx - 14}" y1="${cy + 14}" x2="${cx + 14}" y2="${cy + 14}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          renderLabelAndStereotype(cx, y + pl.height + 20);
+          const cyEntity = y + 20;
+          svg += `<circle cx="${cx}" cy="${cyEntity}" r="14" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+          svg += `<line x1="${cx - 14}" y1="${cyEntity + 14}" x2="${cx + 14}" y2="${cyEntity + 14}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
+          renderLabelAndStereotype(cx, y + 55);
           break;
         case "database":
           const dbW = 34;
@@ -2826,7 +2933,7 @@ var SequenceRenderer = class {
           const dbX = cx - dbW / 2;
           svg += `<path d="M ${dbX} ${dbY + 10} L ${dbX} ${dbY + dbH - 10} A 17 8 0 0 0 ${dbX + dbW} ${dbY + dbH - 10} L ${dbX + dbW} ${dbY + 10} A 17 8 0 0 0 ${dbX} ${dbY + 10} M ${dbX} ${dbY + 10} A 17 8 0 0 1 ${dbX + dbW} ${dbY + 10}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
           svg += `<path d="M ${dbX} ${dbY + 10} A 17 8 0 0 0 ${dbX + dbW} ${dbY + 10}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          renderLabelAndStereotype(cx, y + pl.height + 20);
+          renderLabelAndStereotype(cx, y + 55);
           break;
         case "collections":
           const colW = 34;
@@ -2835,7 +2942,7 @@ var SequenceRenderer = class {
           const colX = cx - colW / 2;
           svg += `<rect x="${colX + 4}" y="${colY - 4}" width="${colW}" height="${colH}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
           svg += `<rect x="${colX}" y="${colY}" width="${colW}" height="${colH}" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          renderLabelAndStereotype(cx, y + pl.height + 20);
+          renderLabelAndStereotype(cx, y + 55);
           break;
         case "queue":
           const qW = 40;
@@ -2848,7 +2955,7 @@ var SequenceRenderer = class {
           svg += `<ellipse cx="${qX + qW}" cy="${qY + qRy}" rx="${qRx}" ry="${qRy}" fill="${fill}" stroke="none" />`;
           svg += `<path d="M ${qX + qW} ${qY} L ${qX} ${qY} A ${qRx} ${qRy} 0 0 0 ${qX} ${qY + qH} L ${qX + qW} ${qY + qH}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
           svg += `<ellipse cx="${qX + qW}" cy="${qY + qRy}" rx="${qRx}" ry="${qRy}" fill="none" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
-          renderLabelAndStereotype(cx, y + pl.height + 20);
+          renderLabelAndStereotype(cx, y + 55);
           break;
         default:
           svg += `<rect x="${x}" y="${y}" width="${pl.width}" height="${pl.height}" rx="5" fill="${fill}" stroke="${this.theme.colors.defaultStroke}" stroke-width="2" />`;
@@ -5111,6 +5218,1696 @@ var ComponentRenderer = class {
   }
 };
 
+// src/diagrams/salt/SaltDiagram.ts
+var SaltDiagram = class {
+  constructor() {
+    this.type = "salt";
+    this.handwritten = false;
+    this.sprites = /* @__PURE__ */ new Map();
+  }
+};
+
+// src/diagrams/salt/SaltParser.ts
+function preprocessSalt(content, diagram) {
+  const lines = content.split("\n");
+  const bodyLines = [];
+  let inStyle = false;
+  let inLegend = false;
+  let legendLines = [];
+  let inSprite = false;
+  let spriteName = "";
+  let spriteLines = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const rawLine = lines[i];
+    if (line === "") continue;
+    if (/@startsalt/i.test(line) || /@endsalt/i.test(line) || /\{\{salt/i.test(line) || line === "}}") {
+      continue;
+    }
+    if (line.toLowerCase() === "<style>") {
+      inStyle = true;
+      continue;
+    }
+    if (line.toLowerCase() === "</style>") {
+      inStyle = false;
+      continue;
+    }
+    if (inStyle) {
+      const bgMatch2 = rawLine.match(/BackgroundColor\s+(\S+)/i);
+      if (bgMatch2) {
+        diagram.backgroundColor = bgMatch2[1];
+      }
+      continue;
+    }
+    if (line.toLowerCase() === "legend") {
+      inLegend = true;
+      legendLines = [];
+      continue;
+    }
+    if (line.toLowerCase() === "end legend") {
+      inLegend = false;
+      diagram.legend = legendLines.join("\n");
+      continue;
+    }
+    if (inLegend) {
+      legendLines.push(line);
+      continue;
+    }
+    if (!inSprite && line.startsWith("<<") && !line.endsWith(">>")) {
+      inSprite = true;
+      spriteName = line.substring(2).trim();
+      spriteLines = [];
+      continue;
+    }
+    if (inSprite) {
+      if (line === ">>") {
+        inSprite = false;
+        diagram.sprites.set(spriteName, spriteLines);
+      } else {
+        spriteLines.push(rawLine);
+      }
+      continue;
+    }
+    const titleMatch = line.match(/^title\s+(.*)$/i);
+    if (titleMatch) {
+      diagram.title = titleMatch[1];
+      continue;
+    }
+    const headerMatch = line.match(/^header\s+(.*)$/i);
+    if (headerMatch) {
+      diagram.header = headerMatch[1];
+      continue;
+    }
+    const footerMatch = line.match(/^footer\s+(.*)$/i);
+    if (footerMatch) {
+      diagram.footer = footerMatch[1];
+      continue;
+    }
+    const captionMatch = line.match(/^caption\s+(.*)$/i);
+    if (captionMatch) {
+      diagram.caption = captionMatch[1];
+      continue;
+    }
+    const scaleMatch = line.match(/^scale\s+([\d.]+)/i);
+    if (scaleMatch) {
+      diagram.scale = parseFloat(scaleMatch[1]);
+      continue;
+    }
+    const dpiMatch = line.match(/^skinparam\s+dpi\s+(\d+)/i);
+    if (dpiMatch) {
+      diagram.dpi = parseInt(dpiMatch[1]);
+      continue;
+    }
+    const bgMatch = line.match(/^skinparam\s+Backgroundcolor\s+(\S+)/i);
+    if (bgMatch) {
+      diagram.backgroundColor = bgMatch[1];
+      continue;
+    }
+    const handMatch = line.match(/^!option\s+handwritten\s+true/i);
+    if (handMatch) {
+      diagram.handwritten = true;
+      continue;
+    }
+    if (line.startsWith("'")) {
+      continue;
+    }
+    bodyLines.push(rawLine);
+  }
+  const processedBodyLines = [];
+  for (let i = 0; i < bodyLines.length; i++) {
+    let currentLine = bodyLines[i];
+    while (currentLine.trim().endsWith("|") && i + 1 < bodyLines.length) {
+      i++;
+      currentLine += bodyLines[i];
+    }
+    processedBodyLines.push(currentLine);
+  }
+  return processedBodyLines.join("\n");
+}
+var SaltTokenizer = class {
+  constructor(source) {
+    this.current = 0;
+    this.source = source;
+  }
+  tokenize() {
+    const tokens = [];
+    while (this.current < this.source.length) {
+      const char = this.peek();
+      if (char === " " || char === "	") {
+        this.advance();
+        continue;
+      }
+      if (char === "\n" || char === "\r") {
+        if (char === "\r" && this.peekNext() === "\n") {
+          this.advance();
+        }
+        this.advance();
+        tokens.push({ type: "NEWLINE", value: "\n" });
+        continue;
+      }
+      if (char === "|") {
+        this.advance();
+        tokens.push({ type: "PIPE", value: "|" });
+        continue;
+      }
+      if (char === "}") {
+        this.advance();
+        tokens.push({ type: "RBRACE", value: "}" });
+        continue;
+      }
+      if (char === "{") {
+        tokens.push(this.scanLbrace());
+        continue;
+      }
+      if (char === '"') {
+        tokens.push(this.scanInput());
+        continue;
+      }
+      if (char === "[") {
+        tokens.push(this.scanBracket());
+        continue;
+      }
+      if (char === "(") {
+        tokens.push(this.scanRadio());
+        continue;
+      }
+      if (char === "^") {
+        tokens.push(this.scanDroplist());
+        continue;
+      }
+      if (char === "<" && this.peekNext() === "<") {
+        tokens.push(this.scanSpriteRef());
+        continue;
+      }
+      tokens.push(this.scanText());
+    }
+    tokens.push({ type: "EOF", value: "" });
+    return tokens;
+  }
+  peek() {
+    if (this.current >= this.source.length) return "\0";
+    return this.source[this.current];
+  }
+  peekNext() {
+    if (this.current + 1 >= this.source.length) return "\0";
+    return this.source[this.current + 1];
+  }
+  advance() {
+    const char = this.peek();
+    this.current++;
+    return char;
+  }
+  scanLbrace() {
+    this.advance();
+    const next = this.peek();
+    if (next === "T") {
+      this.advance();
+      const style = this.peek();
+      if (["!", "-", "+", "#"].includes(style)) {
+        this.advance();
+        return { type: "LBRACE_TREE", value: "{T" + style, style };
+      }
+      return { type: "LBRACE_TREE", value: "{T", style: "none" };
+    }
+    if (next === "/") {
+      this.advance();
+      return { type: "LBRACE_TABS", value: "{/" };
+    }
+    if (next === "*") {
+      this.advance();
+      return { type: "LBRACE_MENU", value: "{*" };
+    }
+    if (next === "S") {
+      this.advance();
+      const style = this.peek();
+      if (style === "I") {
+        this.advance();
+        return { type: "LBRACE_SCROLL", value: "{SI", style: "SI" };
+      }
+      if (style === "-") {
+        this.advance();
+        return { type: "LBRACE_SCROLL", value: "{S-", style: "S-" };
+      }
+      return { type: "LBRACE_SCROLL", value: "{S", style: "S" };
+    }
+    if (next === "^") {
+      this.advance();
+      return { type: "LBRACE_GRID", value: "{^", style: "^" };
+    }
+    if (["+", "-", "!", "#"].includes(next)) {
+      this.advance();
+      return { type: "LBRACE_GRID", value: "{" + next, style: next };
+    }
+    return { type: "LBRACE_GRID", value: "{", style: "none" };
+  }
+  scanInput() {
+    this.advance();
+    let value = "";
+    while (this.peek() !== '"' && this.peek() !== "\0") {
+      if (this.peek() === "\\" && this.peekNext() === '"') {
+        value += '"';
+        this.advance();
+        this.advance();
+      } else {
+        value += this.advance();
+      }
+    }
+    if (this.peek() === '"') {
+      this.advance();
+    }
+    return { type: "INPUT", value };
+  }
+  scanBracket() {
+    const next1 = this.peekNext();
+    const next2 = this.current + 2 < this.source.length ? this.source[this.current + 2] : "";
+    const isUncheckedNoSpace = next1 === "]";
+    const isUncheckedWithSpace = next1 === " " && next2 === "]";
+    const isChecked = next1.toUpperCase() === "X" && next2 === "]";
+    if (isUncheckedNoSpace || isUncheckedWithSpace || isChecked) {
+      this.advance();
+      this.advance();
+      if (isUncheckedWithSpace || isChecked) {
+        this.advance();
+      }
+      let label2 = "";
+      while (!["|", "\n", "\r", "}", "{", "\0"].includes(this.peek())) {
+        label2 += this.advance();
+      }
+      return { type: "CHECKBOX", value: label2.trim(), checked: isChecked };
+    }
+    this.advance();
+    let label = "";
+    while (this.peek() !== "]" && this.peek() !== "\0") {
+      label += this.advance();
+    }
+    if (this.peek() === "]") {
+      this.advance();
+    }
+    return { type: "BUTTON", value: label };
+  }
+  scanRadio() {
+    const next1 = this.peekNext();
+    const next2 = this.current + 2 < this.source.length ? this.source[this.current + 2] : "";
+    const isUncheckedNoSpace = next1 === ")";
+    const isUncheckedWithSpace = next1 === " " && next2 === ")";
+    const isChecked = next1.toUpperCase() === "X" && next2 === ")";
+    if (isUncheckedNoSpace || isUncheckedWithSpace || isChecked) {
+      this.advance();
+      this.advance();
+      if (isUncheckedWithSpace || isChecked) {
+        this.advance();
+      }
+      let label = "";
+      while (!["|", "\n", "\r", "}", "{", "\0"].includes(this.peek())) {
+        label += this.advance();
+      }
+      return { type: "RADIO", value: label.trim(), checked: isChecked };
+    }
+    this.advance();
+    return { type: "TEXT", value: "(" };
+  }
+  scanDroplist() {
+    this.advance();
+    let content = "";
+    while (!["|", "\n", "\r", "}", "{", "\0"].includes(this.peek())) {
+      content += this.advance();
+    }
+    if (content.endsWith("^")) {
+      content = content.substring(0, content.length - 1);
+    }
+    const parts = content.split(/\^+/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length === 0) {
+      return { type: "DROPLIST", value: "", open: false };
+    }
+    const label = parts[0];
+    const items = parts.slice(1);
+    return {
+      type: "DROPLIST",
+      value: label,
+      open: items.length > 0,
+      items
+    };
+  }
+  scanSpriteRef() {
+    this.advance();
+    this.advance();
+    let name = "";
+    while (!(this.peek() === ">" && this.peekNext() === ">") && this.peek() !== "\0") {
+      name += this.advance();
+    }
+    if (this.peek() === ">") {
+      this.advance();
+      this.advance();
+    }
+    return { type: "SPRITE_REF", value: name.trim() };
+  }
+  scanText() {
+    let value = "";
+    while (true) {
+      const char = this.peek();
+      if (char === "\0") break;
+      if (["|", "\n", "\r", "}", "{", "[", "(", "^", '"'].includes(char)) break;
+      if (char === "<" && this.peekNext() === "<") break;
+      value += this.advance();
+    }
+    return { type: "TEXT", value: value.trim() };
+  }
+};
+function parseLineStyle(style) {
+  switch (style) {
+    case "#":
+      return "all";
+    case "!":
+      return "vertical";
+    case "-":
+      return "horizontal";
+    case "+":
+      return "external";
+    default:
+      return "none";
+  }
+}
+var SaltParserEngine = class {
+  constructor(tokens) {
+    this.current = 0;
+    this.tokens = tokens;
+  }
+  parse() {
+    this.skipNewlines();
+    if (this.peek().type === "EOF") return void 0;
+    return this.parseWidget();
+  }
+  peek() {
+    if (this.current >= this.tokens.length) {
+      return { type: "EOF", value: "" };
+    }
+    return this.tokens[this.current];
+  }
+  advance() {
+    const token = this.peek();
+    this.current++;
+    return token;
+  }
+  skipNewlines() {
+    while (this.peek().type === "NEWLINE") {
+      this.advance();
+    }
+  }
+  parseWidget() {
+    const token = this.peek();
+    if (token.type === "LBRACE_GRID") {
+      return this.parseGrid();
+    }
+    if (token.type === "LBRACE_TREE") {
+      return this.parseTree();
+    }
+    if (token.type === "LBRACE_TABS") {
+      return this.parseTabs();
+    }
+    if (token.type === "LBRACE_MENU") {
+      return this.parseMenu();
+    }
+    if (token.type === "LBRACE_SCROLL") {
+      return this.parseScroll();
+    }
+    this.advance();
+    if (token.type === "BUTTON") {
+      return { type: "button", label: token.value };
+    }
+    if (token.type === "CHECKBOX") {
+      return { type: "checkbox", label: token.value, checked: token.checked || false };
+    }
+    if (token.type === "RADIO") {
+      return { type: "radio", label: token.value, checked: token.checked || false };
+    }
+    if (token.type === "INPUT") {
+      return { type: "input", label: token.value };
+    }
+    if (token.type === "DROPLIST") {
+      return { type: "droplist", label: token.value, open: token.open || false, items: token.items };
+    }
+    if (token.type === "SPRITE_REF") {
+      return { type: "sprite", name: token.value };
+    }
+    const textVal = token.value;
+    const sepMatch = textVal.match(/^(\.\.|==|~~|--)(.*)$/);
+    if (sepMatch) {
+      const symbol = sepMatch[1];
+      const title = sepMatch[2].trim();
+      let style = "single";
+      if (symbol === "..") style = "dotted";
+      else if (symbol === "==") style = "double";
+      else if (symbol === "~~") style = "strong";
+      else if (symbol === "--") style = "single";
+      return { type: "separator", style, title: title || void 0 };
+    }
+    return { type: "label", text: textVal };
+  }
+  parseGrid() {
+    const startToken = this.advance();
+    if (startToken.style === "^") {
+      let title = "";
+      if (this.peek().type === "INPUT") {
+        title = this.advance().value;
+      }
+      const gridContent = this.parseGridBody("none");
+      return {
+        type: "groupbox",
+        title,
+        content: gridContent
+      };
+    }
+    const lineStyle = parseLineStyle(startToken.style);
+    return this.parseGridBody(lineStyle);
+  }
+  parseGridBody(lineStyle) {
+    const rows = [];
+    let currentRow = [];
+    while (true) {
+      const token = this.peek();
+      if (token.type === "EOF") break;
+      if (token.type === "RBRACE") {
+        this.advance();
+        break;
+      }
+      if (token.type === "NEWLINE") {
+        this.advance();
+        if (currentRow.length > 0) {
+          rows.push(currentRow);
+          currentRow = [];
+        }
+        continue;
+      }
+      if (token.type === "PIPE") {
+        this.advance();
+        if (currentRow.length === 0) {
+          currentRow.push({ type: "label", text: "" });
+        }
+        continue;
+      }
+      const widget = this.parseWidget();
+      currentRow.push(widget);
+    }
+    if (currentRow.length > 0) {
+      rows.push(currentRow);
+    }
+    return { type: "grid", lineStyle, rows };
+  }
+  parseTree() {
+    const startToken = this.advance();
+    const lineStyle = parseLineStyle(startToken.style);
+    const nodes = [];
+    while (true) {
+      const token = this.peek();
+      if (token.type === "EOF") break;
+      if (token.type === "RBRACE") {
+        this.advance();
+        break;
+      }
+      if (token.type === "NEWLINE") {
+        this.advance();
+        continue;
+      }
+      const cells = [];
+      let currentLineLevel = 0;
+      const firstWidget = this.parseWidget();
+      if (firstWidget.type === "label") {
+        const match = firstWidget.text.match(/^(\++)\s*(.*)$/);
+        if (match) {
+          currentLineLevel = match[1].length;
+          firstWidget.text = match[2];
+        }
+      }
+      cells.push(firstWidget);
+      while (this.peek().type === "PIPE" || this.peek().type !== "NEWLINE" && this.peek().type !== "RBRACE" && this.peek().type !== "EOF") {
+        if (this.peek().type === "PIPE") {
+          this.advance();
+          continue;
+        }
+        cells.push(this.parseWidget());
+      }
+      nodes.push({
+        level: currentLineLevel || 1,
+        cells
+      });
+    }
+    return { type: "tree", lineStyle, nodes };
+  }
+  parseTabs() {
+    this.advance();
+    const tabItems = [];
+    let vertical = true;
+    let isHorizontal = false;
+    let index = this.current;
+    while (index < this.tokens.length) {
+      const t = this.tokens[index];
+      if (t.type === "RBRACE" || t.type === "EOF") break;
+      if (t.type === "PIPE") {
+        isHorizontal = true;
+        break;
+      }
+      index++;
+    }
+    vertical = !isHorizontal;
+    let currentItem = "";
+    while (true) {
+      const token = this.peek();
+      if (token.type === "EOF") break;
+      if (token.type === "RBRACE") {
+        this.advance();
+        if (currentItem.trim()) tabItems.push(currentItem.trim());
+        break;
+      }
+      if (vertical && token.type === "NEWLINE") {
+        this.advance();
+        if (currentItem.trim()) {
+          tabItems.push(currentItem.trim());
+          currentItem = "";
+        }
+        continue;
+      }
+      if (!vertical && token.type === "PIPE") {
+        this.advance();
+        if (currentItem.trim()) {
+          tabItems.push(currentItem.trim());
+          currentItem = "";
+        }
+        continue;
+      }
+      currentItem += (currentItem ? " " : "") + token.value;
+      this.advance();
+    }
+    let activeIndex = 0;
+    for (let i = 0; i < tabItems.length; i++) {
+      const item = tabItems[i];
+      if (item.includes("<b>") || item.includes("**")) {
+        activeIndex = i;
+        break;
+      }
+    }
+    const cleanTabs = tabItems.map((item) => {
+      return item.replace(/<b>|<\/b>|\*\*/g, "").trim();
+    });
+    return {
+      type: "tabs",
+      tabs: cleanTabs,
+      vertical,
+      activeIndex
+    };
+  }
+  parseMenu() {
+    this.advance();
+    const items = [];
+    let currentItem = "";
+    let openIndex;
+    let dropdownItems;
+    while (true) {
+      const token = this.peek();
+      if (token.type === "EOF") break;
+      if (token.type === "RBRACE") {
+        this.advance();
+        if (currentItem.trim()) items.push(currentItem.trim());
+        break;
+      }
+      if (token.type === "NEWLINE") {
+        this.advance();
+        if (currentItem.trim()) items.push(currentItem.trim());
+        currentItem = "";
+        this.skipNewlines();
+        if (this.peek().type !== "RBRACE" && this.peek().type !== "EOF") {
+          const dropdownRow = [];
+          let ddItem = "";
+          while (true) {
+            const ddToken = this.peek();
+            if (ddToken.type === "EOF" || ddToken.type === "RBRACE" || ddToken.type === "NEWLINE") {
+              if (ddItem.trim()) dropdownRow.push(ddItem.trim());
+              break;
+            }
+            if (ddToken.type === "PIPE") {
+              this.advance();
+              if (ddItem.trim()) dropdownRow.push(ddItem.trim());
+              ddItem = "";
+              continue;
+            }
+            ddItem += (ddItem ? " " : "") + ddToken.value;
+            this.advance();
+          }
+          if (dropdownRow.length > 0) {
+            const trigger = dropdownRow[0];
+            const idx = items.findIndex((it) => it.toLowerCase() === trigger.toLowerCase());
+            if (idx !== -1) {
+              openIndex = idx;
+              dropdownItems = dropdownRow.slice(1);
+            }
+          }
+        }
+        continue;
+      }
+      if (token.type === "PIPE") {
+        this.advance();
+        if (currentItem.trim()) items.push(currentItem.trim());
+        currentItem = "";
+        continue;
+      }
+      currentItem += (currentItem ? " " : "") + token.value;
+      this.advance();
+    }
+    return {
+      type: "menu",
+      items: items.map((it) => it.trim()),
+      openIndex,
+      dropdownItems
+    };
+  }
+  parseScroll() {
+    const startToken = this.advance();
+    const style = startToken.style || "S";
+    let content;
+    if (this.peek().type === "LBRACE_GRID") {
+      content = this.parseGrid();
+    } else {
+      const rows = [];
+      let currentRow = [];
+      while (true) {
+        const token = this.peek();
+        if (token.type === "EOF") break;
+        if (token.type === "RBRACE") {
+          this.advance();
+          break;
+        }
+        if (token.type === "NEWLINE") {
+          this.advance();
+          if (currentRow.length > 0) {
+            rows.push(currentRow);
+            currentRow = [];
+          }
+          continue;
+        }
+        if (token.type === "PIPE") {
+          this.advance();
+          continue;
+        }
+        currentRow.push(this.parseWidget());
+      }
+      if (currentRow.length > 0) {
+        rows.push(currentRow);
+      }
+      content = { type: "grid", lineStyle: "none", rows };
+    }
+    return {
+      type: "scroll",
+      horizontal: style === "S" || style === "S-",
+      vertical: style === "S" || style === "SI",
+      content
+    };
+  }
+};
+var SaltParser = class {
+  parse(content) {
+    const diagram = new SaltDiagram();
+    const bodyText = preprocessSalt(content, diagram);
+    const tokenizer = new SaltTokenizer(bodyText);
+    const tokens = tokenizer.tokenize();
+    const parser = new SaltParserEngine(tokens);
+    let root = parser.parse();
+    if (!root) {
+      root = { type: "grid", lineStyle: "none", rows: [] };
+    }
+    diagram.root = root;
+    return diagram;
+  }
+};
+
+// src/diagrams/salt/SaltLayout.ts
+function estimateTextWidth(text, fontSize = 12) {
+  if (!text) return 0;
+  const cleanText = text.replace(/<[^>]+>/g, "").replace(/~~|__|\*\*|\/\/|""|--/g, "");
+  const iconMatches = text.match(/<&[a-zA-Z0-9_-]+>/g) || [];
+  const numIcons = iconMatches.length;
+  const cleanTextWithoutIcons = cleanText.replace(/<&[a-zA-Z0-9_-]+>/g, "");
+  return cleanTextWithoutIcons.length * (fontSize * 0.58) + numIcons * 18;
+}
+function estimateTextHeight(text, fontSize = 12) {
+  if (!text) return fontSize + 4;
+  const lines = text.split("\n");
+  return lines.length * (fontSize * 1.3) + 4;
+}
+function measureWidget(widget, sprites) {
+  const fontSize = 12;
+  switch (widget.type) {
+    case "label": {
+      const w = widget;
+      if (w.text === "*") {
+        w.width = 0;
+        w.height = 0;
+      } else if (w.text === ".") {
+        w.width = 0;
+        w.height = 0;
+      } else {
+        w.width = estimateTextWidth(w.text, fontSize);
+        w.height = estimateTextHeight(w.text, fontSize);
+      }
+      break;
+    }
+    case "button": {
+      const w = widget;
+      w.width = estimateTextWidth(w.label, fontSize) + 16;
+      w.height = Math.max(24, estimateTextHeight(w.label, fontSize) + 8);
+      break;
+    }
+    case "checkbox": {
+      const w = widget;
+      w.width = 16 + 6 + estimateTextWidth(w.label, fontSize);
+      w.height = Math.max(18, estimateTextHeight(w.label, fontSize) + 4);
+      break;
+    }
+    case "radio": {
+      const w = widget;
+      w.width = 16 + 6 + estimateTextWidth(w.label, fontSize);
+      w.height = Math.max(18, estimateTextHeight(w.label, fontSize) + 4);
+      break;
+    }
+    case "input": {
+      const w = widget;
+      w.width = estimateTextWidth(w.label, fontSize) + 16;
+      w.height = Math.max(24, estimateTextHeight(w.label, fontSize) + 8);
+      break;
+    }
+    case "droplist": {
+      const w = widget;
+      w.width = estimateTextWidth(w.label, fontSize) + 28;
+      w.height = Math.max(24, estimateTextHeight(w.label, fontSize) + 8);
+      break;
+    }
+    case "separator": {
+      const w = widget;
+      w.width = w.title ? estimateTextWidth(w.title, 11) + 24 : 40;
+      w.height = w.title ? Math.max(16, estimateTextHeight(w.title, 11) + 4) : 10;
+      break;
+    }
+    case "sprite": {
+      const w = widget;
+      const lines = sprites.get(w.name);
+      if (lines && lines.length > 0) {
+        const pixelSize = 1.5;
+        w.height = lines.length * pixelSize;
+        w.width = Math.max(...lines.map((l) => l.length)) * pixelSize;
+      } else {
+        w.width = 16;
+        w.height = 16;
+      }
+      break;
+    }
+    case "grid": {
+      const w = widget;
+      const rows = w.rows;
+      const R = rows.length;
+      if (R === 0) {
+        w.width = 20;
+        w.height = 20;
+        break;
+      }
+      let maxCols = 0;
+      for (let r = 0; r < R; r++) {
+        maxCols = Math.max(maxCols, rows[r].length);
+        for (let c = 0; c < rows[r].length; c++) {
+          if (rows[r][c]) {
+            measureWidget(rows[r][c], sprites);
+          }
+        }
+      }
+      const colWidths = new Array(maxCols).fill(0);
+      const rowHeights = new Array(R).fill(0);
+      for (let r = 0; r < R; r++) {
+        const isSeparatorRow = rows[r].length === 1 && rows[r][0].type === "separator";
+        for (let c = 0; c < rows[r].length; c++) {
+          const child = rows[r][c];
+          if (!child) continue;
+          rowHeights[r] = Math.max(rowHeights[r], child.height || 0);
+          if (!isSeparatorRow && child.type !== "separator") {
+            if (child.type === "label" && (child.text === "*" || child.text === ".")) {
+            } else {
+              colWidths[c] = Math.max(colWidths[c], child.width || 0);
+            }
+          }
+        }
+      }
+      const padding = 6;
+      const gapX = 12;
+      const gapY = 8;
+      w.width = padding * 2 + colWidths.reduce((a, b) => a + b, 0) + Math.max(0, colWidths.length - 1) * gapX;
+      w.height = padding * 2 + rowHeights.reduce((a, b) => a + b, 0) + Math.max(0, R - 1) * gapY;
+      break;
+    }
+    case "groupbox": {
+      const w = widget;
+      measureWidget(w.content, sprites);
+      const paddingHorizontal = 16;
+      const paddingVertical = 24;
+      const titleWidth = estimateTextWidth(w.title, 11) + 24;
+      w.width = Math.max(titleWidth, (w.content.width || 0) + paddingHorizontal);
+      w.height = (w.content.height || 0) + paddingVertical;
+      break;
+    }
+    case "tabs": {
+      const w = widget;
+      const padding = 10;
+      const gap = 8;
+      if (w.vertical) {
+        let maxWidth = 0;
+        let totalHeight = 0;
+        w.tabs.forEach((tab) => {
+          maxWidth = Math.max(maxWidth, estimateTextWidth(tab, fontSize) + 16);
+          totalHeight += Math.max(20, estimateTextHeight(tab, fontSize) + 6);
+        });
+        w.width = maxWidth;
+        w.height = totalHeight + padding * 2;
+      } else {
+        let totalWidth = 0;
+        let maxHeight = 0;
+        w.tabs.forEach((tab) => {
+          totalWidth += estimateTextWidth(tab, fontSize) + 16 + gap;
+          maxHeight = Math.max(maxHeight, estimateTextHeight(tab, fontSize) + 6);
+        });
+        w.width = totalWidth + padding * 2;
+        w.height = maxHeight + 8;
+      }
+      break;
+    }
+    case "menu": {
+      const w = widget;
+      const fontSizeMenu = 12;
+      let totalWidth = 16;
+      w.items.forEach((item) => {
+        totalWidth += estimateTextWidth(item, fontSizeMenu) + 16;
+      });
+      w.width = totalWidth;
+      w.height = 24;
+      break;
+    }
+    case "tree": {
+      const w = widget;
+      const nodes = w.nodes;
+      const N = nodes.length;
+      if (N === 0) {
+        w.width = 20;
+        w.height = 20;
+        break;
+      }
+      let maxCols = 0;
+      nodes.forEach((node) => {
+        maxCols = Math.max(maxCols, node.cells.length);
+        node.cells.forEach((cell) => {
+          measureWidget(cell, sprites);
+        });
+      });
+      const colWidths = new Array(maxCols).fill(0);
+      const rowHeights = new Array(N).fill(0);
+      for (let n = 0; n < N; n++) {
+        const node = nodes[n];
+        const indentation = (node.level - 1) * 16;
+        for (let c = 0; c < node.cells.length; c++) {
+          const cell = node.cells[c];
+          if (!cell) continue;
+          rowHeights[n] = Math.max(rowHeights[n], cell.height || 0);
+          if (c === 0) {
+            const cellWidth = indentation + 20 + (cell.width || 0);
+            colWidths[0] = Math.max(colWidths[0], cellWidth);
+          } else {
+            colWidths[c] = Math.max(colWidths[c], cell.width || 0);
+          }
+        }
+      }
+      const padding = 8;
+      const gapX = 12;
+      const gapY = 6;
+      w.width = padding * 2 + colWidths.reduce((a, b) => a + b, 0) + Math.max(0, colWidths.length - 1) * gapX;
+      w.height = padding * 2 + rowHeights.reduce((a, b) => a + b, 0) + Math.max(0, N - 1) * gapY;
+      break;
+    }
+    case "scroll": {
+      const w = widget;
+      measureWidget(w.content, sprites);
+      w.width = (w.content.width || 0) + (w.vertical ? 12 : 0);
+      w.height = (w.content.height || 0) + (w.horizontal ? 12 : 0);
+      break;
+    }
+  }
+}
+function layoutWidget(widget, x, y, width, height, sprites) {
+  widget.x = x;
+  widget.y = y;
+  widget.width = width;
+  widget.height = height;
+  switch (widget.type) {
+    case "grid": {
+      const w = widget;
+      const rows = w.rows;
+      const R = rows.length;
+      if (R === 0) break;
+      let maxCols = 0;
+      for (let r = 0; r < R; r++) {
+        maxCols = Math.max(maxCols, rows[r].length);
+      }
+      const colWidths = new Array(maxCols).fill(0);
+      const rowHeights = new Array(R).fill(0);
+      for (let r = 0; r < R; r++) {
+        const isSeparatorRow = rows[r].length === 1 && rows[r][0].type === "separator";
+        for (let c = 0; c < rows[r].length; c++) {
+          const child = rows[r][c];
+          if (!child) continue;
+          rowHeights[r] = Math.max(rowHeights[r], child.height || 0);
+          if (!isSeparatorRow && child.type !== "separator") {
+            if (child.type === "label" && (child.text === "*" || child.text === ".")) {
+            } else {
+              colWidths[c] = Math.max(colWidths[c], child.width || 0);
+            }
+          }
+        }
+      }
+      const padding = 6;
+      const gapX = 12;
+      const gapY = 8;
+      const measuredWidth = padding * 2 + colWidths.reduce((a, b) => a + b, 0) + Math.max(0, colWidths.length - 1) * gapX;
+      if (width > measuredWidth && colWidths.length > 0) {
+        const extraX = (width - measuredWidth) / colWidths.length;
+        for (let c = 0; c < colWidths.length; c++) {
+          colWidths[c] += extraX;
+        }
+      }
+      const measuredHeight = padding * 2 + rowHeights.reduce((a, b) => a + b, 0) + Math.max(0, R - 1) * gapY;
+      if (height > measuredHeight && R > 0) {
+        const extraY = (height - measuredHeight) / R;
+        for (let r = 0; r < R; r++) {
+          rowHeights[r] += extraY;
+        }
+      }
+      let currentY = y + padding;
+      for (let r = 0; r < R; r++) {
+        let currentX = x + padding;
+        const isSeparatorRow = rows[r].length === 1 && rows[r][0].type === "separator";
+        if (isSeparatorRow) {
+          const child = rows[r][0];
+          const fullWidth = width - padding * 2;
+          layoutWidget(child, currentX, currentY, fullWidth, rowHeights[r], sprites);
+        } else {
+          for (let c = 0; c < rows[r].length; c++) {
+            const child = rows[r][c];
+            if (!child) {
+              currentX += colWidths[c] + gapX;
+              continue;
+            }
+            let spanCount = 1;
+            while (c + spanCount < rows[r].length && rows[r][c + spanCount] && rows[r][c + spanCount].type === "label" && rows[r][c + spanCount].text === "*") {
+              spanCount++;
+            }
+            const cellWidth = colWidths.slice(c, c + spanCount).reduce((a, b) => a + b, 0) + (spanCount - 1) * gapX;
+            const cellHeight = rowHeights[r];
+            layoutWidget(child, currentX, currentY, cellWidth, cellHeight, sprites);
+            currentX += cellWidth + gapX;
+            c += spanCount - 1;
+          }
+        }
+        currentY += rowHeights[r] + gapY;
+      }
+      break;
+    }
+    case "groupbox": {
+      const w = widget;
+      const paddingHorizontal = 16;
+      const paddingVertical = 24;
+      const contentWidth = width - paddingHorizontal;
+      const contentHeight = height - paddingVertical;
+      layoutWidget(w.content, x + 8, y + 16, contentWidth, contentHeight, sprites);
+      break;
+    }
+    case "tabs": {
+      break;
+    }
+    case "menu": {
+      break;
+    }
+    case "tree": {
+      const w = widget;
+      const nodes = w.nodes;
+      const N = nodes.length;
+      if (N === 0) break;
+      let maxCols = 0;
+      nodes.forEach((node) => {
+        maxCols = Math.max(maxCols, node.cells.length);
+      });
+      const colWidths = new Array(maxCols).fill(0);
+      const rowHeights = new Array(N).fill(0);
+      for (let n = 0; n < N; n++) {
+        const node = nodes[n];
+        const indentation = (node.level - 1) * 16;
+        for (let c = 0; c < node.cells.length; c++) {
+          const cell = node.cells[c];
+          if (!cell) continue;
+          rowHeights[n] = Math.max(rowHeights[n], cell.height || 0);
+          if (c === 0) {
+            colWidths[0] = Math.max(colWidths[0], indentation + 20 + (cell.width || 0));
+          } else {
+            colWidths[c] = Math.max(colWidths[c], cell.width || 0);
+          }
+        }
+      }
+      const padding = 8;
+      const gapX = 12;
+      const gapY = 6;
+      let currentY = y + padding;
+      for (let n = 0; n < N; n++) {
+        const node = nodes[n];
+        const indentation = (node.level - 1) * 16;
+        if (node.cells[0]) {
+          const firstCellX = x + padding + indentation + 20;
+          const firstCellWidth = colWidths[0] - indentation - 20;
+          layoutWidget(node.cells[0], firstCellX, currentY, firstCellWidth, rowHeights[n], sprites);
+        }
+        let currentX = x + padding + colWidths[0] + gapX;
+        for (let c = 1; c < node.cells.length; c++) {
+          const cell = node.cells[c];
+          if (cell) {
+            layoutWidget(cell, currentX, currentY, colWidths[c], rowHeights[n], sprites);
+          }
+          currentX += colWidths[c] + gapX;
+        }
+        currentY += rowHeights[n] + gapY;
+      }
+      break;
+    }
+    case "scroll": {
+      const w = widget;
+      const contentWidth = width - (w.vertical ? 12 : 0);
+      const contentHeight = height - (w.horizontal ? 12 : 0);
+      layoutWidget(w.content, x, y, contentWidth, contentHeight, sprites);
+      break;
+    }
+  }
+}
+
+// src/diagrams/salt/SaltRenderer.ts
+function formatSaltRichText(text) {
+  if (!text) return "";
+  let escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<tspan font-weight="bold">$1</tspan>');
+  escaped = escaped.replace(/\/\/(.*?)\/\//g, '<tspan font-style="italic">$1</tspan>');
+  escaped = escaped.replace(/&quot;&quot;(.*?)&quot;&quot;/g, '<tspan font-family="monospace">$1</tspan>');
+  escaped = escaped.replace(/__(.*?)__/g, '<tspan text-decoration="underline">$1</tspan>');
+  escaped = escaped.replace(/~~(.*?)~~/g, '<tspan style="text-decoration: underline; text-decoration-style: wavy">$1</tspan>');
+  escaped = escaped.replace(/&lt;b&gt;(.*?)&lt;\/b&gt;/gi, '<tspan font-weight="bold">$1</tspan>');
+  escaped = escaped.replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/gi, '<tspan text-decoration="underline">$1</tspan>');
+  escaped = escaped.replace(/&lt;i&gt;(.*?)&lt;\/i&gt;/gi, '<tspan font-style="italic">$1</tspan>');
+  escaped = escaped.replace(/&lt;s&gt;(.*?)&lt;\/s&gt;/gi, '<tspan text-decoration="line-through">$1</tspan>');
+  escaped = escaped.replace(/&lt;s:([a-zA-Z0-9#]+)&gt;(.*?)&lt;\/s&gt;/gi, '<tspan text-decoration="line-through" style="text-decoration-color: $1">$2</tspan>');
+  escaped = escaped.replace(/&lt;u:([a-zA-Z0-9#]+)&gt;(.*?)&lt;\/u&gt;/gi, '<tspan text-decoration="underline" style="text-decoration-color: $1">$2</tspan>');
+  escaped = escaped.replace(/&lt;w:([a-zA-Z0-9#]+)&gt;(.*?)&lt;\/w&gt;/gi, '<tspan style="text-decoration: underline; text-decoration-style: wavy; text-decoration-color: $1">$2</tspan>');
+  escaped = escaped.replace(/&lt;color:([a-zA-Z0-9#]+)&gt;(.*?)&lt;\/color&gt;/gi, '<tspan fill="$1">$2</tspan>');
+  escaped = escaped.replace(/&lt;color:([a-zA-Z0-9#]+)&gt;(.*)/gi, '<tspan fill="$1">$2</tspan>');
+  escaped = escaped.replace(/&lt;back:([a-zA-Z0-9#]+)&gt;(.*?)&lt;\/back&gt;/gi, '<tspan style="background-color: $1">$2</tspan>');
+  escaped = escaped.replace(/&lt;size:(\d+)&gt;(.*?)&lt;\/size&gt;/gi, '<tspan font-size="$1">$2</tspan>');
+  escaped = escaped.replace(/&lt;size:(\d+)&gt;(.*)/gi, '<tspan font-size="$1">$2</tspan>');
+  escaped = escaped.replace(/&lt;font:monospaced&gt;(.*?)&lt;\/font&gt;/gi, '<tspan font-family="monospace">$1</tspan>');
+  return escaped;
+}
+function getIconSvgPath(name) {
+  switch (name.toLowerCase()) {
+    case "person":
+      return `
+                <circle cx="7" cy="4.5" r="2.5" />
+                <path d="M 2,12.5 C 2,9.5 4.5,8.5 7,8.5 C 9.5,8.5 12,9.5 12,12.5 Z" />
+            `.trim();
+    case "key":
+      return `
+                <circle cx="4.5" cy="7.5" r="2.5" fill="none" stroke-width="1.5" />
+                <path d="M 7,7.5 L 13.5,7.5 L 13.5,9.5 L 12,9.5 L 12,7.5 L 10.5,7.5 L 10.5,9.5 L 9,9.5 L 9,7.5" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            `.trim();
+    case "circle-x":
+      return `
+                <circle cx="7" cy="7" r="6" fill="none" stroke-width="1.5" />
+                <path d="M 4,4 L 10,10 M 10,4 L 4,10" stroke-width="1.5" stroke-linecap="round" />
+            `.trim();
+    case "account-login":
+      return `
+                <path d="M 2.5,2 L 11.5,2 L 11.5,5 L 10,5 L 10,3.5 L 4,3.5 L 4,11.5 L 10,11.5 L 10,10 L 11.5,10 L 11.5,13 L 2.5,13 Z" fill-rule="evenodd" />
+                <path d="M 7,5 L 10.5,7.5 L 7,10 L 7,8.5 L 5,8.5 L 5,6.5 L 7,6.5 Z" fill-rule="evenodd" />
+            `.trim();
+    case "clock":
+      return `
+                <circle cx="7" cy="7" r="6" fill="none" stroke-width="1.5" />
+                <path d="M 7,3 L 7,7 L 10,7" stroke-width="1.5" stroke-linecap="round" fill="none" />
+            `.trim();
+    default:
+      return `
+                <polygon points="7,1 9,5 13.5,5.5 10,9 11,13.5 7,11 3,13.5 4,9 0.5,5.5 5,5" stroke-width="1" />
+            `.trim();
+  }
+}
+function renderTextWithIcons(text, x, y, color, fontFamily, fontSize, align = "left", height = 18) {
+  const regex = /<&([a-zA-Z0-9_-]+)>/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: "text", value: text.substring(lastIndex, match.index) });
+    }
+    parts.push({ type: "icon", value: match[1] });
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    parts.push({ type: "text", value: text.substring(lastIndex) });
+  }
+  if (parts.length === 0) return "";
+  let totalWidth = 0;
+  parts.forEach((p) => {
+    if (p.type === "text") {
+      totalWidth += estimateTextWidth(p.value, fontSize);
+    } else {
+      totalWidth += 18;
+    }
+  });
+  let currentX = x;
+  if (align === "center") {
+    currentX = x - totalWidth / 2;
+  }
+  const yOffsetText = y + (height - fontSize) / 2 + fontSize - 2;
+  const yOffsetIcon = y + (height - 14) / 2;
+  let svg = "";
+  parts.forEach((p) => {
+    if (p.type === "text") {
+      const formatted = formatSaltRichText(p.value);
+      svg += `<text x="${currentX}" y="${yOffsetText}" fill="${color}" font-family="${fontFamily}" font-size="${fontSize}">${formatted}</text>`;
+      currentX += estimateTextWidth(p.value, fontSize);
+    } else {
+      svg += `<g transform="translate(${currentX}, ${yOffsetIcon})" stroke="${color}" fill="${color}">${getIconSvgPath(p.value)}</g>`;
+      currentX += 18;
+    }
+  });
+  return svg;
+}
+var SaltRenderer = class {
+  constructor() {
+    this.fontFamily = "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    this.handwritten = false;
+    this.overlays = [];
+  }
+  render(diagram) {
+    this.overlays = [];
+    this.handwritten = diagram.handwritten;
+    if (this.handwritten) {
+      this.fontFamily = "'Comic Sans MS', 'Caveat', cursive, sans-serif";
+    } else {
+      this.fontFamily = "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+    }
+    if (diagram.root) {
+      measureWidget(diagram.root, diagram.sprites);
+      layoutWidget(diagram.root, 10, 10 + this.getHeaderHeight(diagram), diagram.root.width || 0, diagram.root.height || 0, diagram.sprites);
+    }
+    const headerHeight = this.getHeaderHeight(diagram);
+    const rootWidth = diagram.root?.width || 100;
+    const rootHeight = diagram.root?.height || 100;
+    const legendHeight = diagram.legend ? 40 : 0;
+    const captionHeight = diagram.caption ? 20 : 0;
+    const footerHeight = diagram.footer ? 20 : 0;
+    const canvasWidth = rootWidth + 20;
+    const canvasHeight = rootHeight + 20 + headerHeight + legendHeight + captionHeight + footerHeight;
+    let scaleFactor = diagram.scale || 1;
+    if (diagram.dpi) {
+      scaleFactor = diagram.dpi / 96;
+    }
+    const widthAttr = canvasWidth * scaleFactor;
+    const heightAttr = canvasHeight * scaleFactor;
+    let svg = `<svg width="${widthAttr}" height="${heightAttr}" viewBox="0 0 ${canvasWidth} ${canvasHeight}" xmlns="http://www.w3.org/2000/svg" style="background: ${diagram.backgroundColor || "#ffffff"}; font-family: ${this.fontFamily};">
+`;
+    svg += `  <defs>
+`;
+    svg += `    <filter id="subtle-shadow" x="-5%" y="-5%" width="110%" height="115%">
+`;
+    svg += `      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000000" flood-opacity="0.06" />
+`;
+    svg += `    </filter>
+`;
+    svg += `    <filter id="dropdown-shadow" x="-10%" y="-10%" width="120%" height="125%">
+`;
+    svg += `      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.1" />
+`;
+    svg += `    </filter>
+`;
+    svg += `  </defs>
+`;
+    let currentY = 10;
+    if (diagram.header) {
+      svg += `  <text x="10" y="${currentY + 12}" fill="#6b7280" font-size="11" font-weight="bold">${diagram.header}</text>
+`;
+      currentY += 20;
+    }
+    if (diagram.title) {
+      svg += `  <text x="${canvasWidth / 2}" y="${currentY + 16}" fill="#111827" font-size="16" font-weight="bold" text-anchor="middle">${diagram.title}</text>
+`;
+      currentY += 28;
+    }
+    if (diagram.root) {
+      svg += this.renderWidget(diagram.root, diagram);
+    }
+    currentY = canvasHeight - 10;
+    if (diagram.footer) {
+      svg += `  <text x="10" y="${currentY - 4}" fill="#6b7280" font-size="11" font-weight="bold">${diagram.footer}</text>
+`;
+      currentY -= 20;
+    }
+    if (diagram.caption) {
+      svg += `  <text x="${canvasWidth / 2}" y="${currentY - 4}" fill="#4b5563" font-size="12" text-anchor="middle">${diagram.caption}</text>
+`;
+      currentY -= 20;
+    }
+    if (diagram.legend) {
+      const legendW = estimateTextWidth(diagram.legend, 11) + 20;
+      svg += `  <g transform="translate(${canvasWidth - legendW - 10}, ${currentY - 35})">
+`;
+      svg += `    <rect width="${legendW}" height="30" rx="3" fill="#f9fafb" stroke="#d1d5db" stroke-width="1" />
+`;
+      svg += `    <text x="${legendW / 2}" y="18" fill="#4b5563" font-size="11" text-anchor="middle">${diagram.legend}</text>
+`;
+      svg += `  </g>
+`;
+    }
+    if (this.overlays.length > 0) {
+      svg += `  <!-- Dropdowns and overlays rendered on top -->
+`;
+      svg += this.overlays.join("\n");
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+  getHeaderHeight(diagram) {
+    let h = 0;
+    if (diagram.header) h += 20;
+    if (diagram.title) h += 28;
+    return h;
+  }
+  renderWidget(widget, diagram) {
+    const sprites = diagram.sprites;
+    const x = widget.x || 0;
+    const y = widget.y || 0;
+    const w = widget.width || 0;
+    const h = widget.height || 0;
+    let svg = "";
+    switch (widget.type) {
+      case "label": {
+        const label = widget;
+        if (label.text === "*" || label.text === ".") break;
+        svg += renderTextWithIcons(label.text, x + 2, y, "#1f2937", this.fontFamily, 12, "left", h);
+        break;
+      }
+      case "button": {
+        const btn = widget;
+        svg += `  <g filter="url(#subtle-shadow)">
+`;
+        svg += `    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" ry="4" fill="url(#btn-grad)" stroke="#d1d5db" stroke-width="1.2" />
+`;
+        svg += `  </g>
+`;
+        svg += `  <defs>
+`;
+        svg += `    <linearGradient id="btn-grad" x1="0" y1="0" x2="0" y2="1">
+`;
+        svg += `      <stop offset="0%" stop-color="#ffffff" />
+`;
+        svg += `      <stop offset="100%" stop-color="#f3f4f6" />
+`;
+        svg += `    </linearGradient>
+`;
+        svg += `  </defs>
+`;
+        svg += renderTextWithIcons(btn.label, x + w / 2, y, "#1f2937", this.fontFamily, 12, "center", h);
+        break;
+      }
+      case "checkbox": {
+        const cb = widget;
+        const boxY = y + (h - 14) / 2;
+        svg += `  <rect x="${x}" y="${boxY}" width="14" height="14" rx="2" ry="2" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5" />
+`;
+        if (cb.checked) {
+          svg += `  <path d="M ${x + 3.5},${boxY + 7} L ${x + 6},${boxY + 9.5} L ${x + 10.5},${boxY + 3.5}" stroke="#2563eb" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+`;
+        }
+        svg += renderTextWithIcons(cb.label, x + 20, y, "#1f2937", this.fontFamily, 12, "left", h);
+        break;
+      }
+      case "radio": {
+        const rd = widget;
+        const circleY = y + (h - 14) / 2 + 7;
+        svg += `  <circle cx="${x + 7}" cy="${circleY}" r="7" fill="#ffffff" stroke="#9ca3af" stroke-width="1.5" />
+`;
+        if (rd.checked) {
+          svg += `  <circle cx="${x + 7}" cy="${circleY}" r="3.5" fill="#2563eb" />
+`;
+        }
+        svg += renderTextWithIcons(rd.label, x + 20, y, "#1f2937", this.fontFamily, 12, "left", h);
+        break;
+      }
+      case "input": {
+        const inp = widget;
+        svg += `  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" ry="3" fill="#ffffff" stroke="#d1d5db" stroke-width="1.2" />
+`;
+        svg += renderTextWithIcons(inp.label, x + 8, y, "#374151", this.fontFamily, 12, "left", h);
+        break;
+      }
+      case "droplist": {
+        const dl = widget;
+        svg += `  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" ry="3" fill="#ffffff" stroke="#d1d5db" stroke-width="1.2" />
+`;
+        svg += `  <path d="M ${x + w - 16},${y + h / 2 - 2} L ${x + w - 10},${y + h / 2 + 3} L ${x + w - 4},${y + h / 2 - 2}" stroke="#4b5563" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+`;
+        svg += renderTextWithIcons(dl.label, x + 8, y, "#1f2937", this.fontFamily, 12, "left", h);
+        if (dl.open && dl.items && dl.items.length > 0) {
+          const itemH = 20;
+          const ddH = dl.items.length * itemH + 8;
+          let ddSvg = "";
+          ddSvg += `  <g filter="url(#dropdown-shadow)">
+`;
+          ddSvg += `    <rect x="${x}" y="${y + h}" width="${w}" height="${ddH}" rx="4" ry="4" fill="#ffffff" stroke="#d1d5db" stroke-width="1" />
+`;
+          ddSvg += `  </g>
+`;
+          dl.items.forEach((item, idx) => {
+            const itemY = y + h + 4 + idx * itemH;
+            if (idx === 0) {
+              ddSvg += `    <rect x="${x + 2}" y="${itemY}" width="${w - 4}" height="${itemH}" fill="#eff6ff" rx="2" />
+`;
+            }
+            ddSvg += renderTextWithIcons(item, x + 8, itemY, "#1f2937", this.fontFamily, 12, "left", itemH);
+          });
+          this.overlays.push(ddSvg);
+        }
+        break;
+      }
+      case "separator": {
+        const sep = widget;
+        const lineY = y + h / 2;
+        let strokeDash = "";
+        let strokeW = 1.2;
+        if (sep.style === "dotted") strokeDash = 'stroke-dasharray="3,3"';
+        else if (sep.style === "strong") strokeW = 2.2;
+        if (sep.style === "double") {
+          svg += `  <line x1="${x}" y1="${lineY - 1.5}" x2="${x + w}" y2="${lineY - 1.5}" stroke="#9ca3af" stroke-width="1" />
+`;
+          svg += `  <line x1="${x}" y1="${lineY + 1.5}" x2="${x + w}" y2="${lineY + 1.5}" stroke="#9ca3af" stroke-width="1" />
+`;
+        } else {
+          svg += `  <line x1="${x}" y1="${lineY}" x2="${x + w}" y2="${lineY}" stroke="#9ca3af" stroke-width="${strokeW}" ${strokeDash} />
+`;
+        }
+        if (sep.title) {
+          const textW = estimateTextWidth(sep.title, 11);
+          const textX = x + (w - textW) / 2;
+          svg += `  <rect x="${textX - 4}" y="${lineY - 8}" width="${textW + 8}" height="16" fill="${this.handwritten ? "none" : "#ffffff"}" />
+`;
+          svg += `  <text x="${x + w / 2}" y="${lineY + 4}" fill="#4b5563" font-size="11" font-weight="bold" text-anchor="middle">${sep.title}</text>
+`;
+        }
+        break;
+      }
+      case "sprite": {
+        const sp = widget;
+        const lines = sprites.get(sp.name);
+        if (lines && lines.length > 0) {
+          const pixelSize = 1.5;
+          svg += `  <g transform="translate(${x}, ${y})">
+`;
+          lines.forEach((line, r) => {
+            for (let c = 0; c < line.length; c++) {
+              const char = line[c];
+              if (char !== ".") {
+                svg += `    <rect x="${c * pixelSize}" y="${r * pixelSize}" width="${pixelSize}" height="${pixelSize}" fill="#4b5563" />
+`;
+              }
+            }
+          });
+          svg += `  </g>
+`;
+        } else {
+          svg += `  <g transform="translate(${x}, ${y + (h - 14) / 2})" stroke="#4b5563" stroke-width="1.5" fill="none" stroke-linejoin="round">
+`;
+          svg += `    <path d="M 1.5,12 C 1.5,12 1.5,2 1.5,2 L 5.5,2 L 7.5,4.5 L 12.5,4.5 L 12.5,12 Z" />
+`;
+          svg += `  </g>
+`;
+        }
+        break;
+      }
+      case "grid": {
+        const grid = widget;
+        const rows = grid.rows;
+        const R = rows.length;
+        if (grid.lineStyle === "all" || grid.lineStyle === "external") {
+          svg += `  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" ry="4" fill="none" stroke="#d1d5db" stroke-width="1.2" />
+`;
+        }
+        for (let r = 0; r < rows.length; r++) {
+          for (let c = 0; c < rows[r].length; c++) {
+            const child = rows[r][c];
+            if (child) {
+              svg += this.renderWidget(child, diagram);
+            }
+          }
+        }
+        if (grid.lineStyle === "all" || grid.lineStyle === "vertical" || grid.lineStyle === "horizontal") {
+          if (grid.lineStyle === "all" || grid.lineStyle === "horizontal") {
+            const uniqueYSet = /* @__PURE__ */ new Set();
+            for (let r = 0; r < rows.length - 1; r++) {
+              if (rows[r][0]) {
+                uniqueYSet.add((rows[r][0].y || 0) + (rows[r][0].height || 0) + 4);
+              }
+            }
+            uniqueYSet.forEach((dividerY) => {
+              svg += `  <line x1="${x + 6}" y1="${dividerY}" x2="${x + w - 6}" y2="${dividerY}" stroke="#e5e7eb" stroke-width="1" />
+`;
+            });
+          }
+          if (grid.lineStyle === "all" || grid.lineStyle === "vertical") {
+            const uniqueXSet = /* @__PURE__ */ new Set();
+            for (let r = 0; r < rows.length; r++) {
+              for (let c = 0; c < rows[r].length - 1; c++) {
+                const child = rows[r][c];
+                if (child) {
+                  uniqueXSet.add((child.x || 0) + (child.width || 0) + 6);
+                }
+              }
+            }
+            uniqueXSet.forEach((dividerX) => {
+              svg += `  <line x1="${dividerX}" y1="${y + 6}" x2="${dividerX}" y2="${y + h - 6}" stroke="#e5e7eb" stroke-width="1" />
+`;
+            });
+          }
+        }
+        break;
+      }
+      case "groupbox": {
+        const gb = widget;
+        svg += `  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" ry="4" fill="none" stroke="#d1d5db" stroke-width="1.2" />
+`;
+        const titleW = estimateTextWidth(gb.title, 11);
+        svg += `  <rect x="${x + 8}" y="${y - 8}" width="${titleW + 8}" height="16" fill="${diagram.backgroundColor || "#ffffff"}" />
+`;
+        svg += `  <text x="${x + 12}" y="${y + 4}" fill="#374151" font-size="11" font-weight="bold">${gb.title}</text>
+`;
+        svg += this.renderWidget(gb.content, diagram);
+        break;
+      }
+      case "tabs": {
+        const tabs = widget;
+        const fontSizeTabs = 12;
+        const padding = 10;
+        const gap = 8;
+        if (tabs.vertical) {
+          let currentItemY = y + padding;
+          tabs.tabs.forEach((tab, idx) => {
+            const itemH = 22;
+            const isSelected = idx === tabs.activeIndex;
+            if (isSelected) {
+              svg += `  <rect x="${x}" y="${currentItemY}" width="${w}" height="${itemH}" fill="#ffffff" stroke="#d1d5db" stroke-width="1" />
+`;
+              svg += `  <line x1="${x + w}" y1="${currentItemY + 0.5}" x2="${x + w}" y2="${currentItemY + itemH - 0.5}" stroke="#ffffff" stroke-width="1.5" />
+`;
+              svg += renderTextWithIcons(tab, x + 8, currentItemY, "#2563eb", this.fontFamily, fontSizeTabs, "left", itemH);
+            } else {
+              svg += `  <rect x="${x}" y="${currentItemY}" width="${w - 2}" height="${itemH}" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1" />
+`;
+              svg += renderTextWithIcons(tab, x + 6, currentItemY, "#4b5563", this.fontFamily, fontSizeTabs, "left", itemH);
+            }
+            currentItemY += itemH + 4;
+          });
+        } else {
+          let currentItemX = x + padding;
+          tabs.tabs.forEach((tab, idx) => {
+            const tabW = estimateTextWidth(tab, fontSizeTabs) + 16;
+            const itemH = h - 2;
+            const isSelected = idx === tabs.activeIndex;
+            if (isSelected) {
+              svg += `  <rect x="${currentItemX}" y="${y}" width="${tabW}" height="${itemH}" fill="#ffffff" stroke="#d1d5db" stroke-width="1" />
+`;
+              svg += `  <line x1="${currentItemX + 0.5}" y1="${y + itemH}" x2="${currentItemX + tabW - 0.5}" y2="${y + itemH}" stroke="#ffffff" stroke-width="1.5" />
+`;
+              svg += renderTextWithIcons(tab, currentItemX + tabW / 2, y, "#2563eb", this.fontFamily, fontSizeTabs, "center", itemH);
+            } else {
+              svg += `  <rect x="${currentItemX}" y="${y + 2}" width="${tabW}" height="${itemH - 2}" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1" />
+`;
+              svg += renderTextWithIcons(tab, currentItemX + tabW / 2, y + 2, "#4b5563", this.fontFamily, fontSizeTabs, "center", itemH - 2);
+            }
+            currentItemX += tabW + gap;
+          });
+        }
+        break;
+      }
+      case "menu": {
+        const menu = widget;
+        const fontSizeMenu = 12;
+        svg += `  <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#f3f4f6" rx="3" ry="3" stroke="#e5e7eb" stroke-width="0.8" />
+`;
+        let currentItemX = x + 8;
+        menu.items.forEach((item, idx) => {
+          const itemW = estimateTextWidth(item, fontSizeMenu) + 16;
+          const isOpen = idx === menu.openIndex;
+          if (isOpen) {
+            svg += `  <rect x="${currentItemX}" y="${y + 2}" width="${itemW}" height="${h - 4}" fill="#ffffff" rx="2" stroke="#d1d5db" stroke-width="0.8" />
+`;
+            svg += renderTextWithIcons(item, currentItemX + itemW / 2, y, "#2563eb", this.fontFamily, fontSizeMenu, "center", h);
+            if (menu.dropdownItems && menu.dropdownItems.length > 0) {
+              const ddItemH = 20;
+              let ddW = 120;
+              menu.dropdownItems.forEach((ddItem) => {
+                ddW = Math.max(ddW, estimateTextWidth(ddItem, fontSizeMenu) + 32);
+              });
+              const ddH = menu.dropdownItems.length * ddItemH + 8;
+              const ddX = currentItemX;
+              const ddY = y + h;
+              let ddSvg = "";
+              ddSvg += `  <g filter="url(#dropdown-shadow)">
+`;
+              ddSvg += `    <rect x="${ddX}" y="${ddY}" width="${ddW}" height="${ddH}" rx="4" ry="4" fill="#ffffff" stroke="#d1d5db" stroke-width="1" />
+`;
+              ddSvg += `  </g>
+`;
+              menu.dropdownItems.forEach((ddItem, ddIdx) => {
+                const ddItemY = ddY + 4 + ddIdx * ddItemH;
+                if (ddItem === "-") {
+                  ddSvg += `    <line x1="${ddX + 4}" y1="${ddItemY + ddItemH / 2}" x2="${ddX + ddW - 4}" y2="${ddItemY + ddItemH / 2}" stroke="#e5e7eb" stroke-width="1" />
+`;
+                } else {
+                  ddSvg += renderTextWithIcons(ddItem, ddX + 12, ddItemY, "#374151", this.fontFamily, fontSizeMenu, "left", ddItemH);
+                }
+              });
+              this.overlays.push(ddSvg);
+            }
+          } else {
+            svg += renderTextWithIcons(item, currentItemX + itemW / 2, y, "#374151", this.fontFamily, fontSizeMenu, "center", h);
+          }
+          currentItemX += itemW;
+        });
+        break;
+      }
+      case "tree": {
+        const tree = widget;
+        const nodes = tree.nodes;
+        const N = nodes.length;
+        if (tree.lineStyle === "all" || tree.lineStyle === "external") {
+          svg += `  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" ry="4" fill="none" stroke="#d1d5db" stroke-width="1.2" />
+`;
+        }
+        for (let n = 0; n < N; n++) {
+          const node = nodes[n];
+          const indentation = (node.level - 1) * 16;
+          const nodeY = node.cells[0]?.y || y;
+          const nodeH = node.cells[0]?.height || 18;
+          const lineX = x + 8 + indentation;
+          const centerY = nodeY + nodeH / 2;
+          if (node.level > 1) {
+            let parentY = y + 8;
+            for (let prev = n - 1; prev >= 0; prev--) {
+              if (nodes[prev].level < node.level) {
+                parentY = (nodes[prev].cells[0]?.y || y) + (nodes[prev].cells[0]?.height || 18) / 2;
+                break;
+              }
+            }
+            svg += `  <line x1="${lineX - 8}" y1="${parentY}" x2="${lineX - 8}" y2="${centerY}" stroke="#9ca3af" stroke-width="1" stroke-dasharray="2,2" />
+`;
+            svg += `  <line x1="${lineX - 8}" y1="${centerY}" x2="${lineX}" y2="${centerY}" stroke="#9ca3af" stroke-width="1" stroke-dasharray="2,2" />
+`;
+          }
+          const hasChildren = n + 1 < N && nodes[n + 1].level > node.level;
+          if (hasChildren) {
+            svg += `  <rect x="${lineX - 4}" y="${centerY - 4}" width="8" height="8" fill="#ffffff" stroke="#6b7280" stroke-width="1" />
+`;
+            svg += `  <line x1="${lineX - 2}" y1="${centerY}" x2="${lineX + 2}" y2="${centerY}" stroke="#374151" stroke-width="1" />
+`;
+          }
+          node.cells.forEach((cell) => {
+            svg += this.renderWidget(cell, diagram);
+          });
+        }
+        if (tree.lineStyle === "all" || tree.lineStyle === "vertical" || tree.lineStyle === "horizontal") {
+          if (tree.lineStyle === "all" || tree.lineStyle === "horizontal") {
+            for (let n = 0; n < N - 1; n++) {
+              const node = nodes[n];
+              if (node.cells[0]) {
+                const divY = (node.cells[0].y || 0) + (node.cells[0].height || 0) + 3;
+                svg += `  <line x1="${x + 6}" y1="${divY}" x2="${x + w - 6}" y2="${divY}" stroke="#e5e7eb" stroke-width="1" />
+`;
+              }
+            }
+          }
+          if (tree.lineStyle === "all" || tree.lineStyle === "vertical") {
+            const uniqueXSet = /* @__PURE__ */ new Set();
+            for (let n = 0; n < N; n++) {
+              for (let c = 0; c < nodes[n].cells.length - 1; c++) {
+                const child = nodes[n].cells[c];
+                if (child) {
+                  uniqueXSet.add((child.x || 0) + (child.width || 0) + 6);
+                }
+              }
+            }
+            uniqueXSet.forEach((dividerX) => {
+              svg += `  <line x1="${dividerX}" y1="${y + 6}" x2="${dividerX}" y2="${y + h - 6}" stroke="#e5e7eb" stroke-width="1" />
+`;
+            });
+          }
+        }
+        break;
+      }
+      case "scroll": {
+        const scr = widget;
+        svg += this.renderWidget(scr.content, diagram);
+        if (scr.vertical) {
+          const sbX = x + w - 12;
+          svg += `  <rect x="${sbX}" y="${y}" width="12" height="${h}" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="0.8" />
+`;
+          svg += `  <rect x="${sbX + 2}" y="${y + 14}" width="8" height="${h - 28}" rx="4" ry="4" fill="#d1d5db" />
+`;
+          svg += `  <path d="M ${sbX + 6},${y + 4} L ${sbX + 3},${y + 8} L ${sbX + 9},${y + 8} Z" fill="#4b5563" />
+`;
+          svg += `  <path d="M ${sbX + 6},${y + h - 4} L ${sbX + 3},${y + h - 8} L ${sbX + 9},${y + h - 8} Z" fill="#4b5563" />
+`;
+        }
+        if (scr.horizontal) {
+          const sbY = y + h - 12;
+          svg += `  <rect x="${x}" y="${sbY}" width="${w}" height="12" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="0.8" />
+`;
+          svg += `  <rect x="${x + 14}" y="${sbY + 2}" width="${w - 28}" height="8" rx="4" ry="4" fill="#d1d5db" />
+`;
+          svg += `  <path d="M ${x + 4},${sbY + 6} L ${x + 8},${sbY + 3} L ${x + 8},${sbY + 9} Z" fill="#4b5563" />
+`;
+          svg += `  <path d="M ${x + w - 4},${sbY + 6} L ${x + w - 8},${sbY + 3} L ${x + w - 8},${sbY + 9} Z" fill="#4b5563" />
+`;
+        }
+        break;
+      }
+    }
+    return svg;
+  }
+};
+
 // src/index.ts
 function renderSequenceDiagram(content) {
   const parser = new SequenceParser();
@@ -5132,6 +6929,16 @@ function renderComponentDiagram(content) {
     return renderError(e);
   }
 }
+function renderSaltDiagram(content) {
+  const parser = new SaltParser();
+  const renderer = new SaltRenderer();
+  try {
+    const diagram = parser.parse(content);
+    return renderer.render(diagram);
+  } catch (e) {
+    return renderError(e);
+  }
+}
 function renderError(e) {
   const errorMsg = e.message || "Unknown error occurred during parsing";
   const escapedError = errorMsg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -5145,6 +6952,8 @@ function renderError(e) {
     `.trim();
 }
 function render(content) {
+  const isSalt = /@startsalt/i.test(content) || /\{\{salt/i.test(content);
+  if (isSalt) return renderSaltDiagram(content);
   const hasSequenceKeywords = /\b(participant|actor|boundary|control|entity|collections|queue)\b/.test(content);
   const hasComponentKeywords = /\b(component|interface|package|node|cloud|database|frame|folder)\b/.test(content);
   const hasComponentBrackets = /^\s*\[[^\]\r\n]+\]/m.test(content);
@@ -5187,6 +6996,7 @@ if (typeof window !== "undefined") {
   window.snapuml = {
     renderSequenceDiagram,
     renderComponentDiagram,
+    renderSaltDiagram,
     render,
     renderAll,
     initialize
@@ -5195,6 +7005,7 @@ if (typeof window !== "undefined") {
 var index_default = {
   renderSequenceDiagram,
   renderComponentDiagram,
+  renderSaltDiagram,
   render,
   renderAll,
   initialize
@@ -5205,5 +7016,6 @@ export {
   render,
   renderAll,
   renderComponentDiagram,
+  renderSaltDiagram,
   renderSequenceDiagram
 };
