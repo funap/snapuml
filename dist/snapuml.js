@@ -21,13 +21,18 @@ var snapuml = (() => {
   // src/index.ts
   var index_exports = {};
   __export(index_exports, {
+    WireLayout: () => WireLayout,
+    WireParser: () => WireParser,
+    WireRenderer: () => WireRenderer,
     default: () => index_default,
     initialize: () => initialize,
     render: () => render,
     renderAll: () => renderAll,
     renderComponentDiagram: () => renderComponentDiagram,
     renderSaltDiagram: () => renderSaltDiagram,
-    renderSequenceDiagram: () => renderSequenceDiagram
+    renderSequenceDiagram: () => renderSequenceDiagram,
+    renderWireDiagram: () => renderWireDiagram,
+    renderWireLayout: () => renderWireLayout
   });
 
   // src/core/parser/Token.ts
@@ -1160,6 +1165,10 @@ var snapuml = (() => {
   var cachedCanvasCtx = void 0;
   function getTextWidth(text, fontSize = 13, fontFamily = "sans-serif") {
     if (!text) return 0;
+    const lines = text.split(/\\n|\n/);
+    if (lines.length > 1) {
+      return Math.max(...lines.map((l) => getTextWidth(l, fontSize, fontFamily)));
+    }
     const plainText = stripRichText(text);
     if (typeof document !== "undefined") {
       try {
@@ -7180,6 +7189,2626 @@ var snapuml = (() => {
     }
   };
 
+  // src/diagrams/wire/WireDiagram.ts
+  function normalizeFace(face) {
+    if (!face) return void 0;
+    const lower = face.toLowerCase();
+    if (lower === "top" || lower === "n") return "top";
+    if (lower === "bottom" || lower === "s") return "bottom";
+    if (lower === "left" || lower === "w") return "left";
+    if (lower === "right" || lower === "e") return "right";
+    return void 0;
+  }
+  var WireDiagram = class {
+    constructor() {
+      this.type = "wire";
+      this.boards = /* @__PURE__ */ new Map();
+      this.components = /* @__PURE__ */ new Map();
+      this.wires = [];
+      this.callouts = [];
+    }
+    getComponent(id) {
+      return this.components.get(id);
+    }
+    getOrCreateComponent(id, boardId) {
+      let comp = this.components.get(id);
+      if (!comp) {
+        comp = {
+          id,
+          label: id,
+          boardId,
+          isEdge: false
+        };
+        this.components.set(id, comp);
+        if (boardId) {
+          const board = this.boards.get(boardId);
+          if (board && !board.componentIds.includes(id)) {
+            board.componentIds.push(id);
+          }
+        }
+      } else if (boardId && !comp.boardId) {
+        comp.boardId = boardId;
+        const board = this.boards.get(boardId);
+        if (board && !board.componentIds.includes(id)) {
+          board.componentIds.push(id);
+        }
+      }
+      return comp;
+    }
+  };
+
+  // src/diagrams/wire/WireParser.ts
+  var WireParser = class {
+    parse(content) {
+      const diagram = new WireDiagram();
+      const preprocessed = this.stripComments(content);
+      const tokens = this.tokenize(preprocessed);
+      this.parseTokens(tokens, diagram);
+      return diagram;
+    }
+    stripComments(source) {
+      let cleaned = source.replace(/\/\*[\s\S]*?\*\//g, "");
+      const lines = cleaned.split("\n");
+      const resultLines = [];
+      for (let line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("@") || trimmed.startsWith("!pragma")) {
+          continue;
+        }
+        let inQuote = false;
+        let quoteChar = "";
+        let commentStart = -1;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if ((ch === '"' || ch === "'") && (i === 0 || line[i - 1] !== "\\")) {
+            if (!inQuote) {
+              inQuote = true;
+              quoteChar = ch;
+            } else if (quoteChar === ch) {
+              inQuote = false;
+            }
+          } else if (!inQuote) {
+            if (ch === "#") {
+              const prefix = line.substring(0, i);
+              if (!/color:\s*$/i.test(prefix)) {
+                commentStart = i;
+                break;
+              }
+            } else if (ch === "/" && line[i + 1] === "/") {
+              commentStart = i;
+              break;
+            } else if (ch === "'") {
+              commentStart = i;
+              break;
+            }
+          }
+        }
+        if (commentStart >= 0) {
+          line = line.substring(0, commentStart);
+        }
+        if (line.trim().length > 0) {
+          resultLines.push(line);
+        }
+      }
+      return resultLines.join("\n");
+    }
+    tokenize(text) {
+      const tokens = [];
+      let i = 0;
+      const len = text.length;
+      while (i < len) {
+        const ch = text[i];
+        if (ch === "\n" || ch === ";") {
+          if (tokens.length === 0 || tokens[tokens.length - 1] !== "\n") {
+            tokens.push("\n");
+          }
+          i++;
+          continue;
+        }
+        if (/[ \t\r]/.test(ch)) {
+          i++;
+          continue;
+        }
+        if (ch === '"' || ch === "'") {
+          let str = ch;
+          const quote = ch;
+          i++;
+          while (i < len) {
+            const c = text[i];
+            str += c;
+            if (c === quote && text[i - 1] !== "\\") {
+              i++;
+              break;
+            }
+            i++;
+          }
+          tokens.push(str);
+          continue;
+        }
+        if (ch === "{" || ch === "}" || ch === "[" || ch === "]") {
+          tokens.push(ch);
+          i++;
+          continue;
+        }
+        let token = "";
+        while (i < len && !/[ \t\r\n;]/.test(text[i]) && !`{}[]"'`.includes(text[i])) {
+          token += text[i];
+          i++;
+        }
+        if (token) {
+          tokens.push(token);
+        }
+      }
+      return tokens;
+    }
+    parseTokens(tokens, diagram) {
+      let i = 0;
+      let currentBoardId = void 0;
+      while (i < tokens.length) {
+        const token = tokens[i];
+        if (token === "\n") {
+          i++;
+          continue;
+        }
+        if (token === "}") {
+          if (currentBoardId) {
+            currentBoardId = void 0;
+          }
+          i++;
+          continue;
+        }
+        if (token.toLowerCase() === "board") {
+          i++;
+          const boardId = tokens[i++];
+          let label = boardId;
+          if (i < tokens.length && (tokens[i].startsWith('"') || tokens[i].startsWith("'"))) {
+            label = this.unquote(tokens[i++]);
+          }
+          diagram.boards.set(boardId, {
+            id: boardId,
+            label,
+            componentIds: []
+          });
+          if (i < tokens.length && tokens[i] === "{") {
+            currentBoardId = boardId;
+            i++;
+          }
+          continue;
+        }
+        if (token.toLowerCase() === "note:" && currentBoardId) {
+          i++;
+          if (i < tokens.length && tokens[i] !== "\n") {
+            const board = diagram.boards.get(currentBoardId);
+            if (board) {
+              board.note = this.unquote(tokens[i]);
+            }
+            i++;
+          }
+          continue;
+        }
+        if (token.toLowerCase() === "warning" || token.toLowerCase() === "note") {
+          const calloutType = token.toLowerCase();
+          i++;
+          if (i < tokens.length && tokens[i].toLowerCase() === "for") {
+            i++;
+            const targetRef = tokens[i++];
+            const { nodeId, face } = this.parseRef(targetRef);
+            let text = "";
+            if (i < tokens.length && (tokens[i].startsWith('"') || tokens[i].startsWith("'"))) {
+              text = this.unquote(tokens[i++]);
+            }
+            diagram.callouts.push({
+              id: `callout_${diagram.callouts.length + 1}`,
+              type: calloutType,
+              targetId: nodeId,
+              targetFace: face,
+              text
+            });
+            continue;
+          } else if (i < tokens.length && (tokens[i].startsWith('"') || tokens[i].startsWith("'"))) {
+            const text = this.unquote(tokens[i++]);
+            let nearId = void 0;
+            if (i < tokens.length && tokens[i] === "@") {
+              i++;
+              if (i < tokens.length && /^near\((.*?)\)$/i.test(tokens[i])) {
+                const match = tokens[i].match(/^near\((.*?)\)$/i);
+                nearId = match ? match[1].trim() : void 0;
+                i++;
+              }
+            }
+            diagram.callouts.push({
+              id: `callout_${diagram.callouts.length + 1}`,
+              type: calloutType,
+              targetId: nearId || "",
+              nearId,
+              text
+            });
+            continue;
+          }
+        }
+        let arrowIndex = -1;
+        for (let j = i; j < tokens.length; j++) {
+          if (tokens[j] === "\n" || tokens[j] === "{" || tokens[j] === "}") break;
+          if (this.isArrow(tokens[j])) {
+            arrowIndex = j;
+            break;
+          }
+        }
+        if (arrowIndex >= 0) {
+          i = this.parseWiringOrBus(tokens, i, arrowIndex, currentBoardId, diagram);
+          continue;
+        }
+        i = this.parseComponentDecl(tokens, i, currentBoardId, diagram);
+      }
+    }
+    isArrow(token) {
+      return /^[<]?[-=]+[>]?$/.test(token);
+    }
+    parseArrow(token) {
+      const isDouble = token.includes("=");
+      const inner = token.replace(/^[<]/, "").replace(/[>]$/, "");
+      const distance = Math.max(1, inner.length);
+      const hasStart = token.startsWith("<");
+      const hasEnd = token.endsWith(">");
+      let direction = "none";
+      if (hasStart && hasEnd) {
+        direction = "bidirectional";
+      } else if (hasEnd) {
+        direction = "forward";
+      } else if (hasStart) {
+        direction = "backward";
+      }
+      return {
+        raw: token,
+        direction,
+        distance,
+        isDouble
+      };
+    }
+    parseRef(raw) {
+      const parts = raw.split(".");
+      const last = parts[parts.length - 1];
+      const face = normalizeFace(last);
+      if (face && parts.length > 1) {
+        const remaining = parts.slice(0, parts.length - 1);
+        if (remaining.length > 1) {
+          return {
+            boardId: remaining[0],
+            nodeId: remaining.slice(1).join("."),
+            face
+          };
+        } else {
+          return {
+            nodeId: remaining[0],
+            face
+          };
+        }
+      } else {
+        if (parts.length > 1) {
+          return {
+            boardId: parts[0],
+            nodeId: parts.slice(1).join(".")
+          };
+        } else {
+          return {
+            nodeId: raw
+          };
+        }
+      }
+    }
+    parseWiringOrBus(tokens, startIdx, arrowIdx, currentBoardId, diagram) {
+      const sourceToken = tokens[startIdx];
+      const { boardId: srcBoardId, nodeId: srcNodeId, face: srcFace } = this.parseRef(sourceToken);
+      let srcLabel = void 0;
+      if (startIdx + 1 < arrowIdx && (tokens[startIdx + 1].startsWith('"') || tokens[startIdx + 1].startsWith("'"))) {
+        srcLabel = this.unquote(tokens[startIdx + 1]);
+      }
+      const arrow = this.parseArrow(tokens[arrowIdx]);
+      let i = arrowIdx + 1;
+      const srcComp = diagram.getOrCreateComponent(srcNodeId, srcBoardId || currentBoardId);
+      if (srcLabel) srcComp.label = srcLabel;
+      if (i < tokens.length && tokens[i].toLowerCase() === "bus") {
+        i++;
+        const busId = tokens[i++];
+        let protocol2 = void 0;
+        if (i < tokens.length && tokens[i].startsWith(":")) {
+          const protoTokens = [];
+          while (i < tokens.length && tokens[i] !== "{" && tokens[i] !== "\n") {
+            protoTokens.push(tokens[i]);
+            i++;
+          }
+          protocol2 = this.parseProtocol(protoTokens.join(" "));
+        }
+        const busChildren = [];
+        while (i < tokens.length && tokens[i] === "\n") i++;
+        if (i < tokens.length && tokens[i] === "{") {
+          i++;
+          while (i < tokens.length && tokens[i] !== "}") {
+            if (tokens[i] === "\n") {
+              i++;
+              continue;
+            }
+            if (this.isArrow(tokens[i])) {
+              const childArrow = this.parseArrow(tokens[i++]);
+              const targetToken2 = tokens[i++];
+              const { boardId: chBoardId, nodeId: chNodeId, face: chFace } = this.parseRef(targetToken2);
+              let label2 = void 0;
+              if (i < tokens.length && (tokens[i].startsWith('"') || tokens[i].startsWith("'"))) {
+                label2 = this.unquote(tokens[i++]);
+              }
+              let noteOrAddr = void 0;
+              if (i < tokens.length && tokens[i].startsWith("(")) {
+                let parenStr = tokens[i++];
+                while (!parenStr.endsWith(")") && i < tokens.length) {
+                  parenStr += " " + tokens[i++];
+                }
+                noteOrAddr = parenStr.replace(/^\(/, "").replace(/\)$/, "").trim();
+              }
+              const childComp = diagram.getOrCreateComponent(chNodeId, chBoardId || currentBoardId);
+              if (label2) childComp.label = label2;
+              busChildren.push({
+                arrow: childArrow,
+                targetId: chNodeId,
+                targetLabel: label2,
+                targetFace: chFace,
+                noteOrAddr
+              });
+            } else {
+              i++;
+            }
+          }
+          if (i < tokens.length && tokens[i] === "}") {
+            i++;
+          }
+        }
+        diagram.wires.push({
+          id: `wire_${diagram.wires.length + 1}`,
+          sourceId: srcNodeId,
+          sourceFace: srcFace,
+          targetId: busId,
+          arrow,
+          protocol: protocol2,
+          isBus: true,
+          busId,
+          busChildren
+        });
+        return i;
+      }
+      const targetToken = tokens[i++];
+      let { boardId: tgtBoardId, nodeId: tgtNodeId, face: tgtFace } = this.parseRef(targetToken);
+      let label = void 0;
+      if (i < tokens.length && (tokens[i].startsWith('"') || tokens[i].startsWith("'"))) {
+        label = this.unquote(tokens[i++]);
+      }
+      if (i < tokens.length && tokens[i].startsWith(".")) {
+        const faceStr = tokens[i++].substring(1);
+        tgtFace = normalizeFace(faceStr) || tgtFace;
+      }
+      let isEdge = false;
+      let edgeFace = void 0;
+      if (i < tokens.length && tokens[i].startsWith("@")) {
+        let edgeToken = tokens[i++];
+        if (edgeToken === "@" && i < tokens.length) {
+          edgeToken += tokens[i++];
+        }
+        if (edgeToken.toLowerCase().startsWith("@edge")) {
+          isEdge = true;
+          const match = edgeToken.match(/@edge(?:\.([a-zA-Z]+))?/i);
+          if (match && match[1]) {
+            edgeFace = normalizeFace(match[1]);
+          }
+        }
+      }
+      const targetComp = diagram.getOrCreateComponent(tgtNodeId, tgtBoardId || currentBoardId);
+      if (label) targetComp.label = label;
+      if (isEdge) {
+        targetComp.isEdge = true;
+        targetComp.edgeFace = edgeFace || targetComp.edgeFace;
+      }
+      let protocol = void 0;
+      let connector = void 0;
+      let note = void 0;
+      while (i < tokens.length) {
+        const tk = tokens[i];
+        if (tk === "\n" || tk === "}") break;
+        if (tk.startsWith(":")) {
+          const protoTokens = [tk];
+          i++;
+          while (i < tokens.length && tokens[i] !== "via" && tokens[i] !== "[" && tokens[i] !== "\n" && tokens[i] !== "}") {
+            protoTokens.push(tokens[i]);
+            i++;
+          }
+          protocol = this.parseProtocol(protoTokens.join(" "));
+        } else if (tk.toLowerCase() === "via") {
+          i++;
+          let connectorStr = "";
+          while (i < tokens.length && tokens[i] !== "[" && tokens[i] !== "\n" && tokens[i] !== "}") {
+            connectorStr += tokens[i] + " ";
+            i++;
+          }
+          const match = connectorStr.match(/connector\s*\(\s*(?:"([^"]*)"|'([^']*)')\s*\)/i);
+          if (match) {
+            connector = match[1] || match[2];
+          }
+        } else if (tk === "[") {
+          i++;
+          let noteTokens = [];
+          while (i < tokens.length && tokens[i] !== "]" && tokens[i] !== "\n") {
+            noteTokens.push(tokens[i]);
+            i++;
+          }
+          if (i < tokens.length && tokens[i] === "]") {
+            i++;
+          }
+          const rawNote = noteTokens.join(" ").replace(/^note:\s*/i, "").trim();
+          note = this.unquote(rawNote);
+        } else {
+          break;
+        }
+      }
+      diagram.wires.push({
+        id: `wire_${diagram.wires.length + 1}`,
+        sourceId: srcNodeId,
+        sourceFace: srcFace,
+        targetId: tgtNodeId,
+        targetFace: tgtFace,
+        arrow,
+        protocol,
+        connector,
+        note
+      });
+      return i;
+    }
+    parseComponentDecl(tokens, startIdx, currentBoardId, diagram) {
+      let i = startIdx;
+      const compRef = tokens[i++];
+      const { boardId, nodeId } = this.parseRef(compRef);
+      const comp = diagram.getOrCreateComponent(nodeId, boardId || currentBoardId);
+      if (i < tokens.length && (tokens[i].startsWith('"') || tokens[i].startsWith("'"))) {
+        comp.label = this.unquote(tokens[i++]);
+      }
+      if (i < tokens.length && tokens[i].startsWith("@")) {
+        let edgeToken = tokens[i++];
+        if (edgeToken === "@" && i < tokens.length) {
+          edgeToken += tokens[i++];
+        }
+        if (edgeToken.toLowerCase().startsWith("@edge")) {
+          comp.isEdge = true;
+          const match = edgeToken.match(/@edge(?:\.([a-zA-Z]+))?/i);
+          if (match && match[1]) {
+            comp.edgeFace = normalizeFace(match[1]);
+          }
+        }
+      }
+      let peekIdx = i;
+      while (peekIdx < tokens.length && tokens[peekIdx] === "\n") peekIdx++;
+      if (peekIdx < tokens.length && tokens[peekIdx] === "{") {
+        i = peekIdx + 1;
+        while (i < tokens.length && tokens[i] !== "}") {
+          const key = tokens[i++];
+          if (key === "\n") continue;
+          if (key.toLowerCase() === "width:" && i < tokens.length) {
+            const dim = this.parseDimension(tokens[i++]);
+            comp.userWidth = dim.value;
+            comp.widthUnit = dim.unit;
+          } else if (key.toLowerCase() === "height:" && i < tokens.length) {
+            const dim = this.parseDimension(tokens[i++]);
+            comp.userHeight = dim.value;
+            comp.heightUnit = dim.unit;
+          } else if (key.toLowerCase() === "color:" && i < tokens.length) {
+            comp.color = tokens[i++];
+          } else if (key.toLowerCase() === "note:" && i < tokens.length) {
+            comp.note = this.unquote(tokens[i++]);
+          }
+        }
+        if (i < tokens.length && tokens[i] === "}") {
+          i++;
+        }
+      }
+      return i;
+    }
+    parseDimension(str) {
+      const match = str.match(/^(\d+(?:\.\d+)?)\s*(px|slots)?$/i);
+      if (match) {
+        const value = parseFloat(match[1]);
+        const unit = match[2]?.toLowerCase() === "slots" ? "slots" : "px";
+        return { value, unit };
+      }
+      return { value: parseFloat(str) || 0, unit: "px" };
+    }
+    parseProtocol(raw) {
+      const cleaned = raw.replace(/^:\s*/, "").trim();
+      const match = cleaned.match(/^([\w-]+)(?:\s*\(([\s\S]*)\))?$/);
+      const params = /* @__PURE__ */ new Map();
+      if (match) {
+        const name = match[1].toLowerCase();
+        const args = match[2] ? match[2].trim() : void 0;
+        if (args) {
+          const parts = args.split(",");
+          for (const part of parts) {
+            const kv = part.split(":");
+            if (kv.length === 2) {
+              params.set(kv[0].trim(), kv[1].trim());
+            } else {
+              params.set(part.trim(), part.trim());
+            }
+          }
+        }
+        return { name, raw: cleaned, args, params };
+      }
+      return { name: cleaned.toLowerCase(), raw: cleaned, params };
+    }
+    unquote(str) {
+      str = str.trim();
+      if (str.startsWith('"') && str.endsWith('"') || str.startsWith("'") && str.endsWith("'")) {
+        return str.substring(1, str.length - 1);
+      }
+      return str;
+    }
+  };
+
+  // src/diagrams/wire/WireLayout.ts
+  var DEFAULT_WIRE_METRICS = {
+    NodeMinWidth: 140,
+    NodeMinHeight: 60,
+    SlotPitch: 80,
+    GapSlotSize: 100,
+    GutterWidth: 80,
+    EdgeOverhang: 0.5,
+    JumperRadius: 5,
+    BusTrunkWidth: 4,
+    WireWidth: 1.5,
+    BoardPadding: 50,
+    BoardHeaderHeight: 40
+  };
+  var WireLayout = class {
+    constructor(metrics = {}) {
+      this.metrics = { ...DEFAULT_WIRE_METRICS, ...metrics };
+    }
+    layout(diagram) {
+      if (diagram.components.size === 0) {
+        return {
+          width: 400,
+          height: 200,
+          boards: [],
+          components: [],
+          wires: [],
+          buses: [],
+          callouts: [],
+          metrics: this.metrics
+        };
+      }
+      const primaryAnchorId = this.findPrimaryAnchor(diagram);
+      const anchorColSpans = this.calculateAnchorColSpans(diagram);
+      const gridPositions = this.resolveGridPositions(diagram, primaryAnchorId, anchorColSpans);
+      const componentSizes = this.calculateComponentSizes(diagram, gridPositions);
+      const placedComponents = this.calculateConcretePositions(diagram, gridPositions, componentSizes, primaryAnchorId, anchorColSpans);
+      const placedBoards = this.calculateBoardsAndAlignEdges(diagram, placedComponents);
+      for (const wire of diagram.wires) {
+        const src = placedComponents.find((c) => c.id === wire.sourceId);
+        const tgt = placedComponents.find((c) => c.id === wire.targetId);
+        if (src && tgt) {
+          if (src.isEdge && (!tgt.boardId || tgt.boardId !== src.boardId)) {
+            if (wire.arrow.direction === "bidirectional" || wire.sourceFace === "left" || !wire.sourceFace && tgt.gridCol < src.gridCol) {
+              tgt.y = src.y + (src.height - tgt.height) / 2;
+            }
+          } else if (tgt.isEdge && (!src.boardId || src.boardId !== tgt.boardId)) {
+            if (wire.arrow.direction === "bidirectional" || wire.targetFace === "left" || !wire.targetFace && src.gridCol < tgt.gridCol) {
+              src.y = tgt.y + (tgt.height - src.height) / 2;
+            }
+          }
+        }
+      }
+      const primaryAnchor = placedComponents.find((c) => c.id === primaryAnchorId);
+      if (primaryAnchor) {
+        for (const wire of diagram.wires) {
+          if (wire.sourceId === primaryAnchor.id && wire.sourceFace === "right" && wire.targetFace === "top") {
+            const tgt = placedComponents.find((c) => c.id === wire.targetId);
+            if (tgt) {
+              const pinY = primaryAnchor.y + primaryAnchor.height * 3 / 4;
+              tgt.y = pinY + 45;
+            }
+          }
+        }
+      }
+      this.assignPorts(diagram, placedComponents);
+      const { wires, buses } = this.routeWiresAndBuses(diagram, placedComponents, placedBoards);
+      const callouts = this.placeCallouts(diagram, placedComponents, placedBoards, wires);
+      for (const call of callouts) {
+        const comp = placedComponents.find((c) => c.id === call.targetId);
+        if (comp && comp.boardId) {
+          const board = placedBoards.find((b) => b.id === comp.boardId);
+          if (board) {
+            if (call.x >= board.x && call.x < board.x + board.width) {
+              const rightNeeded = call.x + call.width + 20;
+              if (rightNeeded > board.x + board.width) {
+                board.width = rightNeeded - board.x;
+              }
+            }
+            if (call.y >= board.y && call.y < board.y + board.height) {
+              const bottomNeeded = call.y + call.height + 20;
+              if (bottomNeeded > board.y + board.height) {
+                board.height = bottomNeeded - board.y;
+              }
+            }
+          }
+        }
+      }
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = 600;
+      let maxY = 400;
+      for (const c of placedComponents) {
+        minX = Math.min(minX, c.x);
+        minY = Math.min(minY, c.y);
+        maxX = Math.max(maxX, c.x + c.width + 60);
+        maxY = Math.max(maxY, c.y + c.height + 60);
+      }
+      for (const b of placedBoards) {
+        minX = Math.min(minX, b.x);
+        minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.width + 40);
+        maxY = Math.max(maxY, b.y + b.height + 40);
+      }
+      for (const w of wires) {
+        for (const pt of w.points) {
+          minX = Math.min(minX, pt.x);
+          minY = Math.min(minY, pt.y);
+          maxX = Math.max(maxX, pt.x + 60);
+          maxY = Math.max(maxY, pt.y + 60);
+        }
+      }
+      for (const call of callouts) {
+        minX = Math.min(minX, call.x);
+        minY = Math.min(minY, call.y);
+        maxX = Math.max(maxX, call.x + call.width + 40);
+        maxY = Math.max(maxY, call.y + call.height + 40);
+      }
+      const shiftX = minX < 40 ? 40 - minX : 0;
+      const shiftY = minY < 40 ? 40 - minY : 0;
+      if (shiftX > 0 || shiftY > 0) {
+        for (const c of placedComponents) {
+          c.x += shiftX;
+          c.y += shiftY;
+          for (const p of c.ports.values()) {
+            p.x += shiftX;
+            p.y += shiftY;
+          }
+        }
+        for (const b of placedBoards) {
+          b.x += shiftX;
+          b.y += shiftY;
+        }
+        for (const w of wires) {
+          w.sourcePoint.x += shiftX;
+          w.sourcePoint.y += shiftY;
+          w.targetPoint.x += shiftX;
+          w.targetPoint.y += shiftY;
+          for (const pt of w.points) {
+            pt.x += shiftX;
+            pt.y += shiftY;
+          }
+          for (const j of w.jumpers) {
+            j.x += shiftX;
+            j.y += shiftY;
+          }
+          for (const bc of w.boundaryConnectors) {
+            bc.x += shiftX;
+            bc.y += shiftY;
+          }
+        }
+        for (const bus of buses) {
+          bus.trunkStartX += shiftX;
+          bus.trunkStartY += shiftY;
+          bus.trunkEndX += shiftX;
+          bus.trunkEndY += shiftY;
+          for (const tap of bus.tapPoints) {
+            tap.x += shiftX;
+            tap.y += shiftY;
+          }
+        }
+        for (const call of callouts) {
+          call.x += shiftX;
+          call.y += shiftY;
+          call.targetPoint.x += shiftX;
+          call.targetPoint.y += shiftY;
+        }
+        maxX += shiftX;
+        maxY += shiftY;
+      }
+      return {
+        width: maxX,
+        height: maxY,
+        boards: placedBoards,
+        components: placedComponents,
+        wires,
+        buses,
+        callouts,
+        metrics: this.metrics
+      };
+    }
+    findPrimaryAnchor(diagram) {
+      const connectionCounts = /* @__PURE__ */ new Map();
+      const inDegrees = /* @__PURE__ */ new Map();
+      const outDegrees = /* @__PURE__ */ new Map();
+      for (const compId of diagram.components.keys()) {
+        connectionCounts.set(compId, 0);
+        inDegrees.set(compId, 0);
+        outDegrees.set(compId, 0);
+      }
+      for (const wire of diagram.wires) {
+        if (wire.isBus && wire.busChildren) {
+          const srcCount = connectionCounts.get(wire.sourceId) || 0;
+          connectionCounts.set(wire.sourceId, srcCount + 1 + wire.busChildren.length);
+          outDegrees.set(wire.sourceId, (outDegrees.get(wire.sourceId) || 0) + wire.busChildren.length);
+          for (const child of wire.busChildren) {
+            const cCount = connectionCounts.get(child.targetId) || 0;
+            connectionCounts.set(child.targetId, cCount + 1);
+            inDegrees.set(child.targetId, (inDegrees.get(child.targetId) || 0) + 1);
+          }
+        } else {
+          const s = connectionCounts.get(wire.sourceId) || 0;
+          const t = connectionCounts.get(wire.targetId) || 0;
+          connectionCounts.set(wire.sourceId, s + 1);
+          connectionCounts.set(wire.targetId, t + 1);
+          outDegrees.set(wire.sourceId, (outDegrees.get(wire.sourceId) || 0) + 1);
+          inDegrees.set(wire.targetId, (inDegrees.get(wire.targetId) || 0) + 1);
+        }
+      }
+      let bestId = diagram.components.keys().next().value || "";
+      let bestScore = -Infinity;
+      for (const [id, count] of connectionCounts.entries()) {
+        const comp = diagram.getComponent(id);
+        const name = (id + " " + (comp?.label || "")).toLowerCase();
+        let score = count;
+        if (/\b(mcu|mcpu|cpu|soc|host|main|esp32)\b/i.test(name)) {
+          score += 100;
+        }
+        const outD = outDegrees.get(id) || 0;
+        const inD = inDegrees.get(id) || 0;
+        if (outD > 0 && inD === 0) {
+          score += 10;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestId = id;
+        }
+      }
+      return bestId;
+    }
+    calculateAnchorColSpans(diagram) {
+      const spans = /* @__PURE__ */ new Map();
+      for (const compId of diagram.components.keys()) {
+        let bottomSlots = 0;
+        let topSlots = 0;
+        for (const wire of diagram.wires) {
+          if (wire.isBus && wire.busChildren) {
+            const face = wire.sourceFace || "bottom";
+            if (wire.sourceId === compId) {
+              if (face === "bottom") {
+                bottomSlots += wire.busChildren.length;
+              } else if (face === "top") {
+                topSlots += wire.busChildren.length;
+              }
+            }
+          } else {
+            const sFace = wire.sourceFace;
+            const tFace = wire.targetFace;
+            if (wire.sourceId === compId) {
+              if (sFace === "bottom" || !sFace && tFace === "top") {
+                bottomSlots += 1;
+              } else if (sFace === "top" || !sFace && tFace === "bottom") {
+                topSlots += 1;
+              }
+            } else if (wire.targetId === compId) {
+              if (tFace === "bottom" || !tFace && sFace === "top") {
+                bottomSlots += 1;
+              } else if (tFace === "top" || !tFace && sFace === "bottom") {
+                topSlots += 1;
+              }
+            }
+          }
+        }
+        const span = Math.max(1, bottomSlots, topSlots);
+        spans.set(compId, span);
+      }
+      return spans;
+    }
+    resolveGridPositions(diagram, primaryAnchorId, anchorColSpans) {
+      const placed = /* @__PURE__ */ new Map();
+      const anchorFaceCounts = /* @__PURE__ */ new Map();
+      const getFaceCount = (id, face) => {
+        let counts = anchorFaceCounts.get(id);
+        if (!counts) {
+          counts = { top: 0, bottom: 0, left: 0, right: 0 };
+          anchorFaceCounts.set(id, counts);
+        }
+        return counts[face];
+      };
+      const incFaceCount = (id, face, amount = 1) => {
+        const current = getFaceCount(id, face);
+        anchorFaceCounts.get(id)[face] = current + amount;
+        return current;
+      };
+      const primaryComp = diagram.getComponent(primaryAnchorId);
+      placed.set(primaryAnchorId, {
+        col: 0,
+        row: 0,
+        tier: 0,
+        slotOnFace: 0,
+        isEdge: primaryComp?.isEdge || false,
+        edgeFace: primaryComp?.edgeFace
+      });
+      let progress = true;
+      let passes = 0;
+      const maxPasses = Math.max(10, diagram.components.size * 2);
+      while (progress && passes < maxPasses) {
+        progress = false;
+        passes++;
+        for (const wire of diagram.wires) {
+          if (wire.isBus && wire.busChildren) {
+            const srcPlaced2 = placed.get(wire.sourceId);
+            if (srcPlaced2) {
+              const face = wire.sourceFace || "bottom";
+              const startColSlot = incFaceCount(wire.sourceId, face, wire.busChildren.length);
+              let childIdx = 0;
+              for (const child of wire.busChildren) {
+                if (!placed.has(child.targetId)) {
+                  const childComp = diagram.getComponent(child.targetId);
+                  const dist = child.arrow.distance || 1;
+                  const cCol = srcPlaced2.col + startColSlot + childIdx;
+                  let cRow = srcPlaced2.row + dist;
+                  if (face === "top") {
+                    cRow = srcPlaced2.row - dist;
+                  }
+                  placed.set(child.targetId, {
+                    col: cCol,
+                    row: cRow,
+                    tier: srcPlaced2.tier + 1,
+                    slotOnFace: childIdx,
+                    isEdge: childComp?.isEdge || false,
+                    edgeFace: childComp?.edgeFace
+                  });
+                  childIdx++;
+                  progress = true;
+                }
+              }
+            }
+            continue;
+          }
+          const srcPlaced = placed.get(wire.sourceId);
+          const tgtPlaced = placed.get(wire.targetId);
+          if (srcPlaced && tgtPlaced) {
+            continue;
+          }
+          if (srcPlaced && !tgtPlaced) {
+            const anchor = srcPlaced;
+            const tgtComp = diagram.getComponent(wire.targetId);
+            let face = wire.sourceFace || "right";
+            if (tgtComp?.edgeFace) {
+              face = tgtComp.edgeFace;
+            } else if (!wire.sourceFace) {
+              if (wire.targetFace) {
+                face = this.oppositeFace(wire.targetFace);
+              } else if (wire.arrow.direction === "backward") {
+                face = "left";
+              } else {
+                face = "right";
+              }
+            }
+            const k = incFaceCount(wire.sourceId, face, 1);
+            const dist = wire.arrow.distance || 1;
+            let col = anchor.col;
+            let row = anchor.row;
+            if (face === "right") {
+              const span = anchorColSpans.get(wire.sourceId) || 1;
+              col += span - 1 + dist;
+              row = anchor.row;
+            } else if (face === "left") {
+              col -= dist;
+              row = anchor.row;
+            } else if (face === "top") {
+              col = anchor.col + k;
+              row -= dist;
+            } else if (face === "bottom") {
+              col = anchor.col + k;
+              row += dist;
+            }
+            placed.set(wire.targetId, {
+              col,
+              row,
+              tier: anchor.tier + 1,
+              slotOnFace: k,
+              isEdge: tgtComp?.isEdge || false,
+              edgeFace: tgtComp?.edgeFace || (tgtComp?.isEdge ? face : void 0)
+            });
+            progress = true;
+          } else if (!srcPlaced && tgtPlaced) {
+            const anchor = tgtPlaced;
+            const srcComp = diagram.getComponent(wire.sourceId);
+            let face = wire.targetFace || "left";
+            if (srcComp?.edgeFace) {
+              face = srcComp.edgeFace;
+            } else if (!wire.targetFace) {
+              if (wire.sourceFace) {
+                face = this.oppositeFace(wire.sourceFace);
+              } else if (wire.arrow.direction === "backward") {
+                face = "right";
+              } else {
+                face = "left";
+              }
+            }
+            const k = incFaceCount(wire.targetId, face, 1);
+            const dist = wire.arrow.distance || 1;
+            let col = anchor.col;
+            let row = anchor.row;
+            if (face === "right") {
+              const span = anchorColSpans.get(wire.targetId) || 1;
+              col += span - 1 + dist;
+              row = anchor.row;
+            } else if (face === "left") {
+              col -= dist;
+              row = anchor.row;
+            } else if (face === "top") {
+              col = anchor.col + k;
+              row -= dist;
+            } else if (face === "bottom") {
+              col = anchor.col + k;
+              row += dist;
+            }
+            placed.set(wire.sourceId, {
+              col,
+              row,
+              tier: anchor.tier + 1,
+              slotOnFace: k,
+              isEdge: srcComp?.isEdge || false,
+              edgeFace: srcComp?.edgeFace || (srcComp?.isEdge ? face : void 0)
+            });
+            progress = true;
+          }
+        }
+      }
+      const unplaced = Array.from(diagram.components.keys()).filter((id) => !placed.has(id));
+      const hasWest = unplaced.find((id) => id.toUpperCase().includes("WEST"));
+      const hasEast = unplaced.find((id) => id.toUpperCase().includes("EAST"));
+      const hasNorth = unplaced.find((id) => id.toUpperCase().includes("NORTH"));
+      const hasSouth = unplaced.find((id) => id.toUpperCase().includes("SOUTH"));
+      if (hasWest && hasEast && hasNorth && hasSouth) {
+        const maxRow = Math.max(0, ...Array.from(placed.values()).map((p) => p.row));
+        const centerRow = maxRow + 2;
+        const centerCol = 0;
+        placed.set(hasWest, { col: centerCol - 1, row: centerRow, tier: 1, slotOnFace: 0, isEdge: false });
+        placed.set(hasEast, { col: centerCol + 1, row: centerRow, tier: 1, slotOnFace: 0, isEdge: false });
+        placed.set(hasNorth, { col: centerCol, row: centerRow - 1, tier: 1, slotOnFace: 0, isEdge: false });
+        placed.set(hasSouth, { col: centerCol, row: centerRow + 1, tier: 1, slotOnFace: 0, isEdge: false });
+      }
+      let fallbackCol = 0;
+      let fallbackRow = 2;
+      for (const [id, comp] of diagram.components.entries()) {
+        if (!placed.has(id)) {
+          placed.set(id, {
+            col: fallbackCol++,
+            row: fallbackRow,
+            tier: 1,
+            slotOnFace: 0,
+            isEdge: comp.isEdge,
+            edgeFace: comp.edgeFace
+          });
+        }
+      }
+      for (const board of diagram.boards.values()) {
+        let coreMinCol = Infinity;
+        let coreMaxCol = -Infinity;
+        let coreMinRow = Infinity;
+        let coreMaxRow = -Infinity;
+        for (const compId of board.componentIds) {
+          const pos = placed.get(compId);
+          if (pos && !pos.isEdge) {
+            coreMinCol = Math.min(coreMinCol, pos.col);
+            coreMaxCol = Math.max(coreMaxCol, pos.col);
+            coreMinRow = Math.min(coreMinRow, pos.row);
+            coreMaxRow = Math.max(coreMaxRow, pos.row);
+          }
+        }
+        if (coreMinCol !== Infinity) {
+          for (const compId of board.componentIds) {
+            const pos = placed.get(compId);
+            if (pos && pos.isEdge) {
+              const face = pos.edgeFace || "right";
+              if (face === "right") {
+                pos.col = coreMaxCol + 1;
+              } else if (face === "left") {
+                pos.col = coreMinCol - 1;
+              } else if (face === "top") {
+                pos.row = coreMinRow - 1;
+              } else if (face === "bottom") {
+                pos.row = coreMaxRow + 1;
+              }
+            }
+          }
+        }
+      }
+      return placed;
+    }
+    oppositeFace(face) {
+      switch (face) {
+        case "top":
+          return "bottom";
+        case "bottom":
+          return "top";
+        case "left":
+          return "right";
+        case "right":
+          return "left";
+      }
+    }
+    calculateComponentSizes(diagram, gridPositions) {
+      const sizes = /* @__PURE__ */ new Map();
+      const faceConnections = /* @__PURE__ */ new Map();
+      for (const compId of diagram.components.keys()) {
+        faceConnections.set(compId, { top: 0, bottom: 0, left: 0, right: 0 });
+      }
+      for (const wire of diagram.wires) {
+        if (wire.isBus && wire.busChildren) {
+          const sFace = wire.sourceFace || "bottom";
+          faceConnections.get(wire.sourceId)[sFace] += 1;
+          for (const ch of wire.busChildren) {
+            faceConnections.get(ch.targetId)["top"] += 1;
+          }
+        } else {
+          const sFace = wire.sourceFace || "right";
+          const tFace = wire.targetFace || "left";
+          if (faceConnections.has(wire.sourceId)) {
+            faceConnections.get(wire.sourceId)[sFace] += 1;
+          }
+          if (faceConnections.has(wire.targetId)) {
+            faceConnections.get(wire.targetId)[tFace] += 1;
+          }
+        }
+      }
+      for (const [id, comp] of diagram.components.entries()) {
+        const counts = faceConnections.get(id) || { top: 0, bottom: 0, left: 0, right: 0 };
+        const nVertical = Math.max(counts.left, counts.right);
+        const nHorizontal = Math.max(counts.top, counts.bottom);
+        let requiredHeight = this.metrics.NodeMinHeight;
+        if (nVertical > 1) {
+          requiredHeight = (nVertical + 1) * this.metrics.SlotPitch;
+        }
+        let requiredWidth = this.metrics.NodeMinWidth;
+        if (nHorizontal > 1) {
+          let maxHorizReqWidth = (nHorizontal + 1) * this.metrics.SlotPitch;
+          for (const face of ["top", "bottom"]) {
+            const connsOnFace = diagram.wires.filter((w) => {
+              if (w.isBus) return false;
+              const sPos = gridPositions.get(w.sourceId);
+              const tPos = gridPositions.get(w.targetId);
+              const sComp = sPos ? { gridCol: sPos.col, gridRow: sPos.row } : void 0;
+              const tComp = tPos ? { gridCol: tPos.col, gridRow: tPos.row } : void 0;
+              const { sFace, tFace } = this.inferWireFaces(w, sComp, tComp);
+              return w.sourceId === id && sFace === face || w.targetId === id && tFace === face;
+            });
+            const nOnFace = connsOnFace.length;
+            if (nOnFace > 1) {
+              let maxChildWidth = this.metrics.NodeMinWidth;
+              for (const w of connsOnFace) {
+                const otherId = w.sourceId === id ? w.targetId : w.sourceId;
+                const otherComp = diagram.getComponent(otherId);
+                if (otherComp) {
+                  let otherW = otherComp.userWidth;
+                  if (otherW !== void 0 && otherComp.widthUnit === "slots") {
+                    otherW = otherW * this.metrics.SlotPitch;
+                  }
+                  maxChildWidth = Math.max(maxChildWidth, otherW || 0, this.metrics.NodeMinWidth);
+                }
+              }
+              const horizPitch = maxChildWidth + 40;
+              const reqW = (nOnFace + 1) * horizPitch;
+              if (reqW > maxHorizReqWidth) {
+                maxHorizReqWidth = reqW;
+              }
+            }
+          }
+          requiredWidth = maxHorizReqWidth;
+        }
+        let userW = comp.userWidth;
+        if (userW !== void 0 && comp.widthUnit === "slots") {
+          userW = userW * this.metrics.SlotPitch;
+        }
+        let userH = comp.userHeight;
+        if (userH !== void 0 && comp.heightUnit === "slots") {
+          userH = userH * this.metrics.SlotPitch;
+        }
+        const labelLines = comp.label && comp.label !== comp.id ? comp.label.split(/\\n|\n/) : [];
+        const noteLines = comp.note ? comp.note.split(/\\n|\n/) : [];
+        const maxLabelW = labelLines.length > 0 ? Math.max(...labelLines.map((l) => getTextWidth(l, 11))) : 0;
+        const maxNoteW = noteLines.length > 0 ? Math.max(...noteLines.map((l) => getTextWidth(l, 10))) : 0;
+        const idW = getTextWidth(comp.id, 13);
+        const contentW = Math.max(idW, maxLabelW, maxNoteW) + 24;
+        let contentH = this.metrics.NodeMinHeight;
+        if (labelLines.length > 0 || noteLines.length > 0) {
+          contentH = 32 + labelLines.length * 16 + (noteLines.length > 0 ? noteLines.length * 14 + 10 : 0);
+        }
+        requiredHeight = Math.max(requiredHeight, contentH);
+        requiredWidth = Math.max(requiredWidth, contentW);
+        const width = Math.max(userW || 0, this.metrics.NodeMinWidth, requiredWidth);
+        const height = Math.max(userH || 0, this.metrics.NodeMinHeight, requiredHeight);
+        sizes.set(id, { width, height });
+      }
+      return sizes;
+    }
+    calculateConcretePositions(diagram, gridPositions, componentSizes, primaryAnchorId, anchorColSpans) {
+      const spanningComps = /* @__PURE__ */ new Map();
+      for (const [id, pos] of gridPositions.entries()) {
+        const childCols = [pos.col];
+        for (const wire of diagram.wires) {
+          if (wire.isBus && wire.busChildren) {
+            if (wire.sourceId === id) {
+              for (const ch of wire.busChildren) {
+                const chPos = gridPositions.get(ch.targetId);
+                if (chPos) childCols.push(chPos.col);
+              }
+            }
+          } else {
+            const s = gridPositions.get(wire.sourceId);
+            const t = gridPositions.get(wire.targetId);
+            const sComp = s ? { gridCol: s.col, gridRow: s.row } : void 0;
+            const tComp = t ? { gridCol: t.col, gridRow: t.row } : void 0;
+            const { sFace, tFace } = this.inferWireFaces(wire, sComp, tComp);
+            if (wire.sourceId === id && (sFace === "bottom" || sFace === "top") && t) {
+              childCols.push(t.col);
+            } else if (wire.targetId === id && (tFace === "bottom" || tFace === "top") && s) {
+              childCols.push(s.col);
+            }
+          }
+        }
+        const minC = Math.min(...childCols);
+        const maxC = Math.max(...childCols);
+        if (minC < maxC) {
+          const hasOtherCompInRow = Array.from(gridPositions.entries()).some(
+            ([otherId, otherPos]) => otherId !== id && otherPos.row === pos.row && otherPos.col >= minC && otherPos.col <= maxC
+          );
+          if (!hasOtherCompInRow) {
+            spanningComps.set(id, { minCol: minC, maxCol: maxC });
+          }
+        }
+      }
+      const allCols = /* @__PURE__ */ new Set();
+      for (const pos of gridPositions.values()) {
+        allCols.add(pos.col);
+      }
+      for (const span of spanningComps.values()) {
+        for (let c = span.minCol; c <= span.maxCol; c++) {
+          allCols.add(c);
+        }
+      }
+      const cols = Array.from(allCols).sort((a, b) => a - b);
+      const rows = Array.from(new Set(Array.from(gridPositions.values()).map((p) => p.row))).sort((a, b) => a - b);
+      const colWidths = /* @__PURE__ */ new Map();
+      const rowHeights = /* @__PURE__ */ new Map();
+      for (const col of cols) {
+        let maxW = this.metrics.NodeMinWidth;
+        for (const [id, pos] of gridPositions.entries()) {
+          if (pos.col === col) {
+            if (spanningComps.has(id)) {
+              continue;
+            }
+            const s = componentSizes.get(id);
+            if (s) maxW = Math.max(maxW, s.width);
+          }
+        }
+        colWidths.set(col, maxW);
+      }
+      for (const row of rows) {
+        let maxH = this.metrics.NodeMinHeight;
+        for (const [id, pos] of gridPositions.entries()) {
+          if (pos.row === row) {
+            const s = componentSizes.get(id);
+            if (s) maxH = Math.max(maxH, s.height);
+          }
+        }
+        rowHeights.set(row, maxH);
+      }
+      const colX = /* @__PURE__ */ new Map();
+      let currentX = 60;
+      for (let i = 0; i < cols.length; i++) {
+        const c = cols[i];
+        colX.set(c, currentX);
+        const w = colWidths.get(c) || this.metrics.NodeMinWidth;
+        const nextCol = i + 1 < cols.length ? cols[i + 1] : void 0;
+        const gapCount = nextCol !== void 0 ? Math.max(0, nextCol - c - 1) : 0;
+        const gap = this.metrics.GutterWidth + gapCount * this.metrics.GapSlotSize;
+        currentX += w + gap;
+      }
+      const rowY = /* @__PURE__ */ new Map();
+      let currentY = 80;
+      for (let j = 0; j < rows.length; j++) {
+        const r = rows[j];
+        rowY.set(r, currentY);
+        const h = rowHeights.get(r) || this.metrics.NodeMinHeight;
+        const nextRow = j + 1 < rows.length ? rows[j + 1] : void 0;
+        const gapCount = nextRow !== void 0 ? Math.max(0, nextRow - r - 1) : 0;
+        let baseGap = this.metrics.GutterWidth;
+        if (r === 0 && (diagram.wires.some((w) => w.isBus) || diagram.callouts.length > 0)) {
+          baseGap = 120;
+        }
+        const gap = baseGap + gapCount * this.metrics.GapSlotSize;
+        currentY += h + gap;
+      }
+      const placedComponents = [];
+      for (const [id, comp] of diagram.components.entries()) {
+        const pos = gridPositions.get(id);
+        const size = componentSizes.get(id);
+        const span = spanningComps.get(id);
+        let x;
+        let y;
+        let width = size.width;
+        let height = size.height;
+        if (span) {
+          const spanStartX = colX.get(span.minCol);
+          const spanEndX = colX.get(span.maxCol) + (colWidths.get(span.maxCol) || this.metrics.NodeMinWidth);
+          const spanWidth = spanEndX - spanStartX;
+          width = Math.max(width, spanWidth);
+          x = spanStartX + (spanWidth - width) / 2;
+          const rY = rowY.get(pos.row);
+          const rH = rowHeights.get(pos.row);
+          y = rY + (rH - height) / 2;
+        } else {
+          const cX = colX.get(pos.col);
+          const rY = rowY.get(pos.row);
+          const cW = colWidths.get(pos.col);
+          const rH = rowHeights.get(pos.row);
+          x = cX + (cW - width) / 2;
+          y = rY + (rH - height) / 2;
+        }
+        placedComponents.push({
+          id,
+          label: comp.label,
+          boardId: comp.boardId,
+          x,
+          y,
+          width,
+          height,
+          color: comp.color,
+          note: comp.note,
+          isEdge: comp.isEdge,
+          edgeFace: comp.edgeFace,
+          gridCol: pos.col,
+          gridRow: pos.row,
+          tier: pos.tier,
+          slotOnFace: pos.slotOnFace,
+          colSpan: span,
+          ports: /* @__PURE__ */ new Map()
+        });
+      }
+      const primaryAnchor = placedComponents.find((c) => c.id === primaryAnchorId);
+      if (primaryAnchor) {
+        const minSensorY = primaryAnchor.y + primaryAnchor.height + 150;
+        for (const c of placedComponents) {
+          if (c.gridRow > primaryAnchor.gridRow) {
+            c.y = Math.max(c.y, minSensorY);
+          }
+        }
+      }
+      for (const anchor of placedComponents) {
+        const rightWires = diagram.wires.filter((w) => {
+          if (w.isBus) return false;
+          const s = placedComponents.find((c) => c.id === w.sourceId);
+          const t = placedComponents.find((c) => c.id === w.targetId);
+          const { sFace, tFace } = this.inferWireFaces(w, s, t);
+          return w.sourceId === anchor.id && sFace === "right" || w.targetId === anchor.id && tFace === "right";
+        });
+        const nRight = rightWires.length;
+        if (nRight > 0) {
+          for (let i = 0; i < nRight; i++) {
+            const w = rightWires[i];
+            const s = placedComponents.find((c) => c.id === w.sourceId);
+            const t = placedComponents.find((c) => c.id === w.targetId);
+            const { sFace, tFace } = this.inferWireFaces(w, s, t);
+            const tgt = w.sourceId === anchor.id ? t : s;
+            const tgtFace = w.sourceId === anchor.id ? tFace : sFace;
+            if (tgt && tgt.tier > anchor.tier && tgtFace === "left") {
+              const pinY = anchor.y + anchor.height * (i + 1) / (nRight + 1);
+              tgt.y = pinY - tgt.height / 2;
+              if (w.protocol || w.note) {
+                tgt.x = Math.max(tgt.x, anchor.x + anchor.width + 120);
+              }
+            }
+          }
+        }
+        const leftWires = diagram.wires.filter((w) => {
+          if (w.isBus) return false;
+          const s = placedComponents.find((c) => c.id === w.sourceId);
+          const t = placedComponents.find((c) => c.id === w.targetId);
+          const { sFace, tFace } = this.inferWireFaces(w, s, t);
+          return w.sourceId === anchor.id && sFace === "left" || w.targetId === anchor.id && tFace === "left";
+        });
+        const nLeft = leftWires.length;
+        if (nLeft > 0) {
+          for (let i = 0; i < nLeft; i++) {
+            const w = leftWires[i];
+            const s = placedComponents.find((c) => c.id === w.sourceId);
+            const t = placedComponents.find((c) => c.id === w.targetId);
+            const { sFace, tFace } = this.inferWireFaces(w, s, t);
+            const tgt = w.sourceId === anchor.id ? t : s;
+            const tgtFace = w.sourceId === anchor.id ? tFace : sFace;
+            if (tgt && tgt.tier > anchor.tier && tgtFace === "right") {
+              const pinY = anchor.y + anchor.height * (i + 1) / (nLeft + 1);
+              tgt.y = pinY - tgt.height / 2;
+            }
+          }
+        }
+        const topWires = diagram.wires.filter((w) => {
+          if (w.isBus) return false;
+          const s = placedComponents.find((c) => c.id === w.sourceId);
+          const t = placedComponents.find((c) => c.id === w.targetId);
+          const { sFace, tFace } = this.inferWireFaces(w, s, t);
+          return w.sourceId === anchor.id && sFace === "top" || w.targetId === anchor.id && tFace === "top";
+        });
+        const nTop = topWires.length;
+        if (nTop > 0 && !anchor.colSpan) {
+          for (let i = 0; i < nTop; i++) {
+            const w = topWires[i];
+            const s = placedComponents.find((c) => c.id === w.sourceId);
+            const t = placedComponents.find((c) => c.id === w.targetId);
+            const { sFace, tFace } = this.inferWireFaces(w, s, t);
+            const tgt = w.sourceId === anchor.id ? t : s;
+            const tgtFace = w.sourceId === anchor.id ? tFace : sFace;
+            if (tgt && tgt.tier > anchor.tier && tgtFace === "bottom" && tgt.gridCol === anchor.gridCol) {
+              const pinX = anchor.x + anchor.width * (i + 1) / (nTop + 1);
+              tgt.x = pinX - tgt.width / 2;
+            }
+          }
+        }
+        const bottomWires = diagram.wires.filter((w) => {
+          if (w.isBus) return false;
+          const s = placedComponents.find((c) => c.id === w.sourceId);
+          const t = placedComponents.find((c) => c.id === w.targetId);
+          const { sFace, tFace } = this.inferWireFaces(w, s, t);
+          return w.sourceId === anchor.id && sFace === "bottom" || w.targetId === anchor.id && tFace === "bottom";
+        });
+        const nBottom = bottomWires.length;
+        if (nBottom > 0 && !anchor.colSpan) {
+          for (let i = 0; i < nBottom; i++) {
+            const w = bottomWires[i];
+            const s = placedComponents.find((c) => c.id === w.sourceId);
+            const t = placedComponents.find((c) => c.id === w.targetId);
+            const { sFace, tFace } = this.inferWireFaces(w, s, t);
+            const tgt = w.sourceId === anchor.id ? t : s;
+            const tgtFace = w.sourceId === anchor.id ? tFace : sFace;
+            if (tgt && tgt.tier > anchor.tier && tgtFace === "top" && tgt.gridCol === anchor.gridCol) {
+              const pinX = anchor.x + anchor.width * (i + 1) / (nBottom + 1);
+              tgt.x = pinX - tgt.width / 2;
+            }
+          }
+        }
+      }
+      return placedComponents;
+    }
+    calculateBoardsAndAlignEdges(diagram, components) {
+      const boards = [];
+      for (const board of diagram.boards.values()) {
+        const boardComps = components.filter((c) => c.boardId === board.id);
+        if (boardComps.length === 0) continue;
+        const coreComps = boardComps.filter((c) => !c.isEdge);
+        const refComps = coreComps.length > 0 ? coreComps : boardComps;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const c of refComps) {
+          minX = Math.min(minX, c.x);
+          minY = Math.min(minY, c.y);
+          maxX = Math.max(maxX, c.x + c.width);
+          maxY = Math.max(maxY, c.y + c.height);
+        }
+        const titleWidth = Math.max(90, (board.label || board.id).length * 9 + 30);
+        const leftPad = Math.max(this.metrics.BoardPadding, titleWidth + 20);
+        const bx = minX - leftPad;
+        const by = minY - (this.metrics.BoardPadding + this.metrics.BoardHeaderHeight);
+        let bw = maxX - bx + this.metrics.BoardPadding;
+        let bh = maxY - minY + 2 * this.metrics.BoardPadding + this.metrics.BoardHeaderHeight;
+        for (const c of boardComps) {
+          if (c.isEdge) {
+            const face = c.edgeFace || "right";
+            if (face === "right") {
+              const minBw = maxX - bx + this.metrics.GutterWidth + c.width * this.metrics.EdgeOverhang;
+              bw = Math.max(bw, minBw);
+            } else if (face === "bottom") {
+              const minBh = maxY - by + this.metrics.GutterWidth + c.height * this.metrics.EdgeOverhang;
+              bh = Math.max(bh, minBh);
+            }
+          }
+        }
+        for (const c of boardComps) {
+          if (c.isEdge) {
+            const face = c.edgeFace || "right";
+            if (face === "right") {
+              c.x = bx + bw - c.width * this.metrics.EdgeOverhang;
+            } else if (face === "left") {
+              c.x = bx - c.width * (1 - this.metrics.EdgeOverhang);
+            } else if (face === "top") {
+              c.y = by - c.height * (1 - this.metrics.EdgeOverhang);
+            } else if (face === "bottom") {
+              c.y = by + bh - c.height * this.metrics.EdgeOverhang;
+            }
+          }
+        }
+        boards.push({
+          id: board.id,
+          label: board.label,
+          note: board.note,
+          x: bx,
+          y: by,
+          width: bw,
+          height: bh,
+          componentIds: board.componentIds
+        });
+      }
+      for (const board of boards) {
+        for (const c of components) {
+          if (!c.boardId) {
+            if (c.x > board.x) {
+              let minClearance = 180;
+              for (const w of diagram.wires) {
+                const isConnected = diagram.getComponent(w.sourceId)?.boardId === board.id && w.targetId === c.id || diagram.getComponent(w.targetId)?.boardId === board.id && w.sourceId === c.id;
+                if (isConnected) {
+                  let connectorW = 0;
+                  let labelW = 0;
+                  if (w.connector) {
+                    connectorW = Math.max(24, Math.ceil(getTextWidth(w.connector, 10)) + 14);
+                  }
+                  if (w.protocol || w.note) {
+                    const rawText = [w.protocol?.raw, w.note].filter(Boolean).join(" ");
+                    labelW = Math.max(20, Math.ceil(getTextWidth(rawText, 10)) + 14);
+                  }
+                  if (connectorW > 0 && labelW > 0) {
+                    minClearance = Math.max(minClearance, connectorW + labelW + 60);
+                  } else if (connectorW > 0 || labelW > 0) {
+                    minClearance = Math.max(minClearance, (connectorW || labelW) + 60);
+                  }
+                }
+              }
+              c.x = Math.max(c.x, board.x + board.width + minClearance);
+            }
+          }
+        }
+      }
+      return boards;
+    }
+    assignPorts(diagram, components) {
+      const compMap = new Map(components.map((c) => [c.id, c]));
+      const compFaceConns = /* @__PURE__ */ new Map();
+      for (const c of components) {
+        compFaceConns.set(c.id, { top: [], bottom: [], left: [], right: [] });
+      }
+      for (const wire of diagram.wires) {
+        if (wire.isBus && wire.busChildren) {
+          const sFace = wire.sourceFace || "bottom";
+          compFaceConns.get(wire.sourceId)?.[sFace].push({ wireId: wire.id, otherId: wire.busId || "" });
+          for (const ch of wire.busChildren) {
+            compFaceConns.get(ch.targetId)?.["top"].push({ wireId: `${wire.id}_${ch.targetId}`, otherId: wire.sourceId });
+          }
+        } else {
+          const sComp = compMap.get(wire.sourceId);
+          const tComp = compMap.get(wire.targetId);
+          const { sFace, tFace } = this.inferWireFaces(wire, sComp, tComp);
+          compFaceConns.get(wire.sourceId)?.[sFace].push({ wireId: wire.id, otherId: wire.targetId });
+          compFaceConns.get(wire.targetId)?.[tFace].push({ wireId: wire.id, otherId: wire.sourceId });
+        }
+      }
+      for (const [id, faces] of compFaceConns.entries()) {
+        const comp = compMap.get(id);
+        if (!comp) continue;
+        const topList = faces.top;
+        for (let i = 0; i < topList.length; i++) {
+          let px;
+          if (comp.colSpan && comp.colSpan.minCol < comp.colSpan.maxCol) {
+            const other = compMap.get(topList[i].otherId);
+            if (other) {
+              px = other.x + other.width / 2;
+            } else {
+              const busWire = diagram.wires.find((w) => w.id === topList[i].wireId && w.isBus);
+              if (busWire && busWire.busChildren && busWire.busChildren.length > 0) {
+                const childComps = busWire.busChildren.map((ch) => compMap.get(ch.targetId)).filter(Boolean);
+                if (childComps.length > 0) {
+                  const minChX = Math.min(...childComps.map((c) => c.x + c.width / 2));
+                  const maxChX = Math.max(...childComps.map((c) => c.x + c.width / 2));
+                  px = (minChX + maxChX) / 2;
+                } else {
+                  px = comp.x + comp.width * (i + 1) / (topList.length + 1);
+                }
+              } else {
+                px = comp.x + comp.width * (i + 1) / (topList.length + 1);
+              }
+            }
+          } else {
+            px = comp.x + comp.width * (i + 1) / (topList.length + 1);
+          }
+          const py = comp.y;
+          comp.ports.set(`${topList[i].wireId}_top`, { x: px, y: py, face: "top" });
+        }
+        const bottomList = faces.bottom;
+        for (let i = 0; i < bottomList.length; i++) {
+          let px;
+          if (comp.colSpan && comp.colSpan.minCol < comp.colSpan.maxCol) {
+            const other = compMap.get(bottomList[i].otherId);
+            if (other) {
+              px = other.x + other.width / 2;
+            } else {
+              const busWire = diagram.wires.find((w) => w.id === bottomList[i].wireId && w.isBus);
+              if (busWire && busWire.busChildren && busWire.busChildren.length > 0) {
+                const childComps = busWire.busChildren.map((ch) => compMap.get(ch.targetId)).filter(Boolean);
+                if (childComps.length > 0) {
+                  const minChX = Math.min(...childComps.map((c) => c.x + c.width / 2));
+                  const maxChX = Math.max(...childComps.map((c) => c.x + c.width / 2));
+                  px = (minChX + maxChX) / 2;
+                } else {
+                  px = comp.x + comp.width * (i + 1) / (bottomList.length + 1);
+                }
+              } else {
+                px = comp.x + comp.width * (i + 1) / (bottomList.length + 1);
+              }
+            }
+          } else {
+            px = comp.x + comp.width * (i + 1) / (bottomList.length + 1);
+          }
+          const py = comp.y + comp.height;
+          comp.ports.set(`${bottomList[i].wireId}_bottom`, { x: px, y: py, face: "bottom" });
+        }
+        const leftList = faces.left;
+        for (let i = 0; i < leftList.length; i++) {
+          const px = comp.x;
+          const py = comp.y + comp.height * (i + 1) / (leftList.length + 1);
+          comp.ports.set(`${leftList[i].wireId}_left`, { x: px, y: py, face: "left" });
+        }
+        const rightList = faces.right;
+        for (let i = 0; i < rightList.length; i++) {
+          const px = comp.x + comp.width;
+          const py = comp.y + comp.height * (i + 1) / (rightList.length + 1);
+          comp.ports.set(`${rightList[i].wireId}_right`, { x: px, y: py, face: "right" });
+        }
+      }
+    }
+    routeWiresAndBuses(diagram, components, boards) {
+      const compMap = new Map(components.map((c) => [c.id, c]));
+      const wires = [];
+      const buses = [];
+      const placedSegments = [];
+      for (const wire of diagram.wires) {
+        if (wire.isBus && wire.busChildren) {
+          const srcComp2 = compMap.get(wire.sourceId);
+          if (!srcComp2) continue;
+          const sFace2 = wire.sourceFace || "bottom";
+          const sPort2 = srcComp2.ports.get(`${wire.id}_${sFace2}`) || {
+            x: srcComp2.x + srcComp2.width / 2,
+            y: srcComp2.y + srcComp2.height,
+            face: "bottom"
+          };
+          const childPorts = [];
+          let minChildX = sPort2.x;
+          let maxChildX = sPort2.x;
+          let sensorTopY = sPort2.y + 120;
+          for (const ch of wire.busChildren) {
+            const chComp = compMap.get(ch.targetId);
+            if (chComp) {
+              sensorTopY = Math.min(sensorTopY, chComp.y);
+            }
+          }
+          const trunkY = sensorTopY - sPort2.y >= 120 ? sPort2.y + 75 : sPort2.y + (sensorTopY - sPort2.y) * 0.5;
+          for (const ch of wire.busChildren) {
+            const chComp = compMap.get(ch.targetId);
+            if (!chComp) continue;
+            const chPort = chComp.ports.get(`${wire.id}_${ch.targetId}_top`) || {
+              x: chComp.x + chComp.width / 2,
+              y: chComp.y,
+              face: "top"
+            };
+            minChildX = Math.min(minChildX, chPort.x);
+            maxChildX = Math.max(maxChildX, chPort.x);
+            childPorts.push({
+              x: chPort.x,
+              y: chPort.y,
+              targetId: ch.targetId,
+              noteOrAddr: ch.noteOrAddr
+            });
+          }
+          const trunkStartX = minChildX - 25;
+          const trunkEndX = maxChildX + 25;
+          buses.push({
+            id: wire.id,
+            busId: wire.busId || "BUS",
+            protocol: wire.protocol,
+            anchorId: wire.sourceId,
+            anchorFace: sFace2,
+            trunkStartX,
+            trunkStartY: trunkY,
+            trunkEndX,
+            trunkEndY: trunkY,
+            tapPoints: childPorts
+          });
+          placedSegments.push({
+            p1: { x: trunkStartX, y: trunkY },
+            p2: { x: trunkEndX, y: trunkY },
+            isHorizontal: true
+          });
+          wires.push({
+            id: wire.id,
+            sourceId: wire.sourceId,
+            targetId: wire.busId || "BUS",
+            sourceFace: sFace2,
+            targetFace: "top",
+            sourcePoint: { x: sPort2.x, y: sPort2.y },
+            targetPoint: { x: sPort2.x, y: trunkY },
+            arrow: wire.arrow,
+            protocol: wire.protocol,
+            isBus: true,
+            points: [{ x: sPort2.x, y: sPort2.y }, { x: sPort2.x, y: trunkY }],
+            jumpers: [],
+            boundaryConnectors: []
+          });
+          placedSegments.push({
+            p1: { x: sPort2.x, y: sPort2.y },
+            p2: { x: sPort2.x, y: trunkY },
+            isHorizontal: false
+          });
+          for (const ch of childPorts) {
+            wires.push({
+              id: `${wire.id}_tap_${ch.targetId}`,
+              sourceId: wire.busId || "BUS",
+              targetId: ch.targetId,
+              sourceFace: "bottom",
+              targetFace: "top",
+              sourcePoint: { x: ch.x, y: trunkY },
+              targetPoint: { x: ch.x, y: ch.y },
+              arrow: wire.arrow,
+              isBus: true,
+              note: ch.noteOrAddr,
+              points: [{ x: ch.x, y: trunkY }, { x: ch.x, y: ch.y }],
+              jumpers: [],
+              boundaryConnectors: []
+            });
+            placedSegments.push({
+              p1: { x: ch.x, y: trunkY },
+              p2: { x: ch.x, y: ch.y },
+              isHorizontal: false
+            });
+          }
+          continue;
+        }
+        const srcComp = compMap.get(wire.sourceId);
+        const tgtComp = compMap.get(wire.targetId);
+        if (!srcComp || !tgtComp) continue;
+        const { sFace, tFace } = this.inferWireFaces(wire, srcComp, tgtComp);
+        const sPort = srcComp.ports.get(`${wire.id}_${sFace}`) || {
+          x: srcComp.x + (sFace === "right" ? srcComp.width : 0),
+          y: srcComp.y + srcComp.height / 2,
+          face: sFace
+        };
+        const tPort = tgtComp.ports.get(`${wire.id}_${tFace}`) || {
+          x: tgtComp.x + (tFace === "right" ? tgtComp.width : 0),
+          y: tgtComp.y + tgtComp.height / 2,
+          face: tFace
+        };
+        const points = this.generateManhattanPoints(sPort, tPort, placedSegments);
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          placedSegments.push({
+            p1,
+            p2,
+            isHorizontal: Math.abs(p1.y - p2.y) < 0.1
+          });
+        }
+        const boundaryConnectors = this.detectBoundaryConnectors(
+          points,
+          srcComp,
+          tgtComp,
+          boards,
+          wire.connector
+        );
+        wires.push({
+          id: wire.id,
+          sourceId: wire.sourceId,
+          targetId: wire.targetId,
+          sourceFace: sFace,
+          targetFace: tFace,
+          sourcePoint: { x: sPort.x, y: sPort.y },
+          targetPoint: { x: tPort.x, y: tPort.y },
+          arrow: wire.arrow,
+          protocol: wire.protocol,
+          connector: wire.connector,
+          note: wire.note,
+          isBus: false,
+          points,
+          jumpers: [],
+          boundaryConnectors
+        });
+      }
+      this.calculateJumpers(wires);
+      return { wires, buses };
+    }
+    generateManhattanPoints(sPort, tPort, existingSegments = []) {
+      const sx = sPort.x;
+      const sy = sPort.y;
+      const tx = tPort.x;
+      const ty = tPort.y;
+      if (sPort.face === "right" && tPort.face === "left" || sPort.face === "left" && tPort.face === "right") {
+        if (Math.abs(sy - ty) < 3) {
+          return [{ x: sx, y: sy }, { x: tx, y: sy }];
+        } else {
+          let midX = (sx + tx) / 2;
+          midX = this.findFreeVerticalTrack(midX, Math.min(sy, ty), Math.max(sy, ty), existingSegments);
+          return [
+            { x: sx, y: sy },
+            { x: midX, y: sy },
+            { x: midX, y: ty },
+            { x: tx, y: ty }
+          ];
+        }
+      }
+      if (sPort.face === "bottom" && tPort.face === "top" || sPort.face === "top" && tPort.face === "bottom") {
+        if (Math.abs(sx - tx) < 3) {
+          return [{ x: sx, y: sy }, { x: sx, y: ty }];
+        } else {
+          let midY = ty - sy >= 120 ? sy + (ty - sy) * 0.65 : (sy + ty) / 2;
+          midY = this.findFreeHorizontalTrack(midY, Math.min(sx, tx), Math.max(sx, tx), existingSegments);
+          return [
+            { x: sx, y: sy },
+            { x: sx, y: midY },
+            { x: tx, y: midY },
+            { x: tx, y: ty }
+          ];
+        }
+      }
+      if (sPort.face === "right" && tPort.face === "top") {
+        return [
+          { x: sx, y: sy },
+          { x: tx, y: sy },
+          { x: tx, y: ty }
+        ];
+      }
+      if (sPort.face === "bottom" && tPort.face === "left") {
+        return [
+          { x: sx, y: sy },
+          { x: sx, y: ty },
+          { x: tx, y: ty }
+        ];
+      }
+      return [
+        { x: sx, y: sy },
+        { x: tx, y: sy },
+        { x: tx, y: ty }
+      ];
+    }
+    findFreeHorizontalTrack(baseY, minX, maxX, existing) {
+      const trackOffsets = [0, 16, -16, 32, -32, 48, -48, 64, -64];
+      for (const offset of trackOffsets) {
+        const candidateY = baseY + offset;
+        const hasOverlap = existing.some((seg) => {
+          if (!seg.isHorizontal) return false;
+          if (Math.abs(seg.p1.y - candidateY) < 6) {
+            const segMinX = Math.min(seg.p1.x, seg.p2.x);
+            const segMaxX = Math.max(seg.p1.x, seg.p2.x);
+            const overlap = Math.min(maxX, segMaxX) - Math.max(minX, segMinX);
+            return overlap > 1;
+          }
+          return false;
+        });
+        if (!hasOverlap) {
+          return candidateY;
+        }
+      }
+      return baseY;
+    }
+    findFreeVerticalTrack(baseX, minY, maxY, existing) {
+      const trackOffsets = [0, 16, -16, 32, -32, 48, -48, 64, -64];
+      for (const offset of trackOffsets) {
+        const candidateX = baseX + offset;
+        const hasOverlap = existing.some((seg) => {
+          if (seg.isHorizontal) return false;
+          if (Math.abs(seg.p1.x - candidateX) < 6) {
+            const segMinY = Math.min(seg.p1.y, seg.p2.y);
+            const segMaxY = Math.max(seg.p1.y, seg.p2.y);
+            const overlap = Math.min(maxY, segMaxY) - Math.max(minY, segMinY);
+            return overlap > 1;
+          }
+          return false;
+        });
+        if (!hasOverlap) {
+          return candidateX;
+        }
+      }
+      return baseX;
+    }
+    detectBoundaryConnectors(points, srcComp, tgtComp, boards, connectorLabel) {
+      const connectors = [];
+      if (srcComp.boardId === tgtComp.boardId) return connectors;
+      if (!connectorLabel) return connectors;
+      for (const board of boards) {
+        if (board.id === srcComp.boardId || board.id === tgtComp.boardId) {
+          const bx1 = board.x;
+          const by1 = board.y;
+          const bx2 = board.x + board.width;
+          const by2 = board.y + board.height;
+          for (let i = 0; i < points.length - 1; i++) {
+            const p1 = points[i];
+            const p2 = points[i + 1];
+            if (Math.abs(p1.y - p2.y) < 0.1) {
+              const y = p1.y;
+              if (y >= by1 && y <= by2) {
+                const minX = Math.min(p1.x, p2.x);
+                const maxX = Math.max(p1.x, p2.x);
+                if (minX <= bx2 && maxX >= bx2) {
+                  connectors.push({
+                    x: bx2,
+                    y,
+                    label: connectorLabel,
+                    face: "right"
+                  });
+                }
+                if (minX <= bx1 && maxX >= bx1) {
+                  connectors.push({
+                    x: bx1,
+                    y,
+                    label: connectorLabel,
+                    face: "left"
+                  });
+                }
+              }
+            }
+            if (Math.abs(p1.x - p2.x) < 0.1) {
+              const x = p1.x;
+              if (x >= bx1 && x <= bx2) {
+                const minY = Math.min(p1.y, p2.y);
+                const maxY = Math.max(p1.y, p2.y);
+                if (minY <= by1 && maxY >= by1) {
+                  connectors.push({
+                    x,
+                    y: by1,
+                    label: connectorLabel,
+                    face: "top"
+                  });
+                }
+                if (minY <= by2 && maxY >= by2) {
+                  connectors.push({
+                    x,
+                    y: by2,
+                    label: connectorLabel,
+                    face: "bottom"
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+      return connectors;
+    }
+    calculateJumpers(wires) {
+      const hSegments = [];
+      for (const w of wires) {
+        for (let i = 0; i < w.points.length - 1; i++) {
+          const p1 = w.points[i];
+          const p2 = w.points[i + 1];
+          if (Math.abs(p1.y - p2.y) < 0.1) {
+            hSegments.push({
+              wireId: w.id,
+              x1: Math.min(p1.x, p2.x),
+              x2: Math.max(p1.x, p2.x),
+              y: p1.y
+            });
+          }
+        }
+      }
+      for (const w of wires) {
+        for (let i = 0; i < w.points.length - 1; i++) {
+          const p1 = w.points[i];
+          const p2 = w.points[i + 1];
+          if (Math.abs(p1.x - p2.x) < 0.1) {
+            const vx = p1.x;
+            const vy1 = Math.min(p1.y, p2.y);
+            const vy2 = Math.max(p1.y, p2.y);
+            for (const h of hSegments) {
+              if (h.wireId !== w.id) {
+                if (h.x1 + 4 < vx && vx < h.x2 - 4 && vy1 + 4 < h.y && h.y < vy2 - 4) {
+                  w.jumpers.push({
+                    x: vx,
+                    y: h.y,
+                    radius: this.metrics.JumperRadius
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    placeCallouts(diagram, components, boards, wires) {
+      const callouts = [];
+      const compMap = new Map(components.map((c) => [c.id, c]));
+      const obstacles = [];
+      for (const c of components) {
+        obstacles.push({
+          type: "component",
+          x: c.x - 4,
+          y: c.y - 4,
+          width: c.width + 8,
+          height: c.height + 8
+        });
+      }
+      for (const w of wires) {
+        for (let i = 0; i < w.points.length - 1; i++) {
+          const p1 = w.points[i];
+          const p2 = w.points[i + 1];
+          const minX = Math.min(p1.x, p2.x);
+          const maxX = Math.max(p1.x, p2.x);
+          const minY = Math.min(p1.y, p2.y);
+          const maxY = Math.max(p1.y, p2.y);
+          const isHoriz = Math.abs(p1.y - p2.y) < 2;
+          obstacles.push({
+            type: "wire",
+            x: minX - (isHoriz ? 0 : 6),
+            y: minY - (isHoriz ? 8 : 0),
+            width: Math.max(12, maxX - minX),
+            height: Math.max(16, maxY - minY)
+          });
+        }
+        for (const bc of w.boundaryConnectors) {
+          const badgeW = Math.max(24, Math.ceil(getTextWidth(bc.label || "CN", 10)) + 14);
+          const isVerticalBorder = bc.face === "left" || bc.face === "right";
+          const badgeX = isVerticalBorder ? bc.face === "right" ? bc.x + 8 : bc.x - badgeW - 8 : bc.x - badgeW / 2;
+          const badgeY = isVerticalBorder ? bc.y - 10 : bc.face === "bottom" ? bc.y + 8 : bc.y - 24;
+          obstacles.push({
+            type: "connector",
+            x: Math.min(bc.x - 10, badgeX) - 4,
+            y: Math.min(bc.y - 10, badgeY) - 4,
+            width: Math.max(badgeW, 20) + 16,
+            height: 28
+          });
+        }
+        if (w.protocol || w.note) {
+          const rawText = [w.protocol?.raw, w.note].filter(Boolean).join(" ");
+          const labelLines = rawText.split(/\\n|\n/);
+          const textW = Math.max(...labelLines.map((l) => getTextWidth(l, 10)));
+          const lblW = Math.max(20, Math.ceil(textW) + 14);
+          const lblH = Math.max(18, 8 + labelLines.length * 12);
+          let midX;
+          let midY;
+          if (w.boundaryConnectors.length > 0) {
+            const bc = w.boundaryConnectors[0];
+            const lastPt = w.points[w.points.length - 1];
+            const bcBadgeW = Math.max(20, Math.ceil(getTextWidth(bc.label || "CN", 10)) + 14);
+            if (lastPt.x > bc.x) {
+              midX = Math.max(bc.x + bcBadgeW + lblW / 2 + 15, bc.x + (lastPt.x - bc.x) * 0.55);
+              midY = bc.y;
+            } else if (lastPt.x < bc.x) {
+              midX = Math.min(bc.x - bcBadgeW - lblW / 2 - 15, lastPt.x + (bc.x - lastPt.x) * 0.45);
+              midY = bc.y;
+            } else {
+              midX = bc.x + 40;
+              midY = bc.y;
+            }
+          } else {
+            let longestIdx = 0;
+            let maxLen = 0;
+            for (let i = 0; i < w.points.length - 1; i++) {
+              const pA = w.points[i];
+              const pB = w.points[i + 1];
+              const len = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+              if (len > maxLen) {
+                maxLen = len;
+                longestIdx = i;
+              }
+            }
+            const p1 = w.points[longestIdx];
+            const p2 = w.points[longestIdx + 1];
+            midX = (p1.x + p2.x) / 2;
+            midY = (p1.y + p2.y) / 2 - 12;
+          }
+          obstacles.push({
+            type: "label",
+            x: midX - lblW / 2 - 4,
+            y: midY - lblH / 2 - 4,
+            width: lblW + 8,
+            height: lblH + 8
+          });
+        }
+      }
+      for (const c of diagram.callouts) {
+        const target = compMap.get(c.targetId);
+        if (!target) continue;
+        const lines = c.text.split(/\\n|\n/);
+        const textW = Math.max(...lines.map((l) => getTextWidth(l, 11)));
+        const width = Math.max(120, Math.ceil(textW) + 36);
+        const height = Math.max(30, 14 + lines.length * 16);
+        const targetBoard = boards.find((b) => b.id === target.boardId);
+        let tx = target.x + target.width / 2;
+        let ty = target.y + target.height / 2;
+        if (c.targetFace === "bottom") {
+          tx = target.x + (target.gridCol === 0 ? 30 : target.width / 2);
+          ty = target.y + target.height;
+        } else if (c.targetFace === "top") {
+          tx = target.x + target.width / 2;
+          ty = target.y;
+        } else if (c.targetFace === "left") {
+          tx = target.x;
+          ty = target.y + target.height / 2;
+        } else if (c.targetFace === "right") {
+          tx = target.x + target.width;
+          ty = target.y + target.height / 2;
+        }
+        const candidates = [];
+        if (c.targetFace === "bottom") {
+          candidates.push({ x: target.x + (target.gridCol === 0 ? 10 : (target.width - width) / 2), y: target.y + target.height + 15 });
+        } else if (c.targetFace === "top") {
+          candidates.push({ x: target.x + (target.width - width) / 2, y: target.y - height - 25 });
+        } else if (c.targetFace === "left") {
+          candidates.push({ x: target.x - width - 25, y: target.y + (target.height - height) / 2 });
+        } else if (c.targetFace === "right") {
+          candidates.push({ x: target.x + target.width + 25, y: target.y + (target.height - height) / 2 });
+        } else {
+          candidates.push({ x: target.x + target.width + 15, y: target.y - 15 });
+        }
+        const yAbove = target.y - height - 15;
+        candidates.push({ x: target.x + (target.width - width) / 2, y: yAbove });
+        candidates.push({ x: target.x + target.width - width, y: yAbove });
+        candidates.push({ x: target.x, y: yAbove });
+        candidates.push({ x: target.x + target.width + 15, y: yAbove });
+        if (targetBoard) {
+          const clampedX = Math.max(targetBoard.x + 20, Math.min(target.x + target.width - width, targetBoard.x + targetBoard.width - width - 20));
+          candidates.push({ x: clampedX, y: yAbove });
+        }
+        const yBelow = target.y + target.height + 15;
+        candidates.push({ x: target.x + (target.width - width) / 2, y: yBelow });
+        candidates.push({ x: target.x + target.width - width, y: yBelow });
+        candidates.push({ x: target.x, y: yBelow });
+        candidates.push({ x: target.x + target.width + 15, y: yBelow });
+        if (targetBoard) {
+          const clampedX = Math.max(targetBoard.x + 20, Math.min(target.x + target.width - width, targetBoard.x + targetBoard.width - width - 20));
+          candidates.push({ x: clampedX, y: yBelow });
+        }
+        candidates.push({ x: target.x + target.width + 20, y: target.y - height - 10 });
+        candidates.push({ x: target.x + target.width + 20, y: target.y + target.height + 10 });
+        candidates.push({ x: target.x - width - 20, y: target.y - height - 10 });
+        candidates.push({ x: target.x - width - 20, y: target.y + target.height + 10 });
+        for (const xOff of [-width - 30, -width / 2, 0, width / 2, width + 30]) {
+          for (const yOff of [-height - 40, -height - 20, target.height + 20, target.height + 40]) {
+            candidates.push({ x: target.x + xOff, y: target.y + yOff });
+          }
+        }
+        let bestCandidate = candidates[0];
+        let bestScore = Infinity;
+        for (const cand of candidates) {
+          let penalty = 0;
+          const rect = { x: cand.x, y: cand.y, width, height };
+          for (const obs of obstacles) {
+            const overlapX = Math.max(0, Math.min(rect.x + rect.width, obs.x + obs.width) - Math.max(rect.x, obs.x));
+            const overlapY = Math.max(0, Math.min(rect.y + rect.height, obs.y + obs.height) - Math.max(rect.y, obs.y));
+            if (overlapX > 0 && overlapY > 0) {
+              const area = overlapX * overlapY;
+              if (obs.type === "component") penalty += 1e5 + area * 20;
+              else if (obs.type === "callout") penalty += 1e5 + area * 20;
+              else if (obs.type === "connector") penalty += 8e4 + area * 15;
+              else if (obs.type === "label") penalty += 5e4 + area * 10;
+              else if (obs.type === "wire") penalty += 6e4 + area * 10;
+            }
+          }
+          for (const b of boards) {
+            const bRight = b.x + b.width;
+            const bBottom = b.y + b.height;
+            const crossesLeft = rect.x < b.x && rect.x + rect.width > b.x && rect.y + rect.height > b.y && rect.y < bBottom;
+            const crossesRight = rect.x < bRight && rect.x + rect.width > bRight && rect.y + rect.height > b.y && rect.y < bBottom;
+            const crossesTop = rect.y < b.y && rect.y + rect.height > b.y && rect.x + rect.width > b.x && rect.x < bRight;
+            const crossesBottom = rect.y < bBottom && rect.y + rect.height > bBottom && rect.x + rect.width > b.x && rect.x < bRight;
+            const crossesHeader = rect.y < b.y + 40 && rect.y + rect.height > b.y + 40 && rect.x + rect.width > b.x && rect.x < bRight;
+            if (crossesLeft || crossesRight || crossesTop || crossesBottom || crossesHeader) {
+              penalty += 4e4;
+            }
+          }
+          if (targetBoard) {
+            const isInside = rect.x >= targetBoard.x + 10 && rect.x + rect.width <= targetBoard.x + targetBoard.width - 10 && rect.y >= targetBoard.y + 40 && rect.y + rect.height <= targetBoard.y + targetBoard.height - 10;
+            if (isInside) {
+              penalty -= 3e3;
+            } else {
+              penalty += 2e3;
+            }
+          }
+          const cxMid = rect.x + rect.width / 2;
+          const cyMid = rect.y + rect.height / 2;
+          const dist = Math.hypot(cxMid - tx, cyMid - ty);
+          penalty += dist * 1.5;
+          if (cand === candidates[0] && penalty < 1e3) {
+            penalty -= 500;
+          }
+          if (penalty < bestScore) {
+            bestScore = penalty;
+            bestCandidate = cand;
+          }
+        }
+        const chosen = {
+          id: c.id,
+          type: c.type,
+          x: bestCandidate.x,
+          y: bestCandidate.y,
+          width,
+          height,
+          text: c.text,
+          targetPoint: { x: tx, y: ty },
+          targetId: c.targetId
+        };
+        callouts.push(chosen);
+        obstacles.push({
+          type: "callout",
+          x: chosen.x - 4,
+          y: chosen.y - 4,
+          width: chosen.width + 8,
+          height: chosen.height + 8
+        });
+      }
+      return callouts;
+    }
+    inferWireFaces(wire, sComp, tComp) {
+      let sFace = wire.sourceFace;
+      let tFace = wire.targetFace;
+      if (sComp && tComp) {
+        if (sFace === "bottom" && !tFace) {
+          tFace = "top";
+        } else if (sFace === "top" && !tFace) {
+          tFace = "bottom";
+        } else if (tFace === "top" && !sFace) {
+          sFace = "bottom";
+        } else if (tFace === "bottom" && !sFace) {
+          sFace = "top";
+        } else if (sFace === "right" && !tFace) {
+          tFace = "left";
+        } else if (sFace === "left" && !tFace) {
+          tFace = "right";
+        } else if (tFace === "left" && !sFace) {
+          sFace = "right";
+        } else if (tFace === "right" && !sFace) {
+          sFace = "left";
+        }
+      }
+      if (!sFace || !tFace) {
+        if (sComp && tComp) {
+          if (sComp.gridCol === tComp.gridCol) {
+            if (tComp.gridRow > sComp.gridRow) {
+              sFace = sFace || "bottom";
+              tFace = tFace || "top";
+            } else if (tComp.gridRow < sComp.gridRow) {
+              sFace = sFace || "top";
+              tFace = tFace || "bottom";
+            }
+          } else if (sComp.gridRow === tComp.gridRow) {
+            if (tComp.gridCol > sComp.gridCol) {
+              sFace = sFace || "right";
+              tFace = tFace || "left";
+            } else {
+              sFace = sFace || "left";
+              tFace = tFace || "right";
+            }
+          } else {
+            if (tComp.gridRow > sComp.gridRow) {
+              sFace = sFace || "bottom";
+              tFace = tFace || "top";
+            } else if (tComp.gridRow < sComp.gridRow) {
+              sFace = sFace || "top";
+              tFace = tFace || "bottom";
+            }
+          }
+        }
+      }
+      return {
+        sFace: sFace || "right",
+        tFace: tFace || "left"
+      };
+    }
+  };
+
+  // src/diagrams/wire/WireRenderer.ts
+  var WireRenderer = class {
+    constructor(layoutEngine = new WireLayout()) {
+      this.layoutEngine = layoutEngine;
+    }
+    render(diagram) {
+      const layout = this.layoutEngine.layout(diagram);
+      return this.renderSVG(layout);
+    }
+    renderSVG(layout) {
+      const width = layout.width;
+      const height = layout.height;
+      const defs = this.renderDefs();
+      const boardsSvg = layout.boards.map((b) => this.renderBoard(b)).join("\n");
+      const wiresSvg = layout.wires.map((w) => this.renderWire(w)).join("\n");
+      const busesSvg = layout.buses.map((b) => this.renderBus(b)).join("\n");
+      const componentsSvg = layout.components.map((c) => this.renderComponent(c)).join("\n");
+      const connectorsSvg = this.renderBoundaryConnectors(layout.wires);
+      const calloutsSvg = layout.callouts.map((c) => this.renderCallout(c)).join("\n");
+      const labelsSvg = layout.wires.map((w) => this.renderWireLabel(w, this.getWireColor(w))).filter(Boolean).join("\n");
+      return `
+<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    ${defs}
+    <g class="wire-boards">
+        ${boardsSvg}
+    </g>
+    <g class="wire-wires">
+        ${wiresSvg}
+    </g>
+    <g class="wire-buses">
+        ${busesSvg}
+    </g>
+    <g class="wire-components">
+        ${componentsSvg}
+    </g>
+    <g class="wire-boundary-connectors">
+        ${connectorsSvg}
+    </g>
+    <g class="wire-callouts">
+        ${calloutsSvg}
+    </g>
+    <g class="wire-labels">
+        ${labelsSvg}
+    </g>
+</svg>`.trim();
+    }
+    renderDefs() {
+      return `
+    <defs>
+        <!-- Generic arrow markers -->
+        <marker id="arrow-end-default" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M 0 1 L 7 4 L 0 7 Z" fill="#334155" />
+        </marker>
+        <marker id="arrow-start-default" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto">
+            <path d="M 7 1 L 0 4 L 7 7 Z" fill="#334155" />
+        </marker>
+
+        <!-- Power arrow markers -->
+        <marker id="arrow-end-power" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+            <path d="M 0 1 L 8 4.5 L 0 8 Z" fill="#DC2626" />
+        </marker>
+        <marker id="arrow-start-power" markerWidth="9" markerHeight="9" refX="1" refY="4.5" orient="auto">
+            <path d="M 8 1 L 0 4.5 L 8 8 Z" fill="#DC2626" />
+        </marker>
+
+        <!-- SPI arrow markers -->
+        <marker id="arrow-end-spi" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M 0 1 L 7 4 L 0 7 Z" fill="#2563EB" />
+        </marker>
+        <marker id="arrow-start-spi" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto">
+            <path d="M 7 1 L 0 4 L 7 7 Z" fill="#2563EB" />
+        </marker>
+
+        <!-- I2C arrow markers -->
+        <marker id="arrow-end-i2c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M 0 1 L 7 4 L 0 7 Z" fill="#16A34A" />
+        </marker>
+        <marker id="arrow-start-i2c" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto">
+            <path d="M 7 1 L 0 4 L 7 7 Z" fill="#16A34A" />
+        </marker>
+
+        <!-- UART arrow markers -->
+        <marker id="arrow-end-uart" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M 0 1 L 7 4 L 0 7 Z" fill="#9333EA" />
+        </marker>
+        <marker id="arrow-start-uart" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto">
+            <path d="M 7 1 L 0 4 L 7 7 Z" fill="#9333EA" />
+        </marker>
+
+        <!-- DIFF arrow markers -->
+        <marker id="arrow-end-diff" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M 0 1 L 7 4 L 0 7 Z" fill="#0D9488" />
+        </marker>
+        <marker id="arrow-start-diff" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto">
+            <path d="M 7 1 L 0 4 L 7 7 Z" fill="#0D9488" />
+        </marker>
+    </defs>`;
+    }
+    renderBoard(board) {
+      const titleText = this.escapeXml(board.label);
+      const noteText = board.note ? this.escapeXml(board.note) : "";
+      const titleWidth = Math.max(90, Math.ceil(getTextWidth(board.label, 12)) + 16);
+      return `
+        <g class="board" id="board-${board.id}">
+            <rect x="${board.x}" y="${board.y}" width="${board.width}" height="${board.height}" rx="10" ry="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="2" stroke-dasharray="6,4" />
+            <rect x="${board.x + 14}" y="${board.y + 24}" width="${titleWidth}" height="22" rx="4" ry="4" fill="#E2E8F0" />
+            <text x="${board.x + 22}" y="${board.y + 39}" font-size="12" font-weight="bold" fill="#1E293B">${titleText}</text>
+            ${noteText ? `<text x="${board.x + 26 + titleWidth}" y="${board.y + 39}" font-size="11" fill="#64748B">${noteText}</text>` : ""}
+        </g>`;
+    }
+    renderComponent(comp) {
+      const fill = comp.color || "#FFFFFF";
+      const stroke = comp.isEdge ? "#0284C7" : "#334155";
+      const hasNote = Boolean(comp.note);
+      const hasSubLabel = Boolean(comp.label && comp.label !== comp.id);
+      const labelLines = hasSubLabel ? comp.label.split(/\\n|\n/) : [];
+      const noteLines = hasNote ? (comp.note || "").split(/\\n|\n/) : [];
+      let titleY = comp.y + comp.height / 2;
+      if (hasSubLabel && hasNote) {
+        titleY = comp.y + 20;
+      } else if (hasSubLabel) {
+        titleY = comp.y + comp.height / 2 - labelLines.length * 15 / 2 + 4;
+      } else if (hasNote) {
+        titleY = comp.y + comp.height / 2 - noteLines.length * 14 / 2 - 2;
+      }
+      const subLabelSvg = labelLines.map((line, idx) => {
+        return `<text x="${comp.x + comp.width / 2}" y="${titleY + 16 + idx * 15}" text-anchor="middle" font-size="11" fill="#475569">${this.escapeXml(line)}</text>`;
+      }).join("\n");
+      const noteSvg = noteLines.map((line, idx) => {
+        const noteStartY = comp.y + comp.height - 10 - (noteLines.length - 1 - idx) * 14;
+        return `<text x="${comp.x + comp.width / 2}" y="${noteStartY}" text-anchor="middle" font-size="10" font-style="italic" fill="#64748B">${this.escapeXml(line)}</text>`;
+      }).join("\n");
+      return `
+        <g class="component" id="comp-${comp.id}">
+            <rect x="${comp.x}" y="${comp.y}" width="${comp.width}" height="${comp.height}" rx="6" ry="6" fill="${fill}" stroke="${stroke}" stroke-width="${comp.isEdge ? 2 : 1.8}" />
+            <text x="${comp.x + comp.width / 2}" y="${titleY}" text-anchor="middle" font-size="13" font-weight="bold" fill="#0F172A">${this.escapeXml(comp.id)}</text>
+            ${subLabelSvg}
+            ${noteSvg}
+        </g>`;
+    }
+    renderBus(bus) {
+      const busColor = "#1E40AF";
+      const busWidth = 4;
+      const trunkLine = `<line x1="${bus.trunkStartX}" y1="${bus.trunkStartY}" x2="${bus.trunkEndX}" y2="${bus.trunkEndY}" stroke="${busColor}" stroke-width="${busWidth}" stroke-linecap="round" />`;
+      const hasCustomBusId = bus.busId && bus.busId !== "BUS";
+      let labelText = "";
+      if (hasCustomBusId) {
+        labelText = this.escapeXml(bus.busId) + (bus.protocol ? ` : ${this.escapeXml(bus.protocol.raw)}` : "");
+      } else if (bus.protocol) {
+        labelText = this.escapeXml(bus.protocol.raw);
+      } else {
+        labelText = this.escapeXml(bus.busId);
+      }
+      const label = labelText ? `<text x="${bus.trunkStartX}" y="${bus.trunkStartY - 8}" font-size="11" font-weight="bold" fill="${busColor}">${labelText}</text>` : "";
+      const dots = bus.tapPoints.map((tap) => {
+        return `<circle cx="${tap.x}" cy="${tap.y}" r="4" fill="${busColor}" />`;
+      }).join("\n");
+      return `
+        <g class="bus-trunk" id="bus-${bus.id}">
+            ${trunkLine}
+            ${label}
+            ${dots}
+        </g>`;
+    }
+    getWireColor(wire) {
+      const protoName = wire.protocol?.name?.toLowerCase() || "";
+      if (protoName === "power") {
+        return "#DC2626";
+      } else if (protoName === "spi") {
+        return "#2563EB";
+      } else if (protoName === "i2c") {
+        return "#16A34A";
+      } else if (protoName === "uart") {
+        return "#9333EA";
+      } else if (protoName === "diff") {
+        return "#0D9488";
+      } else if (protoName === "gpio") {
+        return "#475569";
+      }
+      return "#334155";
+    }
+    renderWire(wire) {
+      if (wire.points.length < 2) return "";
+      const protoName = wire.protocol?.name?.toLowerCase() || "";
+      const strokeColor = this.getWireColor(wire);
+      let strokeWidth = 1.5;
+      let markerSuffix = "default";
+      if (protoName === "power") {
+        strokeWidth = 2.8;
+        markerSuffix = "power";
+      } else if (protoName === "spi") {
+        strokeWidth = 1.8;
+        markerSuffix = "spi";
+      } else if (protoName === "i2c") {
+        strokeWidth = 1.8;
+        markerSuffix = "i2c";
+      } else if (protoName === "uart") {
+        strokeWidth = 1.8;
+        markerSuffix = "uart";
+      } else if (protoName === "diff") {
+        strokeWidth = 2;
+        markerSuffix = "diff";
+      } else if (protoName === "gpio") {
+        strokeWidth = 1.8;
+        markerSuffix = "default";
+      }
+      let markerStartAttr = "";
+      let markerEndAttr = "";
+      if (wire.arrow.direction === "forward" || wire.arrow.direction === "bidirectional") {
+        markerEndAttr = `marker-end="url(#arrow-end-${markerSuffix})"`;
+      }
+      if (wire.arrow.direction === "backward" || wire.arrow.direction === "bidirectional") {
+        markerStartAttr = `marker-start="url(#arrow-start-${markerSuffix})"`;
+      }
+      const pathData = this.buildPathWithJumpers(wire.points, wire.jumpers);
+      let linesSvg = `<path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" ${markerStartAttr} ${markerEndAttr} />`;
+      if (protoName === "diff") {
+        linesSvg += `
+<path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="3,3" opacity="0.7" transform="translate(0, 3)" />`;
+      }
+      return `
+        <g class="wire" id="${wire.id}">
+            ${linesSvg}
+        </g>`;
+    }
+    buildPathWithJumpers(points, jumpers) {
+      if (points.length < 2) return "";
+      let d = `M ${points[0].x} ${points[0].y}`;
+      for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        if (Math.abs(p1.x - p2.x) < 0.1) {
+          const vx = p1.x;
+          const minY = Math.min(p1.y, p2.y);
+          const maxY = Math.max(p1.y, p2.y);
+          const isGoingDown = p2.y > p1.y;
+          const segJumpers = jumpers.filter((j) => Math.abs(j.x - vx) < 0.1 && j.y > minY && j.y < maxY);
+          if (segJumpers.length === 0) {
+            d += ` L ${p2.x} ${p2.y}`;
+          } else {
+            segJumpers.sort((a, b) => isGoingDown ? a.y - b.y : b.y - a.y);
+            for (const j of segJumpers) {
+              const r = j.radius;
+              if (isGoingDown) {
+                d += ` L ${vx} ${j.y - r}`;
+                d += ` A ${r} ${r} 0 0 1 ${vx} ${j.y + r}`;
+              } else {
+                d += ` L ${vx} ${j.y + r}`;
+                d += ` A ${r} ${r} 0 0 1 ${vx} ${j.y - r}`;
+              }
+            }
+            d += ` L ${p2.x} ${p2.y}`;
+          }
+        } else {
+          d += ` L ${p2.x} ${p2.y}`;
+        }
+      }
+      return d;
+    }
+    renderWireLabel(wire, color) {
+      if (wire.isBus && !wire.note) return "";
+      const textItems = [];
+      if (wire.protocol) {
+        textItems.push(wire.protocol.raw);
+      }
+      if (wire.note) {
+        textItems.push(wire.note);
+      }
+      if (textItems.length === 0) return "";
+      const rawText = textItems.join(" ");
+      const lines = rawText.split(/\\n|\n/);
+      const textW = Math.max(...lines.map((l) => getTextWidth(l, 10)));
+      const width = Math.max(20, Math.ceil(textW) + 14);
+      const height = lines.length === 1 ? 18 : 10 + lines.length * 13;
+      let midX;
+      let midY;
+      if (wire.boundaryConnectors.length > 0) {
+        const bc = wire.boundaryConnectors[0];
+        const lastPt = wire.points[wire.points.length - 1];
+        const bcBadgeW = Math.max(20, Math.ceil(getTextWidth(bc.label || "CN", 10)) + 14);
+        if (lastPt.x > bc.x) {
+          midX = Math.max(bc.x + bcBadgeW + width / 2 + 15, bc.x + (lastPt.x - bc.x) * 0.55);
+          midY = bc.y;
+        } else if (lastPt.x < bc.x) {
+          midX = Math.min(bc.x - bcBadgeW - width / 2 - 15, lastPt.x + (bc.x - lastPt.x) * 0.45);
+          midY = bc.y;
+        } else {
+          midX = bc.x + 40;
+          midY = bc.y;
+        }
+      } else {
+        let longestIdx = 0;
+        let maxLen = 0;
+        for (let i = 0; i < wire.points.length - 1; i++) {
+          const pA = wire.points[i];
+          const pB = wire.points[i + 1];
+          const len = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+          if (len > maxLen) {
+            maxLen = len;
+            longestIdx = i;
+          }
+        }
+        const p1 = wire.points[longestIdx];
+        const p2 = wire.points[longestIdx + 1];
+        if (wire.isBus && wire.targetFace === "top") {
+          midX = p2.x;
+          midY = p2.y - 12;
+        } else if (wire.sourceFace === "bottom" && wire.targetFace === "top") {
+          midX = p1.x + (p2.x - p1.x) * 0.72;
+          midY = (p1.y + p2.y) / 2;
+        } else {
+          midX = (p1.x + p2.x) / 2;
+          midY = (p1.y + p2.y) / 2;
+        }
+      }
+      let textSvg;
+      if (lines.length === 1) {
+        textSvg = `<text x="${midX}" y="${midY - height / 2 - 1}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${this.escapeXml(lines[0])}</text>`;
+      } else {
+        const startY = midY - height - 4 + 12;
+        const tspans = lines.map((l, i) => `<tspan x="${midX}" dy="${i === 0 ? 0 : 13}">${this.escapeXml(l)}</tspan>`).join("");
+        textSvg = `<text x="${midX}" y="${startY}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${tspans}</text>`;
+      }
+      return `
+        <g class="wire-label" id="label-${wire.id}">
+            <rect x="${midX - width / 2}" y="${midY - height - 4}" width="${width}" height="${height}" rx="3" ry="3" fill="#FFFFFF" stroke="${color}" stroke-width="0.8" />
+            ${textSvg}
+        </g>`;
+    }
+    renderBoundaryConnectors(wires) {
+      const svgParts = [];
+      for (const w of wires) {
+        for (const bc of w.boundaryConnectors) {
+          const labelText = this.escapeXml(bc.label || "CN");
+          const isVerticalBorder = bc.face === "right" || bc.face === "left";
+          const rectWidth = isVerticalBorder ? 12 : 24;
+          const rectHeight = isVerticalBorder ? 24 : 12;
+          const rx = bc.x - rectWidth / 2;
+          const ry = bc.y - rectHeight / 2;
+          const badgeW = Math.max(24, Math.ceil(getTextWidth(bc.label || "CN", 10)) + 14);
+          const badgeX = isVerticalBorder ? bc.face === "right" ? bc.x + 8 : bc.x - badgeW - 8 : bc.x - badgeW / 2;
+          const badgeY = isVerticalBorder ? bc.y - 10 : bc.face === "bottom" ? bc.y + 8 : bc.y - 24;
+          svgParts.push(`
+                <g class="boundary-connector">
+                    <rect x="${rx}" y="${ry}" width="${rectWidth}" height="${rectHeight}" rx="2" ry="2" fill="#FEF3C7" stroke="#B45309" stroke-width="1.5" />
+                    <rect x="${badgeX}" y="${badgeY}" width="${badgeW}" height="18" rx="3" ry="3" fill="#FFFBEB" stroke="#D97706" stroke-width="1" />
+                    <text x="${badgeX + badgeW / 2}" y="${badgeY + 13}" font-size="10" font-weight="bold" fill="#92400E" text-anchor="middle">${labelText}</text>
+                </g>`);
+        }
+      }
+      return svgParts.join("\n");
+    }
+    renderCallout(callout) {
+      const isWarning = callout.type === "warning";
+      const bg = isWarning ? "#FEF3C7" : "#EFF6FF";
+      const stroke = isWarning ? "#F59E0B" : "#60A5FA";
+      const textFill = isWarning ? "#B45309" : "#1E40AF";
+      const icon = isWarning ? "\u26A0\uFE0F " : "\u2139\uFE0F ";
+      const tx = callout.targetPoint.x;
+      const ty = callout.targetPoint.y;
+      let lx;
+      let ly;
+      if (callout.y + callout.height <= ty + 2) {
+        ly = callout.y + callout.height;
+        lx = Math.max(callout.x + 10, Math.min(callout.x + callout.width - 10, tx));
+      } else if (callout.y >= ty - 2) {
+        ly = callout.y;
+        lx = Math.max(callout.x + 10, Math.min(callout.x + callout.width - 10, tx));
+      } else if (callout.x >= tx) {
+        lx = callout.x;
+        ly = Math.max(callout.y + 6, Math.min(callout.y + callout.height - 6, ty));
+      } else {
+        lx = callout.x + callout.width;
+        ly = Math.max(callout.y + 6, Math.min(callout.y + callout.height - 6, ty));
+      }
+      const leaderLine = `
+        <line x1="${lx}" y1="${ly}" x2="${tx}" y2="${ty}" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="3,3" />
+        <circle cx="${tx}" cy="${ty}" r="2.5" fill="#64748B" />`;
+      const lines = callout.text.split(/\\n|\n/);
+      let textSvg;
+      if (lines.length === 1) {
+        textSvg = `<text x="${callout.x + 8}" y="${callout.y + 20}" font-size="11" font-weight="bold" fill="${textFill}">${icon}${this.escapeXml(lines[0])}</text>`;
+      } else {
+        const startY = Math.round((callout.height - (lines.length - 1) * 16) / 2 + 4);
+        const tspans = lines.map((line, idx) => {
+          const x = idx === 0 ? callout.x + 8 : callout.x + 8 + 22;
+          const dy = idx === 0 ? 0 : 16;
+          const prefix = idx === 0 ? icon : "";
+          return `<tspan x="${x}" dy="${dy}">${prefix}${this.escapeXml(line)}</tspan>`;
+        }).join("");
+        textSvg = `<text x="${callout.x + 8}" y="${callout.y + startY}" font-size="11" font-weight="bold" fill="${textFill}">${tspans}</text>`;
+      }
+      return `
+        <g class="callout" id="${callout.id}">
+            ${leaderLine}
+            <rect x="${callout.x}" y="${callout.y}" width="${callout.width}" height="${callout.height}" rx="4" ry="4" fill="${bg}" stroke="${stroke}" stroke-width="1.4" />
+            ${textSvg}
+        </g>`;
+    }
+    escapeXml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+    }
+  };
+
   // src/index.ts
   function renderSequenceDiagram(content) {
     const parser = new SequenceParser();
@@ -7211,6 +9840,17 @@ var snapuml = (() => {
       return renderError(e);
     }
   }
+  function renderWireDiagram(content) {
+    const parser = new WireParser();
+    const renderer = new WireRenderer();
+    try {
+      const diagram = parser.parse(content);
+      return renderer.render(diagram);
+    } catch (e) {
+      return renderError(e);
+    }
+  }
+  var renderWireLayout = renderWireDiagram;
   function renderError(e) {
     const errorMsg = e.message || "Unknown error occurred during parsing";
     const escapedError = errorMsg.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -7226,6 +9866,8 @@ var snapuml = (() => {
   function render(content) {
     const isSalt = /@startsalt/i.test(content) || /\{\{salt/i.test(content);
     if (isSalt) return renderSaltDiagram(content);
+    const isWire = /@startwire/i.test(content) || /@startwirelayout/i.test(content) || /^\s*board\s+[\w.-]+/m.test(content) || /->\s*bus\s+[\w.-]+/m.test(content) || /@\s*edge(\.(top|bottom|left|right|N|S|W|E))?/i.test(content) || /\b\w+\.(top|bottom|left|right|N|S|W|E)\s*[<]?[-=]+[>]?/m.test(content) || /[<]?[-=]+[>]?\s*\w+\.(top|bottom|left|right|N|S|W|E)\b/m.test(content);
+    if (isWire) return renderWireDiagram(content);
     const hasSequenceKeywords = /\b(participant|actor|boundary|control|entity|collections|queue)\b/.test(content);
     const hasComponentKeywords = /\b(component|interface|package|node|cloud|database|frame|folder)\b/.test(content);
     const hasComponentBrackets = /^\s*\[[^\]\r\n]+\]/m.test(content);
@@ -7269,6 +9911,8 @@ var snapuml = (() => {
       renderSequenceDiagram,
       renderComponentDiagram,
       renderSaltDiagram,
+      renderWireDiagram,
+      renderWireLayout,
       render,
       renderAll,
       initialize
@@ -7278,6 +9922,8 @@ var snapuml = (() => {
     renderSequenceDiagram,
     renderComponentDiagram,
     renderSaltDiagram,
+    renderWireDiagram,
+    renderWireLayout,
     render,
     renderAll,
     initialize
