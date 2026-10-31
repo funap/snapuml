@@ -2882,44 +2882,44 @@ saltDiagram {
         
                 const wireSamples = {
             esp32Sensing: {
-                title: "ESP32-S3 IoT センシング基板 (Full Practical Spec)",
+                title: "ESP32-S3 IoT Sensing Board (Full Practical Spec)",
                 code: `# ==========================================
-# ESP32-S3 センシング基板 回路構成図
+# ESP32-S3 Sensing Board Circuit Diagram
 # ==========================================
 
-# 1. メイン基板
-board MAIN_BOARD "メイン基板 (Main PCB)" {
-  note: "FR-4 / 2層基板 / 板厚 1.6mm"
+# 1. Main PCB
+board MAIN_BOARD "Main PCB" {
+  note: "FR-4 / 2-Layer PCB / 1.6mm Thickness"
 
   MCU "ESP32-S3-WROOM-1" {
     width: 220px
     height: 160px
     color: #E8F0FE
-    note: "QFN56 / 3.3V駆動"
+    note: "QFN56 / 3.3V Operation"
   }
 
-  warning for MCU.bottom "5Vトレラント非対応 (Max 3.6V)"
+  warning for MCU.bottom "Not 5V Tolerant (Max 3.6V)"
 
-  # 上面: エッジコネクタから電源生成
+  # Top: Power generation from edge connector
   USB_C "USB Type-C" @ edge.top
   USB_C -> LDO_3V3 "AMS1117-3.3" : power(VBUS 5V)
   LDO_3V3 -> MCU.top             : power(VDD 3.3V)
 
-  # 右面: オンボードFlash (Tier 1) と 基板端SDスロット (Edge)
+  # Right: Onboard Flash (Tier 1) and Edge SD Slot (Edge)
   MCU.right -> FLASH "W25Q128" .left         : spi(CS: IO11, 80MHz)
   MCU.right -> SD_SLOT "MicroSD Slot" @ edge : spi(CS: IO12)
 
-  # 下面: I2Cバス幹線による複数センサーの分岐共有
+  # Bottom: Shared I2C bus trunk branching to multiple sensors
   MCU.bottom -> bus I2C_BUS : i2c(400kHz, PU: 4.7kΩ) {
     -> SENSOR_TEMP "SHT40"    (addr: 0x44)
     -> SENSOR_IMU  "ICM42688" (addr: 0x68)
   }
 
-  # GPIO インジケータ
-  MCU.bottom -> STATUS_LED "LED" .top : gpio(Active-High) [note: "制限抵抗 330Ω"]
+  # GPIO Indicator
+  MCU.bottom -> STATUS_LED "LED" .top : gpio(Active-High) [note: "330Ω Current Limiting Resistor"]
 }
 
-# 2. 外部モジュール接続 (矢印長によるクリアランス・距離指定を活用)
+# 2. External module connections (utilizing arrow length for clearance & distance specification)
 PC_DEBUG "PC / USB-UART" <---> MAIN_BOARD.USB_C : diff("USB 2.0 FS")
 
 EXT_LCD "ST7789 2.4inch" {
@@ -2930,8 +2930,8 @@ MAIN_BOARD.MCU.right ---> EXT_LCD.top : spi(CS: IO10) via connector("CN1 (FPC 10
             },
 
             chainedTiers: {
-                title: "多段連鎖と階層展開 (Chained Anchors & Multi-Tier)",
-                code: `# 多段連鎖と階層展開 (Chained Anchors & Multi-Tier)
+                title: "Chained Anchors & Multi-Tier",
+                code: `# Chained Anchors & Multi-Tier
 board DAISY_BOARD "Shift Register & SPI Chain" {
   MCU "Main MCU" {
     width: 180px
@@ -2947,8 +2947,8 @@ board DAISY_BOARD "Shift Register & SPI Chain" {
             },
 
             i2cBusTrunk: {
-                title: "I2C バス共有幹線とT字タップ (Shared Bus Trunk & T-Junctions)",
-                code: `# I2C バス共有幹線とT字タップ (I2C Bus Trunk & T-Junctions)
+                title: "Shared Bus Trunk & T-Junctions",
+                code: `# Shared Bus Trunk & T-Junctions
 board SENSOR_HUB "Sensor Hub PCB" {
   MCU "RP2040" {
     width: 200px
@@ -2968,8 +2968,8 @@ board SENSOR_HUB "Sensor Hub PCB" {
             },
 
             distanceClearance: {
-                title: "矢印長による距離・間隔指定 (Distance & Isolation Clearance)",
-                code: `# 矢印長による距離・間隔指定 (Distance & Isolation Clearance)
+                title: "Distance & Isolation Clearance",
+                code: `# Distance & Isolation Clearance
 board CONTROLLER "Main Controller" {
   MCU "STM32F4" {
     width: 180px
@@ -2977,20 +2977,20 @@ board CONTROLLER "Main Controller" {
     color: #EDE7F6
   }
 
-  # 距離1: 隣接スロット直結
+  # Distance 1: Direct connection to adjacent slot
   MCU.right -> SRAM "IS62WV51216" .left : fsmc
 
-  # 距離2: 熱分散のため1スロット空きギャップ
+  # Distance 2: 1-slot gap for thermal dissipation
   MCU.bottom --> MOTOR_DRIVER "DRV8825" : pwm(DIR/STEP)
 
-  # 距離3: RF干渉防止のため2スロット空きアイソレーション領域
+  # Distance 3: 2-slot isolation area to prevent RF interference
   MCU.top ---> LORA_MODULE "SX1262 LoRa" : spi(CS: PA4) [note: "50Ω RF Isolation"]
 }`
             },
 
             manhattanJumpers: {
-                title: "直交配線と交差解決標準 (Manhattan Routing & Jumpers)",
-                code: `# 直交配線と交差解決標準 (Manhattan Routing & Jumpers)
+                title: "Manhattan Routing & Jumpers",
+                code: `# Manhattan Routing & Jumpers
 board ROUTER_BOARD "Network Switch & Router" {
   MCU "SoC" {
     width: 180px
@@ -3003,19 +3003,19 @@ board ROUTER_BOARD "Network Switch & Router" {
   WEST_DEV  "West Controller"  { color: #DCFCE7 }
   EAST_DEV  "East Display"  { color: #DCFCE7 }
 
-  # 水平線（地・直線）:
+  # Horizontal line (straight path):
   WEST_DEV.right -> EAST_DEV.left : uart(115200bps)
 
-  # 垂直線（交差跨ぎ・半円ジャンパブリッジ）:
+  # Vertical line (crossover with semicircular jumper bridge):
   NORTH_DEV.bottom -> SOUTH_DEV.top : power(5V, 2A)
 }`
             },
 
             droneFlightController: {
-                title: "ドローン / ロボット基板 (Flight Controller Architecture)",
-                code: `# フライトコントローラ回路 (Drone Flight Controller Architecture)
+                title: "Drone Flight Controller Architecture",
+                code: `# Drone Flight Controller Architecture
 board FC_BOARD "Flight Controller (STM32H7)" {
-  note: "6層基板 / 3oz銅箔"
+  note: "6-Layer PCB / 3oz Copper"
 
   MCU "STM32H743VI" {
     width: 240px
@@ -3030,7 +3030,7 @@ board FC_BOARD "Flight Controller (STM32H7)" {
 
   warning for MCU.bottom "VBAT Max 25.2V (6S LiPo)"
 
-  MCU.left -> IMU_PRIMARY "ICM-42688-P" .right : spi(CS: PB12, 10MHz) [note: "振動作動防止"]
+  MCU.left -> IMU_PRIMARY "ICM-42688-P" .right : spi(CS: PB12, 10MHz) [note: "Vibration Damped"]
   MCU.left -> IMU_BACKUP  "BMI270"      .right : spi(CS: PC4, 10MHz)
 
   MCU.right -> OSD_CHIP "AT7456E" @ edge : spi(CS: PB14)
@@ -3052,34 +3052,34 @@ FC_BOARD.MCU.top ---> GPS_MAG.bottom : uart(115200) via connector("JST-GH 6P")`
             },
 
             arduinoBasicIo: {
-                title: "Arduino Uno 基本入出力 (LED・ボタン・圧電ブザー)",
-                code: `# Arduino Uno 基本入出力 (LED・ボタン・圧電ブザー)
+                title: "Arduino Uno Basic I/O (LED, Button, Buzzer)",
+                code: `# Arduino Uno Basic I/O (LED, Button, Buzzer)
 board ARDUINO_UNO "Arduino Uno R3 (ATmega328P)" {
   MCU "ATmega328P" {
     width: 200px
     height: 150px
     color: #E0F2FE
-    note: "16MHz / 5Vロジック"
+    note: "16MHz / 5V Logic"
   }
 
   USB_B "USB Type-B (5V Power/Serial)" @ edge.top
   USB_B -> MCU.top : power(5V / UART)
 
-  # 左側: 入力系 (タクトスイッチ & 内蔵プルアップ)
-  BUTTON "Tactile Switch" .right -> MCU.left : gpio(D2 / INPUT_PULLUP) [note: "チャタリング防止"]
+  # Left: Inputs (Tactile switch & internal pull-up)
+  BUTTON "Tactile Switch" .right -> MCU.left : gpio(D2 / INPUT_PULLUP) [note: "Debounced"]
 
-  # 右側: 出力系 (LED + 抵抗, 圧電ブザー)
-  MCU.right -> STATUS_LED "Red LED (D13)" .left : gpio(Active-High) [note: "制限抵抗 330Ω"]
+  # Right: Outputs (LED + resistor, piezo buzzer)
+  MCU.right -> STATUS_LED "Red LED (D13)" .left : gpio(Active-High) [note: "330Ω Current Limiting Resistor"]
   MCU.right -> BUZZER "Piezo Buzzer (D9)" .left : pwm(Tone 490Hz-4kHz)
 
-  # 下面: アナログ入力 (ボリューム抵抗)
+  # Bottom: Analog input (Potentiometer)
   POTENTIOMETER "10kΩ Potentiometer" .top -> MCU.bottom : analog(A0: 0-5V)
 }`
             },
 
             arduinoLcdWeather: {
-                title: "Arduino Uno + キャラクタLCD & 温湿度計 (HD44780 & DHT11)",
-                code: `# Arduino Uno + 1602 キャラクタLCD & 温湿度計
+                title: "Arduino Uno + Character LCD & Temp/Humidity (HD44780 & DHT11)",
+                code: `# Arduino Uno + 1602 Character LCD & Weather Display
 board UNO_WEATHER "Arduino Uno Weather Display" {
   MCU "ATmega328P" {
     width: 220px
@@ -3091,10 +3091,10 @@ board UNO_WEATHER "Arduino Uno Weather Display" {
   DC_JACK -> REG_5V "Onboard 5V LDO" : power(9V Vin)
   REG_5V -> MCU.top : power(5V VCC)
 
-  # 左面: DHT11温湿度センサー (1-Wireデジタル)
+  # Left: DHT11 temperature & humidity sensor (1-Wire digital)
   DHT11 "DHT11 Sensor" .right -> MCU.left : gpio(D2: 1-Wire) [note: "PU: 4.7kΩ"]
 
-  # 右面: 1602 LCD (HD44780 4-bitパラレル)
+  # Right: 1602 LCD (HD44780 4-bit parallel)
   MCU.right -> LCD_1602 "1602 LCD Display" .left : gpio(RS, EN, D4-D7) via connector("Header 16P")
 
   TRIMMER "10kΩ Trimmer" .top -> LCD_1602.bottom : analog(V0 Contrast)
@@ -3102,8 +3102,8 @@ board UNO_WEATHER "Arduino Uno Weather Display" {
             },
 
             picoWeatherStation: {
-                title: "Raspberry Pi Pico 気象モニタ (I2C バス幹線 & OLED)",
-                code: `# Raspberry Pi Pico 気象モニタ (I2C Bus & OLED)
+                title: "Raspberry Pi Pico Weather Station (I2C Bus & OLED)",
+                code: `# Raspberry Pi Pico Weather Station (I2C Bus & OLED)
 board PICO_STATION "Raspberry Pi Pico Environmental Station" {
   MCU "RP2040" {
     width: 220px
@@ -3116,22 +3116,22 @@ board PICO_STATION "Raspberry Pi Pico Environmental Station" {
   USB_MICRO -> POWER_REG "RT6150 (Buck-Boost)" : power(VBUS 5V)
   POWER_REG -> MCU.top : power(3.3V OUT)
 
-  warning for MCU.bottom "GPIOは3.3V専用 (5V入力不可)"
+  warning for MCU.bottom "GPIO is 3.3V only (No 5V input)"
 
-  # 下面: I2Cバス幹線 (GP4=SDA, GP5=SCL)
+  # Bottom: I2C bus trunk (GP4=SDA, GP5=SCL)
   MCU.bottom -> bus I2C_BUS : i2c(400kHz, PU: 4.7kΩ) {
     -> BME280   "BME280 (Temp/Hum/Press)" (addr: 0x76)
     -> OLED_DSP "SSD1306 0.96 inch OLED"   (addr: 0x3C)
   }
 
-  # 右面: ステータスインジケータ
+  # Right: Status indicator
   MCU.right -> LED_SYS "NeoPixel RGB LED" .left : gpio(GP16, WS2812)
 }`
             },
 
             nanoRobotCar: {
-                title: "Arduino Nano 2WD ロボットカー (L298N & HC-SR04)",
-                code: `# Arduino Nano 2WD ロボットカー回路
+                title: "Arduino Nano 2WD Robot Car (L298N & HC-SR04)",
+                code: `# Arduino Nano 2WD Robot Car Circuit
 board NANO_ROBOT "Nano Robot Controller" {
   MCU "Arduino Nano" {
     width: 200px
@@ -3142,14 +3142,14 @@ board NANO_ROBOT "Nano Robot Controller" {
   BATTERY "2S Li-ion Battery (7.4V)" @ edge.top
   BATTERY -> MCU.top : power(7.4V to VIN)
 
-  # 左面: 超音波距離センサー HC-SR04
+  # Left: HC-SR04 ultrasonic distance sensor
   ULTRASONIC "HC-SR04 Ultrasonic" .right -> MCU.left : gpio(Trig: D8, Echo: D9)
 
-  # 右面: L298N H-Bridge モータードライバ
+  # Right: L298N H-Bridge motor driver
   MCU.right -> DRIVER_L298N "L298N Motor Driver" .left : pwm(ENA, ENB / IN1-4)
 }
 
-# 外部モーター接続
+# External motor connections
 MOTOR_L "Left DC Motor"
 MOTOR_R "Right DC Motor"
 NANO_ROBOT.DRIVER_L298N.bottom -> MOTOR_L : power(OUT1, OUT2)
@@ -3157,8 +3157,8 @@ NANO_ROBOT.DRIVER_L298N.bottom -> MOTOR_R : power(OUT3, OUT4)`
             },
 
             rpi4SmartHome: {
-                title: "Raspberry Pi 4 スマート家電制御 (フォトカプラ絶縁リレー & 人感センサー)",
-                code: `# Raspberry Pi 4 スマート家電制御回路
+                title: "Raspberry Pi 4 Smart Appliance Control (Optocoupled Relay & PIR Sensor)",
+                code: `# Raspberry Pi 4 Smart Appliance Control Circuit
 board RPI4_HUB "Raspberry Pi 4 IoT Hub" {
   SOC "BCM2711 (RPi 4)" {
     width: 220px
@@ -3170,13 +3170,13 @@ board RPI4_HUB "Raspberry Pi 4 IoT Hub" {
   TYPE_C "USB Type-C (5V 3A)" @ edge.top
   TYPE_C -> SOC.top : power(5.1V / 3A)
 
-  # 左面: PIR 人感センサー (モーション検知)
+  # Left: PIR motion sensor
   PIR_SENSOR "HC-SR501 PIR" .right -> SOC.left : gpio(GPIO 17, 3.3V Out)
 
-  # 右面: フォトカプラ絶縁 4ch リレー
+  # Right: Optocoupler-isolated 4-ch relay
   SOC.right -> RELAY_MOD "4ch Optocoupled Relay" .left : gpio(Active-Low: GPIO 22-25)
 
-  warning for RELAY_MOD.right "AC 100V 強電部アイソレーション (危険)"
+  warning for RELAY_MOD.right "AC 100V High-Voltage Isolation (Danger)"
 }
 
 AC_LAMP "AC 100V Desk Lamp"
@@ -3184,8 +3184,8 @@ RPI4_HUB.RELAY_MOD.right ---> AC_LAMP.left : power(100V 2A Relay NO/COM) via con
             },
 
             esp32SmartPlanter: {
-                title: "ESP32 スマート自動給水プランター (土壌湿度 & MOSFETポンプ)",
-                code: `# ESP32 スマート自動給水プランター
+                title: "ESP32 Smart Automated Planter (Soil Moisture & MOSFET Pump)",
+                code: `# ESP32 Smart Automated Planter
 board SMART_PLANTER "Plant Monitor & Irrigation PCB" {
   MCU "ESP32-WROOM-32" {
     width: 220px
@@ -3198,12 +3198,12 @@ board SMART_PLANTER "Plant Monitor & Irrigation PCB" {
   USB_IN -> REG_3V3 "AMS1117-3.3" : power(5V)
   REG_3V3 -> MCU.top : power(3.3V VDD)
 
-  # 左面: センサー入力系
+  # Left: Sensor inputs
   SOIL_SENSE "Capacitive Moisture v1.2" .right -> MCU.left : analog(IO34: 0-3.3V ADC)
   DHT22_AM2302 "DHT22 (Air Temp/Hum)" .right   -> MCU.left : gpio(IO4: 1-Wire)
 
-  # 右面: MOSFET ポンプドライバー
-  MCU.right -> MOSFET_DVR "IRLML2502 (N-ch FET)" .left : gpio(IO16 Gate) [note: "Flyback Diode 保護"]
+  # Right: MOSFET pump driver
+  MCU.right -> MOSFET_DVR "IRLML2502 (N-ch FET)" .left : gpio(IO16 Gate) [note: "Flyback Diode Protection"]
 }
 
 WATER_PUMP "5V Micro Submersible Pump"
@@ -3211,8 +3211,8 @@ SMART_PLANTER.MOSFET_DVR.right --> WATER_PUMP.left : power(5V Drain Switch)`
             },
 
             rpiZeroCam: {
-                title: "Raspberry Pi Zero 2 W 見守りカメラ (CSIカメラ & NeoPixel LED)",
-                code: `# Raspberry Pi Zero 2 W 小型見守りカメラ
+                title: "Raspberry Pi Zero 2 W Security Camera (CSI Camera & NeoPixel LED)",
+                code: `# Raspberry Pi Zero 2 W Compact Security Camera
 board RPI_ZERO_CAM "Raspberry Pi Zero 2 W" {
   SOC "RP3A0 (SiP SoC)" {
     width: 200px
@@ -3223,11 +3223,11 @@ board RPI_ZERO_CAM "Raspberry Pi Zero 2 W" {
   USB_PWR "Micro-USB Power" @ edge.top
   USB_PWR -> SOC.top : power(5V 2.5A)
 
-  # 下面: I2C照度センサー
+  # Bottom: I2C ambient light sensor
   SOC.bottom -> LIGHT_SENSOR "BH1750 (Ambient Light)" .top : i2c(addr: 0x23)
 
-  # 右面: WS2812B NeoPixel 8連リング (補助照明)
-  SOC.right -> NEO_RING "WS2812B 8-LED Ring" .left : gpio(GPIO 18 / PWM) [note: "DIN 470Ω 保護"]
+  # Right: WS2812B NeoPixel 8-LED ring (auxiliary lighting)
+  SOC.right -> NEO_RING "WS2812B 8-LED Ring" .left : gpio(GPIO 18 / PWM) [note: "DIN 470Ω Protection"]
 }
 
 CAM_MOD "RPi Camera Module 3" {
@@ -3238,8 +3238,8 @@ RPI_ZERO_CAM.SOC.left ---> CAM_MOD.right : diff("CSI-2 2-Lane MIPI") via connect
             },
 
             nanoDataLogger: {
-                title: "Arduino Nano フィールドデータロガー (SPI MicroSD & DS3231 RTC)",
-                code: `# Arduino Nano フィールドデータロガー
+                title: "Arduino Nano Field Data Logger (SPI MicroSD & DS3231 RTC)",
+                code: `# Arduino Nano Field Data Logger
 board NANO_LOGGER "Field Data Logger Shield" {
   MCU "Arduino Nano (ATmega328P)" {
     width: 230px
@@ -3250,20 +3250,20 @@ board NANO_LOGGER "Field Data Logger Shield" {
   EXT_BAT "9V 006P Battery" @ edge.top
   EXT_BAT -> MCU.top : power(VIN 9V)
 
-  # 左面: アナログセンサー & I2C 高精度時計
-  CDS_DIVIDER "CdS Photoresistor" .right -> MCU.left : analog(A0: 10kΩ 分圧)
+  # Left: Analog sensor & I2C high-precision RTC
+  CDS_DIVIDER "CdS Photoresistor" .right -> MCU.left : analog(A0: 10kΩ Divider)
   MCU.left -> RTC_DS3231 "DS3231 High-Precision RTC" .right : i2c(addr: 0x68, 32kHz TCXO)
 
-  # 右面: SPI 高速MicroSDカードスロット
+  # Right: SPI High-Speed MicroSD Card Slot
   MCU.right -> SD_MODULE "MicroSD Card Slot" @ edge : spi(CS: D4, MOSI: D11, MISO: D12, SCK: D13)
 
-  warning for SD_MODULE.bottom "SDカードは3.3V駆動 (レベルシフタ要)"
+  warning for SD_MODULE.bottom "SD card operates at 3.3V (Level shifter required)"
 }`
             },
 
             picoPanTilt: {
-                title: "Raspberry Pi Pico 2軸パンチルトカメラ台 (PCA9685 & SG90サーボ)",
-                code: `# Raspberry Pi Pico 2軸パンチルト サーボ制御
+                title: "Raspberry Pi Pico 2-Axis Pan-Tilt Mount (PCA9685 & SG90 Servos)",
+                code: `# Raspberry Pi Pico 2-Axis Pan-Tilt Servo Control
 board PICO_ROBOTICS "Pico Servo Controller" {
   MCU "RP2040" {
     width: 220px
@@ -3271,14 +3271,14 @@ board PICO_ROBOTICS "Pico Servo Controller" {
     color: #FCE7F3
   }
 
-  # 左面: 2軸アナログジョイスティック入力
+  # Left: 2-axis analog joystick input
   JOYSTICK "2-Axis Analog Joystick" .right -> MCU.left : analog(X: GP26/ADC0, Y: GP27/ADC1)
 
-  # 右面: I2C 16ch PWM コントローラ
+  # Right: I2C 16ch PWM controller
   MCU.right -> PWM_DRIVER "PCA9685 16ch PWM" .left : i2c(addr: 0x40, 12-bit)
 }
 
-# 外部サーボ電源 (サーボの突入電流からMCUを保護)
+# External servo power supply (protects MCU from servo inrush current)
 SERVO_BAT "External 5V 3A UBEC" -> PICO_ROBOTICS.PWM_DRIVER.top : power(5V V+ Servo Rail)
 
 SERVO_PAN  "SG90 Micro Servo (Pan / X)"
@@ -3288,14 +3288,14 @@ PICO_ROBOTICS.PWM_DRIVER.right --> SERVO_TILT.left : pwm(CH1: 50Hz Pulse)`
             },
 
             proMiniLora: {
-                title: "Arduino Pro Mini 太陽光充電式 LoRa 環境ノード (SX1278 & BME680)",
-                code: `# Arduino Pro Mini 太陽光充電式 LoRa リモートノード
+                title: "Arduino Pro Mini Solar-Powered LoRa Node (SX1278 & BME680)",
+                code: `# Arduino Pro Mini Solar-Powered LoRa Remote Node
 board LORA_NODE "LoRa Low-Power Sensor PCB" {
   MCU "ATmega328P (3.3V 8MHz)" {
     width: 230px
     height: 160px
     color: #ECFDF5
-    note: "Sleep電流 < 5µA (LED/レギュレータ除去済)"
+    note: "Sleep Current < 5µA (LED / Regulator Removed)"
   }
 
   SOLAR_CELL "Solar Panel (5V 1W)" @ edge.top
@@ -3303,11 +3303,11 @@ board LORA_NODE "LoRa Low-Power Sensor PCB" {
   CHG_CTRL -> LIFEPO4 "LiFePO4 3.2V Cell" : power(3.6V Charge)
   LIFEPO4 -> MCU.top : power(3.2V Direct VBAT)
 
-  # 左面: I2C 複合環境センサー (温度/湿度/気圧/VOCガス)
+  # Left: I2C Environmental Sensor (Temp/Humidity/Pressure/VOC Gas)
   MCU.left -> BME680 "BME680 Gas & Weather" .right : i2c(addr: 0x77)
 
-  # 右面: SPI 長距離 LoRa 無線モジュール
-  MCU.right -> LORA_RFM "SX1278 / RFM95W LoRa" @ edge : spi(CS: D10, DIO0: D2) [note: "920MHz 帯 / 長距離通信"]
+  # Right: SPI Long-Range LoRa Wireless Module
+  MCU.right -> LORA_RFM "SX1278 / RFM95W LoRa" @ edge : spi(CS: D10, DIO0: D2) [note: "920MHz Band / Long-Range"]
 }`
             }
         };
