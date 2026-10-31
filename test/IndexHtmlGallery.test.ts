@@ -16,4 +16,17 @@ describe('index.html Gallery Tabs', () => {
         expect(html).toMatch(/else\s+if\s*\(\s*type\s*===\s*['"]wire['"]\s*\)/);
         expect(html).toContain("document.getElementById('wire-tab').classList.add('active')");
     });
+
+    it('should include DIY circuit samples in wireSamples in index.html', () => {
+        expect(html).toContain('arduinoBasicIo:');
+        expect(html).toContain('arduinoLcdWeather:');
+        expect(html).toContain('picoWeatherStation:');
+        expect(html).toContain('nanoRobotCar:');
+        expect(html).toContain('rpi4SmartHome:');
+        expect(html).toContain('esp32SmartPlanter:');
+        expect(html).toContain('rpiZeroCam:');
+        expect(html).toContain('nanoDataLogger:');
+        expect(html).toContain('picoPanTilt:');
+        expect(html).toContain('proMiniLora:');
+    });
 });

@@ -1597,10 +1597,8 @@ export class WireLayout {
 
         if (srcComp.boardId === tgtComp.boardId) return connectors;
 
-        // If one of the endpoints is an edge component located on that board,
-        // and no explicit connector was specified, the edge component is already the connector.
-        const isDirectEdgeConn = !connectorLabel && ((srcComp.isEdge && !!srcComp.boardId) || (tgtComp.isEdge && !!tgtComp.boardId));
-        if (isDirectEdgeConn) return connectors;
+        // Boundary connectors should only be created when explicitly specified via `via connector(...)`
+        if (!connectorLabel) return connectors;
 
         for (const board of boards) {
             if (board.id === srcComp.boardId || board.id === tgtComp.boardId) {
@@ -1622,7 +1620,7 @@ export class WireLayout {
                                 connectors.push({
                                     x: bx2,
                                     y,
-                                    label: connectorLabel || 'CN',
+                                    label: connectorLabel,
                                     face: 'right'
                                 });
                             }
@@ -1630,7 +1628,7 @@ export class WireLayout {
                                 connectors.push({
                                     x: bx1,
                                     y,
-                                    label: connectorLabel || 'CN',
+                                    label: connectorLabel,
                                     face: 'left'
                                 });
                             }
@@ -1646,7 +1644,7 @@ export class WireLayout {
                                 connectors.push({
                                     x,
                                     y: by1,
-                                    label: connectorLabel || 'CN',
+                                    label: connectorLabel,
                                     face: 'top'
                                 });
                             }
@@ -1654,7 +1652,7 @@ export class WireLayout {
                                 connectors.push({
                                     x,
                                     y: by2,
-                                    label: connectorLabel || 'CN',
+                                    label: connectorLabel,
                                     face: 'bottom'
                                 });
                             }

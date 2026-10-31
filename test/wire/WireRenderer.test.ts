@@ -149,6 +149,24 @@ MAIN_BOARD.MCU.right ---> EXT_LCD.top : spi(CS: IO10) via connector("CN1 (FPC 10
         expect(svg).toContain('ST7789 2.4inch');
         expect(svg).toContain('CN1 (FPC 10P)');
         expect(svg).toContain('制限抵抗 330Ω');
+        // Must NOT render meta "EDGE" badges on edge components
+        expect(svg).not.toContain('>EDGE<');
+    });
+
+    it('should not render meta "EDGE" text badge on components placed at edge', () => {
+        const dsl = `
+            board PCB {
+                USB_C "Type-C" @ edge.top
+                SD "MicroSD" @ edge.right
+            }
+        `;
+        const diagram = parser.parse(dsl);
+        const svg = renderer.render(diagram);
+
+        expect(svg).toContain('Type-C');
+        expect(svg).toContain('MicroSD');
+        expect(svg).not.toContain('>EDGE<');
+        expect(svg).not.toContain('EDGE');
     });
 
     it('should render vertically stacked components on right face with straight horizontal wires', () => {
@@ -178,5 +196,34 @@ MAIN_BOARD.MCU.right ---> EXT_LCD.top : spi(CS: IO10) via connector("CN1 (FPC 10
         expect(x1).toBe(x2);
         // Different Y: FLASH2 is below FLASH1
         expect(y2).toBeGreaterThan(y1);
+    });
+
+    it('should render wire labels at the topmost layer (after components and wires)', () => {
+        const dsl = `
+            MCU.right -> FLASH : spi(CS: IO11, 80MHz) [note: "高速通信"]
+        `;
+        const diagram = parser.parse(dsl);
+        const svg = renderer.render(diagram);
+
+        expect(svg).toContain('<g class="wire-labels">');
+        expect(svg).toContain('class="wire-label"');
+        expect(svg).toContain('spi(CS: IO11, 80MHz) 高速通信');
+
+        // Check DOM ordering in SVG:
+        // wire-wires -> wire-components -> wire-labels
+        const posWires = svg.indexOf('class="wire-wires"');
+        const posComponents = svg.indexOf('class="wire-components"');
+        const posLabels = svg.indexOf('class="wire-labels"');
+
+        expect(posWires).toBeGreaterThan(-1);
+        expect(posComponents).toBeGreaterThan(posWires);
+        expect(posLabels).toBeGreaterThan(posComponents);
+
+        // Check that the label badge rect has enough width for CJK characters
+        const badgeMatch = svg.match(/<g class="wire-label"[^>]*>[\s\S]*?<rect [^>]*\swidth="([^"]+)"/);
+        expect(badgeMatch).not.toBeNull();
+        const width = parseFloat(badgeMatch![1]);
+        // The text is 25 chars with CJK; width must be comfortable and strictly > 140px
+        expect(width).toBeGreaterThan(140);
     });
 });

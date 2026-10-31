@@ -1,4 +1,5 @@
 import { Renderer } from '../../core/Renderer';
+import { getTextWidth } from '../../core/RichText';
 import { WireDiagram } from './WireDiagram';
 import {
     WireLayout,
@@ -31,9 +32,10 @@ export class WireRenderer implements Renderer<WireDiagram> {
         const boardsSvg = layout.boards.map(b => this.renderBoard(b)).join('\n');
         const wiresSvg = layout.wires.map(w => this.renderWire(w)).join('\n');
         const busesSvg = layout.buses.map(b => this.renderBus(b)).join('\n');
-        const connectorsSvg = this.renderBoundaryConnectors(layout.wires);
         const componentsSvg = layout.components.map(c => this.renderComponent(c)).join('\n');
+        const connectorsSvg = this.renderBoundaryConnectors(layout.wires);
         const calloutsSvg = layout.callouts.map(c => this.renderCallout(c)).join('\n');
+        const labelsSvg = layout.wires.map(w => this.renderWireLabel(w, this.getWireColor(w))).filter(Boolean).join('\n');
 
         return `
 <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="background: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
@@ -47,14 +49,17 @@ export class WireRenderer implements Renderer<WireDiagram> {
     <g class="wire-buses">
         ${busesSvg}
     </g>
-    <g class="wire-boundary-connectors">
-        ${connectorsSvg}
-    </g>
     <g class="wire-components">
         ${componentsSvg}
     </g>
+    <g class="wire-boundary-connectors">
+        ${connectorsSvg}
+    </g>
     <g class="wire-callouts">
         ${calloutsSvg}
+    </g>
+    <g class="wire-labels">
+        ${labelsSvg}
     </g>
 </svg>`.trim();
     }
@@ -115,7 +120,7 @@ export class WireRenderer implements Renderer<WireDiagram> {
     private renderBoard(board: PlacedBoard): string {
         const titleText = this.escapeXml(board.label);
         const noteText = board.note ? this.escapeXml(board.note) : '';
-        const titleWidth = Math.max(90, titleText.length * 9 + 16);
+        const titleWidth = Math.max(90, Math.ceil(getTextWidth(board.label, 12)) + 16);
 
         return `
         <g class="board" id="board-${board.id}">
@@ -139,15 +144,9 @@ export class WireRenderer implements Renderer<WireDiagram> {
             titleY = comp.y + (comp.height / 2) - 8;
         }
 
-        const edgeBadge = comp.isEdge ? `
-            <rect x="${comp.x + comp.width - 42}" y="${comp.y + 4}" width="38" height="15" rx="3" ry="3" fill="#E0F2FE" stroke="#0284C7" stroke-width="1"/>
-            <text x="${comp.x + comp.width - 23}" y="${comp.y + 15}" font-size="9" font-weight="bold" fill="#0369A1" text-anchor="middle">EDGE</text>
-        ` : '';
-
         return `
         <g class="component" id="comp-${comp.id}">
             <rect x="${comp.x}" y="${comp.y}" width="${comp.width}" height="${comp.height}" rx="6" ry="6" fill="${fill}" stroke="${stroke}" stroke-width="${comp.isEdge ? 2 : 1.8}" />
-            ${edgeBadge}
             <text x="${comp.x + comp.width / 2}" y="${titleY}" text-anchor="middle" font-size="13" font-weight="bold" fill="#0F172A">${this.escapeXml(comp.id)}</text>
             ${hasSubLabel ? `<text x="${comp.x + comp.width / 2}" y="${titleY + 16}" text-anchor="middle" font-size="11" fill="#475569">${this.escapeXml(comp.label)}</text>` : ''}
             ${hasNote ? `<text x="${comp.x + comp.width / 2}" y="${comp.y + comp.height - 10}" text-anchor="middle" font-size="10" font-style="italic" fill="#64748B">${this.escapeXml(comp.note || '')}</text>` : ''}
@@ -160,8 +159,17 @@ export class WireRenderer implements Renderer<WireDiagram> {
 
         const trunkLine = `<line x1="${bus.trunkStartX}" y1="${bus.trunkStartY}" x2="${bus.trunkEndX}" y2="${bus.trunkEndY}" stroke="${busColor}" stroke-width="${busWidth}" stroke-linecap="round" />`;
 
-        const labelText = this.escapeXml(bus.busId) + (bus.protocol ? ` : ${this.escapeXml(bus.protocol.raw)}` : '');
-        const label = `<text x="${bus.trunkStartX}" y="${bus.trunkStartY - 8}" font-size="11" font-weight="bold" fill="${busColor}">${labelText}</text>`;
+        const hasCustomBusId = bus.busId && bus.busId !== 'BUS';
+        let labelText = '';
+        if (hasCustomBusId) {
+            labelText = this.escapeXml(bus.busId) + (bus.protocol ? ` : ${this.escapeXml(bus.protocol.raw)}` : '');
+        } else if (bus.protocol) {
+            labelText = this.escapeXml(bus.protocol.raw);
+        } else {
+            labelText = this.escapeXml(bus.busId);
+        }
+
+        const label = labelText ? `<text x="${bus.trunkStartX}" y="${bus.trunkStartY - 8}" font-size="11" font-weight="bold" fill="${busColor}">${labelText}</text>` : '';
 
         const dots = bus.tapPoints.map(tap => {
             return `<circle cx="${tap.x}" cy="${tap.y}" r="4" fill="${busColor}" />`;
@@ -175,36 +183,48 @@ export class WireRenderer implements Renderer<WireDiagram> {
         </g>`;
     }
 
+    private getWireColor(wire: PlacedWire): string {
+        const protoName = wire.protocol?.name?.toLowerCase() || '';
+        if (protoName === 'power') {
+            return '#DC2626';
+        } else if (protoName === 'spi') {
+            return '#2563EB';
+        } else if (protoName === 'i2c') {
+            return '#16A34A';
+        } else if (protoName === 'uart') {
+            return '#9333EA';
+        } else if (protoName === 'diff') {
+            return '#0D9488';
+        } else if (protoName === 'gpio') {
+            return '#475569';
+        }
+        return '#334155';
+    }
+
     private renderWire(wire: PlacedWire): string {
         if (wire.points.length < 2) return '';
 
         const protoName = wire.protocol?.name?.toLowerCase() || '';
-        let strokeColor = '#334155';
+        const strokeColor = this.getWireColor(wire);
         let strokeWidth = 1.5;
         let markerSuffix = 'default';
 
         if (protoName === 'power') {
-            strokeColor = '#DC2626';
             strokeWidth = 2.8;
             markerSuffix = 'power';
         } else if (protoName === 'spi') {
-            strokeColor = '#2563EB';
             strokeWidth = 1.8;
             markerSuffix = 'spi';
         } else if (protoName === 'i2c') {
-            strokeColor = '#16A34A';
             strokeWidth = 1.8;
             markerSuffix = 'i2c';
         } else if (protoName === 'uart') {
-            strokeColor = '#9333EA';
             strokeWidth = 1.8;
             markerSuffix = 'uart';
         } else if (protoName === 'diff') {
-            strokeColor = '#0D9488';
             strokeWidth = 2.0;
             markerSuffix = 'diff';
         } else if (protoName === 'gpio') {
-            strokeColor = '#475569';
             strokeWidth = 1.8;
             markerSuffix = 'default';
         }
@@ -229,13 +249,9 @@ export class WireRenderer implements Renderer<WireDiagram> {
             linesSvg += `\n<path d="${pathData}" fill="none" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="3,3" opacity="0.7" transform="translate(0, 3)" />`;
         }
 
-        // Label / Protocol badge along the wire
-        const labelSvg = this.renderWireLabel(wire, strokeColor);
-
         return `
         <g class="wire" id="${wire.id}">
             ${linesSvg}
-            ${labelSvg}
         </g>`;
     }
 
@@ -300,8 +316,10 @@ export class WireRenderer implements Renderer<WireDiagram> {
 
         if (textItems.length === 0) return '';
 
-        const fullText = this.escapeXml(textItems.join(' '));
-        const width = fullText.length * 7 + 14;
+        const rawText = textItems.join(' ');
+        const fullText = this.escapeXml(rawText);
+        const textW = getTextWidth(rawText, 10);
+        const width = Math.max(20, Math.ceil(textW) + 14);
         const height = 18;
 
         let midX: number;
@@ -311,7 +329,7 @@ export class WireRenderer implements Renderer<WireDiagram> {
         if (wire.boundaryConnectors.length > 0) {
             const bc = wire.boundaryConnectors[0];
             const lastPt = wire.points[wire.points.length - 1];
-            const bcBadgeW = (bc.label || 'CN').length * 7 + 14;
+            const bcBadgeW = Math.max(20, Math.ceil(getTextWidth(bc.label || 'CN', 10)) + 14);
             // If going rightwards from border
             if (lastPt.x > bc.x) {
                 midX = Math.max(bc.x + bcBadgeW + width / 2 + 15, bc.x + (lastPt.x - bc.x) * 0.55);
@@ -355,8 +373,10 @@ export class WireRenderer implements Renderer<WireDiagram> {
         }
 
         return `
-        <rect x="${midX - width / 2}" y="${midY - height - 4}" width="${width}" height="${height}" rx="3" ry="3" fill="#FFFFFF" stroke="${color}" stroke-width="0.8" opacity="0.95" />
-        <text x="${midX}" y="${midY - height / 2 - 1}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${fullText}</text>`;
+        <g class="wire-label" id="label-${wire.id}">
+            <rect x="${midX - width / 2}" y="${midY - height - 4}" width="${width}" height="${height}" rx="3" ry="3" fill="#FFFFFF" stroke="${color}" stroke-width="0.8" />
+            <text x="${midX}" y="${midY - height / 2 - 1}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${fullText}</text>
+        </g>`;
     }
 
     private renderBoundaryConnectors(wires: PlacedWire[]): string {
@@ -373,7 +393,7 @@ export class WireRenderer implements Renderer<WireDiagram> {
                 const rx = bc.x - rectWidth / 2;
                 const ry = bc.y - rectHeight / 2;
 
-                const badgeW = labelText.length * 7 + 14;
+                const badgeW = Math.max(24, Math.ceil(getTextWidth(bc.label || 'CN', 10)) + 14);
                 const badgeX = isVerticalBorder ? (bc.face === 'right' ? bc.x + 8 : bc.x - badgeW - 8) : bc.x - badgeW / 2;
                 const badgeY = isVerticalBorder ? bc.y - 10 : (bc.face === 'bottom' ? bc.y + 8 : bc.y - 24);
 
