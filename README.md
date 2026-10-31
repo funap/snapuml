@@ -2,6 +2,8 @@
 
 A lightning-fast, 100% client-side, and local-first PlantUML-like diagram generator for the web.
 
+**English** | [日本語](README.ja.md)
+
 **[✨ Try it Live!](https://funap.github.io/snapuml/)**
 
 ---

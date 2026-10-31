@@ -4,6 +4,11 @@ import { ComponentParser } from './diagrams/component/ComponentParser';
 import { ComponentRenderer } from './diagrams/component/ComponentRenderer';
 import { SaltParser } from './diagrams/salt/SaltParser';
 import { SaltRenderer } from './diagrams/salt/SaltRenderer';
+import { WireParser } from './diagrams/wire/WireParser';
+import { WireRenderer } from './diagrams/wire/WireRenderer';
+import { WireLayout } from './diagrams/wire/WireLayout';
+
+export { WireParser, WireRenderer, WireLayout };
 
 export interface InitializeConfig {
     startOnLoad?: boolean;
@@ -43,6 +48,19 @@ export function renderSaltDiagram(content: string): string {
     }
 }
 
+export function renderWireDiagram(content: string): string {
+    const parser = new WireParser();
+    const renderer = new WireRenderer();
+    try {
+        const diagram = parser.parse(content);
+        return renderer.render(diagram);
+    } catch (e: any) {
+        return renderError(e);
+    }
+}
+
+export const renderWireLayout = renderWireDiagram;
+
 function renderError(e: any): string {
     const errorMsg = e.message || 'Unknown error occurred during parsing';
     const escapedError = errorMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -59,6 +77,18 @@ function renderError(e: any): string {
 export function render(content: string): string {
     const isSalt = /@startsalt/i.test(content) || /\{\{salt/i.test(content);
     if (isSalt) return renderSaltDiagram(content);
+
+    // WireLayout DSL v2.2 detection
+    const isWire =
+        /@startwire/i.test(content) ||
+        /@startwirelayout/i.test(content) ||
+        /^\s*board\s+[\w.-]+/m.test(content) ||
+        /->\s*bus\s+[\w.-]+/m.test(content) ||
+        /@\s*edge(\.(top|bottom|left|right|N|S|W|E))?/i.test(content) ||
+        /\b\w+\.(top|bottom|left|right|N|S|W|E)\s*[<]?[-=]+[>]?/m.test(content) ||
+        /[<]?[-=]+[>]?\s*\w+\.(top|bottom|left|right|N|S|W|E)\b/m.test(content);
+
+    if (isWire) return renderWireDiagram(content);
 
     // Sequence-specific keywords that strongly indicate a sequence diagram.
     // These take absolute priority because they never appear in component diagrams.
@@ -140,6 +170,8 @@ if (typeof window !== 'undefined') {
         renderSequenceDiagram,
         renderComponentDiagram,
         renderSaltDiagram,
+        renderWireDiagram,
+        renderWireLayout,
         render,
         renderAll,
         initialize
@@ -151,6 +183,8 @@ export default {
     renderSequenceDiagram,
     renderComponentDiagram,
     renderSaltDiagram,
+    renderWireDiagram,
+    renderWireLayout,
     render,
     renderAll,
     initialize
