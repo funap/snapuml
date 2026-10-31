@@ -6,6 +6,7 @@ import {
     WireComponent,
     WireConnection
 } from './WireDiagram';
+import { getTextWidth } from '../../core/RichText';
 
 export interface WireLayoutMetrics {
     NodeMinWidth: number;
@@ -221,7 +222,29 @@ export class WireLayout {
         const { wires, buses } = this.routeWiresAndBuses(diagram, placedComponents, placedBoards);
 
         // 8. Place Callouts
-        const callouts = this.placeCallouts(diagram, placedComponents);
+        const callouts = this.placeCallouts(diagram, placedComponents, placedBoards, wires);
+
+        // If any callout is inside a board, expand board if needed to fully enclose it
+        for (const call of callouts) {
+            const comp = placedComponents.find(c => c.id === call.targetId);
+            if (comp && comp.boardId) {
+                const board = placedBoards.find(b => b.id === comp.boardId);
+                if (board) {
+                    if (call.x >= board.x && call.x < board.x + board.width) {
+                        const rightNeeded = call.x + call.width + 20;
+                        if (rightNeeded > board.x + board.width) {
+                            board.width = rightNeeded - board.x;
+                        }
+                    }
+                    if (call.y >= board.y && call.y < board.y + board.height) {
+                        const bottomNeeded = call.y + call.height + 20;
+                        if (bottomNeeded > board.y + board.height) {
+                            board.height = bottomNeeded - board.y;
+                        }
+                    }
+                }
+            }
+        }
 
         // 9. Compute Overall Diagram Dimensions
         let minX = Infinity;
@@ -783,6 +806,20 @@ export class WireLayout {
                 userH = userH * this.metrics.SlotPitch;
             }
 
+            const labelLines = comp.label && comp.label !== comp.id ? comp.label.split(/\\n|\n/) : [];
+            const noteLines = comp.note ? comp.note.split(/\\n|\n/) : [];
+            const maxLabelW = labelLines.length > 0 ? Math.max(...labelLines.map(l => getTextWidth(l, 11))) : 0;
+            const maxNoteW = noteLines.length > 0 ? Math.max(...noteLines.map(l => getTextWidth(l, 10))) : 0;
+            const idW = getTextWidth(comp.id, 13);
+            const contentW = Math.max(idW, maxLabelW, maxNoteW) + 24;
+
+            let contentH = this.metrics.NodeMinHeight;
+            if (labelLines.length > 0 || noteLines.length > 0) {
+                contentH = 32 + (labelLines.length * 16) + (noteLines.length > 0 ? noteLines.length * 14 + 10 : 0);
+            }
+            requiredHeight = Math.max(requiredHeight, contentH);
+            requiredWidth = Math.max(requiredWidth, contentW);
+
             const width = Math.max(userW || 0, this.metrics.NodeMinWidth, requiredWidth);
             const height = Math.max(userH || 0, this.metrics.NodeMinHeight, requiredHeight);
 
@@ -1162,7 +1199,28 @@ export class WireLayout {
             for (const c of components) {
                 if (!c.boardId) {
                     if (c.x > board.x) {
-                        c.x = Math.max(c.x, board.x + board.width + 180);
+                        let minClearance = 180;
+                        for (const w of diagram.wires) {
+                            const isConnected = (diagram.getComponent(w.sourceId)?.boardId === board.id && w.targetId === c.id) ||
+                                                (diagram.getComponent(w.targetId)?.boardId === board.id && w.sourceId === c.id);
+                            if (isConnected) {
+                                let connectorW = 0;
+                                let labelW = 0;
+                                if (w.connector) {
+                                    connectorW = Math.max(24, Math.ceil(getTextWidth(w.connector, 10)) + 14);
+                                }
+                                if (w.protocol || w.note) {
+                                    const rawText = [w.protocol?.raw, w.note].filter(Boolean).join(' ');
+                                    labelW = Math.max(20, Math.ceil(getTextWidth(rawText, 10)) + 14);
+                                }
+                                if (connectorW > 0 && labelW > 0) {
+                                    minClearance = Math.max(minClearance, connectorW + labelW + 60);
+                                } else if (connectorW > 0 || labelW > 0) {
+                                    minClearance = Math.max(minClearance, (connectorW || labelW) + 60);
+                                }
+                            }
+                        }
+                        c.x = Math.max(c.x, board.x + board.width + minClearance);
                     }
                 }
             }
@@ -1716,62 +1774,284 @@ export class WireLayout {
 
     private placeCallouts(
         diagram: WireDiagram,
-        components: PlacedComponent[]
+        components: PlacedComponent[],
+        boards: PlacedBoard[],
+        wires: PlacedWire[]
     ): PlacedCallout[] {
         const callouts: PlacedCallout[] = [];
         const compMap = new Map(components.map(c => [c.id, c]));
+
+        interface Obstacle {
+            type: 'component' | 'wire' | 'connector' | 'label' | 'callout';
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+        }
+
+        const obstacles: Obstacle[] = [];
+
+        // 1. Components
+        for (const c of components) {
+            obstacles.push({
+                type: 'component',
+                x: c.x - 4,
+                y: c.y - 4,
+                width: c.width + 8,
+                height: c.height + 8
+            });
+        }
+
+        // 2. Wires, Boundary Connectors, Wire Labels
+        for (const w of wires) {
+            for (let i = 0; i < w.points.length - 1; i++) {
+                const p1 = w.points[i];
+                const p2 = w.points[i + 1];
+                const minX = Math.min(p1.x, p2.x);
+                const maxX = Math.max(p1.x, p2.x);
+                const minY = Math.min(p1.y, p2.y);
+                const maxY = Math.max(p1.y, p2.y);
+                const isHoriz = Math.abs(p1.y - p2.y) < 2;
+                obstacles.push({
+                    type: 'wire',
+                    x: minX - (isHoriz ? 0 : 6),
+                    y: minY - (isHoriz ? 8 : 0),
+                    width: Math.max(12, maxX - minX),
+                    height: Math.max(16, maxY - minY)
+                });
+            }
+
+            for (const bc of w.boundaryConnectors) {
+                const badgeW = Math.max(24, Math.ceil(getTextWidth(bc.label || 'CN', 10)) + 14);
+                const isVerticalBorder = bc.face === 'left' || bc.face === 'right';
+                const badgeX = isVerticalBorder ? (bc.face === 'right' ? bc.x + 8 : bc.x - badgeW - 8) : bc.x - badgeW / 2;
+                const badgeY = isVerticalBorder ? bc.y - 10 : (bc.face === 'bottom' ? bc.y + 8 : bc.y - 24);
+
+                obstacles.push({
+                    type: 'connector',
+                    x: Math.min(bc.x - 10, badgeX) - 4,
+                    y: Math.min(bc.y - 10, badgeY) - 4,
+                    width: Math.max(badgeW, 20) + 16,
+                    height: 28
+                });
+            }
+
+            if (w.protocol || w.note) {
+                const rawText = [w.protocol?.raw, w.note].filter(Boolean).join(' ');
+                const labelLines = rawText.split(/\\n|\n/);
+                const textW = Math.max(...labelLines.map(l => getTextWidth(l, 10)));
+                const lblW = Math.max(20, Math.ceil(textW) + 14);
+                const lblH = Math.max(18, 8 + labelLines.length * 12);
+
+                let midX: number;
+                let midY: number;
+                if (w.boundaryConnectors.length > 0) {
+                    const bc = w.boundaryConnectors[0];
+                    const lastPt = w.points[w.points.length - 1];
+                    const bcBadgeW = Math.max(20, Math.ceil(getTextWidth(bc.label || 'CN', 10)) + 14);
+                    if (lastPt.x > bc.x) {
+                        midX = Math.max(bc.x + bcBadgeW + lblW / 2 + 15, bc.x + (lastPt.x - bc.x) * 0.55);
+                        midY = bc.y;
+                    } else if (lastPt.x < bc.x) {
+                        midX = Math.min(bc.x - bcBadgeW - lblW / 2 - 15, lastPt.x + (bc.x - lastPt.x) * 0.45);
+                        midY = bc.y;
+                    } else {
+                        midX = bc.x + 40;
+                        midY = bc.y;
+                    }
+                } else {
+                    let longestIdx = 0;
+                    let maxLen = 0;
+                    for (let i = 0; i < w.points.length - 1; i++) {
+                        const pA = w.points[i];
+                        const pB = w.points[i + 1];
+                        const len = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+                        if (len > maxLen) {
+                            maxLen = len;
+                            longestIdx = i;
+                        }
+                    }
+                    const p1 = w.points[longestIdx];
+                    const p2 = w.points[longestIdx + 1];
+                    midX = (p1.x + p2.x) / 2;
+                    midY = (p1.y + p2.y) / 2 - 12;
+                }
+
+                obstacles.push({
+                    type: 'label',
+                    x: midX - lblW / 2 - 4,
+                    y: midY - lblH / 2 - 4,
+                    width: lblW + 8,
+                    height: lblH + 8
+                });
+            }
+        }
 
         for (const c of diagram.callouts) {
             const target = compMap.get(c.targetId);
             if (!target) continue;
 
-            const textLen = c.text.length;
-            const width = Math.min(280, Math.max(130, textLen * 9 + 30));
-            const height = 30;
+            const lines = c.text.split(/\\n|\n/);
+            const textW = Math.max(...lines.map(l => getTextWidth(l, 11)));
+            const width = Math.max(120, Math.ceil(textW) + 36);
+            const height = Math.max(30, 14 + lines.length * 16);
 
-            let cx = target.x;
-            let cy = target.y;
+            const targetBoard = boards.find(b => b.id === target.boardId);
+
             let tx = target.x + target.width / 2;
-            let ty = target.y;
+            let ty = target.y + target.height / 2;
 
             if (c.targetFace === 'bottom') {
-                // Place callout in the upper band under MCU, slightly to the left
-                cx = target.x + 10;
-                cy = target.y + target.height + 15;
-                tx = target.x + 30;
+                tx = target.x + (target.gridCol === 0 ? 30 : target.width / 2);
                 ty = target.y + target.height;
             } else if (c.targetFace === 'top') {
-                cx = target.x + (target.width - width) / 2;
-                cy = target.y - height - 25;
                 tx = target.x + target.width / 2;
                 ty = target.y;
             } else if (c.targetFace === 'left') {
-                cx = target.x - width - 25;
-                cy = target.y + (target.height - height) / 2;
                 tx = target.x;
                 ty = target.y + target.height / 2;
             } else if (c.targetFace === 'right') {
-                cx = target.x + target.width + 25;
-                cy = target.y + (target.height - height) / 2;
                 tx = target.x + target.width;
                 ty = target.y + target.height / 2;
-            } else {
-                cx = target.x + target.width + 15;
-                cy = target.y - 15;
-                tx = target.x + target.width;
-                ty = target.y;
             }
 
-            callouts.push({
+            const candidates: Array<{ x: number; y: number }> = [];
+
+            // 1. Preferred face position
+            if (c.targetFace === 'bottom') {
+                candidates.push({ x: target.x + (target.gridCol === 0 ? 10 : (target.width - width) / 2), y: target.y + target.height + 15 });
+            } else if (c.targetFace === 'top') {
+                candidates.push({ x: target.x + (target.width - width) / 2, y: target.y - height - 25 });
+            } else if (c.targetFace === 'left') {
+                candidates.push({ x: target.x - width - 25, y: target.y + (target.height - height) / 2 });
+            } else if (c.targetFace === 'right') {
+                candidates.push({ x: target.x + target.width + 25, y: target.y + (target.height - height) / 2 });
+            } else {
+                candidates.push({ x: target.x + target.width + 15, y: target.y - 15 });
+            }
+
+            // 2. Above positions
+            const yAbove = target.y - height - 15;
+            candidates.push({ x: target.x + (target.width - width) / 2, y: yAbove });
+            candidates.push({ x: target.x + target.width - width, y: yAbove });
+            candidates.push({ x: target.x, y: yAbove });
+            candidates.push({ x: target.x + target.width + 15, y: yAbove });
+            if (targetBoard) {
+                const clampedX = Math.max(targetBoard.x + 20, Math.min(target.x + target.width - width, targetBoard.x + targetBoard.width - width - 20));
+                candidates.push({ x: clampedX, y: yAbove });
+            }
+
+            // 3. Below positions
+            const yBelow = target.y + target.height + 15;
+            candidates.push({ x: target.x + (target.width - width) / 2, y: yBelow });
+            candidates.push({ x: target.x + target.width - width, y: yBelow });
+            candidates.push({ x: target.x, y: yBelow });
+            candidates.push({ x: target.x + target.width + 15, y: yBelow });
+            if (targetBoard) {
+                const clampedX = Math.max(targetBoard.x + 20, Math.min(target.x + target.width - width, targetBoard.x + targetBoard.width - width - 20));
+                candidates.push({ x: clampedX, y: yBelow });
+            }
+
+            // 4. Right positions (offset vertically)
+            candidates.push({ x: target.x + target.width + 20, y: target.y - height - 10 });
+            candidates.push({ x: target.x + target.width + 20, y: target.y + target.height + 10 });
+
+            // 5. Left positions (offset vertically)
+            candidates.push({ x: target.x - width - 20, y: target.y - height - 10 });
+            candidates.push({ x: target.x - width - 20, y: target.y + target.height + 10 });
+
+            // 6. Further offsets if needed
+            for (const xOff of [-width - 30, -width / 2, 0, width / 2, width + 30]) {
+                for (const yOff of [-height - 40, -height - 20, target.height + 20, target.height + 40]) {
+                    candidates.push({ x: target.x + xOff, y: target.y + yOff });
+                }
+            }
+
+            let bestCandidate = candidates[0];
+            let bestScore = Infinity;
+
+            for (const cand of candidates) {
+                let penalty = 0;
+                const rect = { x: cand.x, y: cand.y, width, height };
+
+                // Collision with obstacles
+                for (const obs of obstacles) {
+                    const overlapX = Math.max(0, Math.min(rect.x + rect.width, obs.x + obs.width) - Math.max(rect.x, obs.x));
+                    const overlapY = Math.max(0, Math.min(rect.y + rect.height, obs.y + obs.height) - Math.max(rect.y, obs.y));
+                    if (overlapX > 0 && overlapY > 0) {
+                        const area = overlapX * overlapY;
+                        if (obs.type === 'component') penalty += 100000 + area * 20;
+                        else if (obs.type === 'callout') penalty += 100000 + area * 20;
+                        else if (obs.type === 'connector') penalty += 80000 + area * 15;
+                        else if (obs.type === 'label') penalty += 50000 + area * 10;
+                        else if (obs.type === 'wire') penalty += 60000 + area * 10;
+                    }
+                }
+
+                // Straddling board borders
+                for (const b of boards) {
+                    const bRight = b.x + b.width;
+                    const bBottom = b.y + b.height;
+                    const crossesLeft = rect.x < b.x && rect.x + rect.width > b.x && rect.y + rect.height > b.y && rect.y < bBottom;
+                    const crossesRight = rect.x < bRight && rect.x + rect.width > bRight && rect.y + rect.height > b.y && rect.y < bBottom;
+                    const crossesTop = rect.y < b.y && rect.y + rect.height > b.y && rect.x + rect.width > b.x && rect.x < bRight;
+                    const crossesBottom = rect.y < bBottom && rect.y + rect.height > bBottom && rect.x + rect.width > b.x && rect.x < bRight;
+                    const crossesHeader = rect.y < b.y + 40 && rect.y + rect.height > b.y + 40 && rect.x + rect.width > b.x && rect.x < bRight;
+
+                    if (crossesLeft || crossesRight || crossesTop || crossesBottom || crossesHeader) {
+                        penalty += 40000;
+                    }
+                }
+
+                // Board containment preference
+                if (targetBoard) {
+                    const isInside = rect.x >= targetBoard.x + 10 &&
+                                     rect.x + rect.width <= targetBoard.x + targetBoard.width - 10 &&
+                                     rect.y >= targetBoard.y + 40 &&
+                                     rect.y + rect.height <= targetBoard.y + targetBoard.height - 10;
+                    if (isInside) {
+                        penalty -= 3000;
+                    } else {
+                        penalty += 2000;
+                    }
+                }
+
+                // Distance to target point
+                const cxMid = rect.x + rect.width / 2;
+                const cyMid = rect.y + rect.height / 2;
+                const dist = Math.hypot(cxMid - tx, cyMid - ty);
+                penalty += dist * 1.5;
+
+                // Slight preference for the primary candidate if free
+                if (cand === candidates[0] && penalty < 1000) {
+                    penalty -= 500;
+                }
+
+                if (penalty < bestScore) {
+                    bestScore = penalty;
+                    bestCandidate = cand;
+                }
+            }
+
+            const chosen = {
                 id: c.id,
                 type: c.type,
-                x: cx,
-                y: cy,
+                x: bestCandidate.x,
+                y: bestCandidate.y,
                 width,
                 height,
                 text: c.text,
                 targetPoint: { x: tx, y: ty },
                 targetId: c.targetId
+            };
+
+            callouts.push(chosen);
+            obstacles.push({
+                type: 'callout',
+                x: chosen.x - 4,
+                y: chosen.y - 4,
+                width: chosen.width + 8,
+                height: chosen.height + 8
             });
         }
 

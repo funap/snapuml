@@ -137,19 +137,33 @@ export class WireRenderer implements Renderer<WireDiagram> {
         const hasNote = Boolean(comp.note);
         const hasSubLabel = Boolean(comp.label && comp.label !== comp.id);
 
+        const labelLines = hasSubLabel ? comp.label.split(/\\n|\n/) : [];
+        const noteLines = hasNote ? (comp.note || '').split(/\\n|\n/) : [];
+
         let titleY = comp.y + (comp.height / 2);
         if (hasSubLabel && hasNote) {
             titleY = comp.y + 20;
-        } else if (hasSubLabel || hasNote) {
-            titleY = comp.y + (comp.height / 2) - 8;
+        } else if (hasSubLabel) {
+            titleY = comp.y + (comp.height / 2) - (labelLines.length * 15) / 2 + 4;
+        } else if (hasNote) {
+            titleY = comp.y + (comp.height / 2) - (noteLines.length * 14) / 2 - 2;
         }
+
+        const subLabelSvg = labelLines.map((line, idx) => {
+            return `<text x="${comp.x + comp.width / 2}" y="${titleY + 16 + idx * 15}" text-anchor="middle" font-size="11" fill="#475569">${this.escapeXml(line)}</text>`;
+        }).join('\n');
+
+        const noteSvg = noteLines.map((line, idx) => {
+            const noteStartY = comp.y + comp.height - 10 - (noteLines.length - 1 - idx) * 14;
+            return `<text x="${comp.x + comp.width / 2}" y="${noteStartY}" text-anchor="middle" font-size="10" font-style="italic" fill="#64748B">${this.escapeXml(line)}</text>`;
+        }).join('\n');
 
         return `
         <g class="component" id="comp-${comp.id}">
             <rect x="${comp.x}" y="${comp.y}" width="${comp.width}" height="${comp.height}" rx="6" ry="6" fill="${fill}" stroke="${stroke}" stroke-width="${comp.isEdge ? 2 : 1.8}" />
             <text x="${comp.x + comp.width / 2}" y="${titleY}" text-anchor="middle" font-size="13" font-weight="bold" fill="#0F172A">${this.escapeXml(comp.id)}</text>
-            ${hasSubLabel ? `<text x="${comp.x + comp.width / 2}" y="${titleY + 16}" text-anchor="middle" font-size="11" fill="#475569">${this.escapeXml(comp.label)}</text>` : ''}
-            ${hasNote ? `<text x="${comp.x + comp.width / 2}" y="${comp.y + comp.height - 10}" text-anchor="middle" font-size="10" font-style="italic" fill="#64748B">${this.escapeXml(comp.note || '')}</text>` : ''}
+            ${subLabelSvg}
+            ${noteSvg}
         </g>`;
     }
 
@@ -317,10 +331,10 @@ export class WireRenderer implements Renderer<WireDiagram> {
         if (textItems.length === 0) return '';
 
         const rawText = textItems.join(' ');
-        const fullText = this.escapeXml(rawText);
-        const textW = getTextWidth(rawText, 10);
+        const lines = rawText.split(/\\n|\n/);
+        const textW = Math.max(...lines.map(l => getTextWidth(l, 10)));
         const width = Math.max(20, Math.ceil(textW) + 14);
-        const height = 18;
+        const height = lines.length === 1 ? 18 : 10 + lines.length * 13;
 
         let midX: number;
         let midY: number;
@@ -372,10 +386,19 @@ export class WireRenderer implements Renderer<WireDiagram> {
             }
         }
 
+        let textSvg: string;
+        if (lines.length === 1) {
+            textSvg = `<text x="${midX}" y="${midY - height / 2 - 1}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${this.escapeXml(lines[0])}</text>`;
+        } else {
+            const startY = (midY - height - 4) + 12;
+            const tspans = lines.map((l, i) => `<tspan x="${midX}" dy="${i === 0 ? 0 : 13}">${this.escapeXml(l)}</tspan>`).join('');
+            textSvg = `<text x="${midX}" y="${startY}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${tspans}</text>`;
+        }
+
         return `
         <g class="wire-label" id="label-${wire.id}">
             <rect x="${midX - width / 2}" y="${midY - height - 4}" width="${width}" height="${height}" rx="3" ry="3" fill="#FFFFFF" stroke="${color}" stroke-width="0.8" />
-            <text x="${midX}" y="${midY - height / 2 - 1}" text-anchor="middle" font-size="10" font-weight="bold" fill="${color}">${fullText}</text>
+            ${textSvg}
         </g>`;
     }
 
@@ -416,16 +439,55 @@ export class WireRenderer implements Renderer<WireDiagram> {
         const textFill = isWarning ? '#B45309' : '#1E40AF';
         const icon = isWarning ? '⚠️ ' : 'ℹ️ ';
 
-        // Leader line
+        // Leader line connects from closest edge of callout box to targetPoint
+        const tx = callout.targetPoint.x;
+        const ty = callout.targetPoint.y;
+
+        let lx: number;
+        let ly: number;
+
+        if (callout.y + callout.height <= ty + 2) {
+            // Callout is above target point
+            ly = callout.y + callout.height;
+            lx = Math.max(callout.x + 10, Math.min(callout.x + callout.width - 10, tx));
+        } else if (callout.y >= ty - 2) {
+            // Callout is below target point
+            ly = callout.y;
+            lx = Math.max(callout.x + 10, Math.min(callout.x + callout.width - 10, tx));
+        } else if (callout.x >= tx) {
+            // Callout is to the right of target point
+            lx = callout.x;
+            ly = Math.max(callout.y + 6, Math.min(callout.y + callout.height - 6, ty));
+        } else {
+            // Callout is to the left of target point
+            lx = callout.x + callout.width;
+            ly = Math.max(callout.y + 6, Math.min(callout.y + callout.height - 6, ty));
+        }
+
         const leaderLine = `
-        <line x1="${callout.x + callout.width / 2}" y1="${callout.y + (callout.y < callout.targetPoint.y ? callout.height : 0)}" x2="${callout.targetPoint.x}" y2="${callout.targetPoint.y}" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="3,3" />
-        <circle cx="${callout.targetPoint.x}" cy="${callout.targetPoint.y}" r="2.5" fill="#64748B" />`;
+        <line x1="${lx}" y1="${ly}" x2="${tx}" y2="${ty}" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="3,3" />
+        <circle cx="${tx}" cy="${ty}" r="2.5" fill="#64748B" />`;
+
+        const lines = callout.text.split(/\\n|\n/);
+        let textSvg: string;
+        if (lines.length === 1) {
+            textSvg = `<text x="${callout.x + 8}" y="${callout.y + 20}" font-size="11" font-weight="bold" fill="${textFill}">${icon}${this.escapeXml(lines[0])}</text>`;
+        } else {
+            const startY = Math.round((callout.height - (lines.length - 1) * 16) / 2 + 4);
+            const tspans = lines.map((line, idx) => {
+                const x = idx === 0 ? callout.x + 8 : callout.x + 8 + 22;
+                const dy = idx === 0 ? 0 : 16;
+                const prefix = idx === 0 ? icon : '';
+                return `<tspan x="${x}" dy="${dy}">${prefix}${this.escapeXml(line)}</tspan>`;
+            }).join('');
+            textSvg = `<text x="${callout.x + 8}" y="${callout.y + startY}" font-size="11" font-weight="bold" fill="${textFill}">${tspans}</text>`;
+        }
 
         return `
         <g class="callout" id="${callout.id}">
             ${leaderLine}
             <rect x="${callout.x}" y="${callout.y}" width="${callout.width}" height="${callout.height}" rx="4" ry="4" fill="${bg}" stroke="${stroke}" stroke-width="1.4" />
-            <text x="${callout.x + 8}" y="${callout.y + 20}" font-size="11" font-weight="bold" fill="${textFill}">${icon}${this.escapeXml(callout.text)}</text>
+            ${textSvg}
         </g>`;
     }
 

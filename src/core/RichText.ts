@@ -72,6 +72,11 @@ let cachedCanvasCtx: any = undefined;
 export function getTextWidth(text: string, fontSize: number = 13, fontFamily: string = 'sans-serif'): number {
     if (!text) return 0;
 
+    const lines = text.split(/\\n|\n/);
+    if (lines.length > 1) {
+        return Math.max(...lines.map(l => getTextWidth(l, fontSize, fontFamily)));
+    }
+
     const plainText = stripRichText(text);
 
     if (typeof document !== 'undefined') {
