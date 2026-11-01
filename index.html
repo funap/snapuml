@@ -4,104 +4,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SnapUML - Instant Sequence & Component Diagrams</title>
+    <title>SnapUML — Client-Side PlantUML &amp; WireLayout Compiler</title>
     <meta name="description"
-        content="Generate beautiful sequence and component diagrams instantly in your browser. Zero server round-trips, fully client-side high-quality SVG generation.">
+        content="Zero-dependency, client-side compiler for Sequence diagrams, Component diagrams, Salt wireframes, and WireLayout hardware schematics.">
     <script>
-        // Apply theme immediately to prevent screen flicker
         const savedTheme = localStorage.getItem('snapuml_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
     <script src="dist/snapuml.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* Light theme variables */
-            --bg-body: #ffffff;
-            --bg-card: #f8fafc;
-            --bg-card-hover: #f1f5f9;
-            --text-main: #0f172a;
-            --text-muted: #475569;
-            --border: #cbd5e1;
-            --border-hover: #94a3b8;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            --primary: #2563eb;
-            --primary-dark: #1d4ed8;
-            --header-bg: rgba(255, 255, 255, 0.9);
-            --playground-bg: #f8fafc;
-            --logo-color: #0f172a;
-            
-            --btn-action-bg: #ffffff;
-            --btn-action-border: #cbd5e1;
-            --btn-action-text: #334155;
-            --btn-action-hover: #f1f5f9;
-            
-            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            --font-mono: 'Fira Code', 'JetBrains Mono', monospace;
+            --bg-page: #f3f3f1;
+            --bg-surface: #ffffff;
+            --bg-panel: #f8f8f6;
+            --bg-toolbar: #efefec;
+            --bg-hover: #e5e5e0;
+            --bg-active: #dcdcd6;
+            --bg-code: #fafaf8;
 
-            --btn-sec-bg: #ffffff;
-            --btn-sec-hover: #f1f5f9;
-            --footer-bg: #f8fafc;
+            --text-main: #161615;
+            --text-secondary: #4a4a46;
+            --text-muted: #767670;
 
-            /* Playground variables */
-            --playground-container-bg: #ffffff;
-            --playground-header-bg: #f8fafc;
-            --playground-editor-text: #0f172a;
-            --playground-preview-bg: #f1f5f9;
-            --playground-canvas-bg: #ffffff;
-            --playground-canvas-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+            --border: #d8d8d2;
+            --border-strong: #b5b5ad;
+            --accent: #181816;
+            --accent-fg: #ffffff;
+            --accent-highlight: #0f52ba;
 
-            /* Gallery variables */
-            --gallery-preview-bg: #f1f5f9;
-            --gallery-info-bg: #ffffff;
+            --canvas-bg: #ebebe7;
+            --canvas-grid: #d4d4ce;
+            --canvas-paper: #ffffff;
 
-            /* Canvas Dot Grid Background for SVG Mount */
-            --canvas-dot-color: #cbd5e1;
+            --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+
+            --container-max: 1360px;
         }
 
-        /* Dark theme variables */
         [data-theme="dark"] {
-            --bg-body: #0b0f19;
-            --bg-card: #111827;
-            --bg-card-hover: #1f2937;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
-            --border-hover: #475569;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-            --primary: #3b82f6;
-            --primary-dark: #60a5fa;
-            --header-bg: rgba(11, 15, 25, 0.9);
-            --playground-bg: #0b0f19;
-            --logo-color: #ffffff;
-            
-            --btn-action-bg: #1f2937;
-            --btn-action-border: #334155;
-            --btn-action-text: #cbd5e1;
-            --btn-action-hover: #374151;
-            
-            --btn-sec-bg: #111827;
-            --btn-sec-hover: #1f2937;
-            --footer-bg: #111827;
+            --bg-page: #111113;
+            --bg-surface: #18181b;
+            --bg-panel: #141417;
+            --bg-toolbar: #1e1e22;
+            --bg-hover: #27272c;
+            --bg-active: #323238;
+            --bg-code: #141417;
 
-            /* Playground variables */
-            --playground-container-bg: #111827;
-            --playground-header-bg: #1f2937;
-            --playground-editor-text: #f8fafc;
-            --playground-preview-bg: #0f172a;
-            --playground-canvas-bg: #1e293b;
-            --playground-canvas-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --text-main: #ededf0;
+            --text-secondary: #a6a6b0;
+            --text-muted: #6e6e78;
 
-            /* Gallery variables */
-            --gallery-preview-bg: #0f172a;
-            --gallery-info-bg: #111827;
+            --border: #2c2c32;
+            --border-strong: #45454e;
+            --accent: #ededf0;
+            --accent-fg: #111113;
+            --accent-highlight: #5b9aff;
 
-            /* Canvas Dot Grid Background for SVG Mount */
-            --canvas-dot-color: #1e293b;
+            --canvas-bg: #0d0d0f;
+            --canvas-grid: #222227;
+            --canvas-paper: #ffffff;
         }
 
         * {
@@ -110,262 +75,491 @@
             padding: 0;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             font-family: var(--font-sans);
-            background-color: var(--bg-body);
+            background-color: var(--bg-page);
             color: var(--text-main);
-            line-height: 1.6;
+            line-height: 1.5;
+            font-size: 14px;
             -webkit-font-smoothing: antialiased;
-            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
-        /* Layout */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-
-        section {
-            padding: 80px 0;
-            border-bottom: 1px solid var(--border);
-        }
-
-        section:last-of-type {
-            border-bottom: none;
-        }
-
-        /* Header */
+        /* Top Navigation Bar */
         header {
-            background: var(--header-bg);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background: var(--bg-surface);
             border-bottom: 1px solid var(--border);
             position: sticky;
             top: 0;
-            z-index: 100;
-            transition: background-color 0.2s;
+            z-index: 200;
+            height: 46px;
         }
 
-        nav {
+        .topbar {
+            height: 100%;
+            padding: 0 16px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            height: 64px;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        body.contained-mode .topbar {
+            max-width: var(--container-max);
+            margin: 0 auto;
+        }
+
+        .brand-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
         }
 
         .logo {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--logo-color);
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
             text-decoration: none;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
             letter-spacing: -0.02em;
-            font-family: var(--font-sans);
         }
 
-        .logo span.logo-text {
-            color: var(--logo-color);
+        .logo-mark {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: var(--text-main);
+        }
+
+        .badge-version {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+            padding: 1px 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-panel);
+        }
+
+        .brand-summary {
+            font-size: 12px;
+            color: var(--text-muted);
+            border-left: 1px solid var(--border);
+            padding-left: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .nav-links {
             display: flex;
             align-items: center;
+            gap: 4px;
         }
 
         .nav-links a {
-            color: var(--text-muted);
+            color: var(--text-secondary);
             text-decoration: none;
-            margin-left: 24px;
+            padding: 4px 10px;
+            font-size: 12px;
             font-weight: 500;
-            font-size: 14px;
-            transition: color 0.15s ease;
+            font-family: var(--font-mono);
+            border: 1px solid transparent;
+            transition: background-color 0.1s, color 0.1s;
         }
 
         .nav-links a:hover {
-            color: var(--primary);
-        }
-
-        /* Hero */
-        .hero {
-            text-align: center;
-            padding: 80px 0 60px;
-            background-color: var(--bg-card);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .hero h1 {
-            font-size: 40px;
-            font-weight: 800;
-            margin-bottom: 16px;
-            line-height: 1.2;
-            letter-spacing: -0.03em;
             color: var(--text-main);
+            background: var(--bg-hover);
         }
 
-        .gradient-text {
-            /* Keep name but remove AI gradient */
-            color: var(--text-main);
+        .nav-divider {
+            width: 1px;
+            height: 16px;
+            background: var(--border);
+            margin: 0 4px;
         }
 
-        .hero p {
-            font-size: 16px;
-            color: var(--text-muted);
-            max-width: 600px;
-            margin: 0 auto 32px;
-            font-weight: 400;
-        }
-
-        .btn {
-            display: inline-block;
-            background: var(--primary);
-            color: white;
-            padding: 10px 24px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 14px;
-            transition: background-color 0.15s ease, transform 0.1s ease;
-            border: 1px solid var(--primary);
+        .icon-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
             cursor: pointer;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .btn:hover {
-            background: var(--primary-dark);
-            border-color: var(--primary-dark);
-        }
-
-        .btn:active {
-            transform: scale(0.98);
-        }
-
-        .btn.secondary {
-            background: var(--btn-sec-bg);
-            color: var(--text-main);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-sm);
-        }
-
-        .btn.secondary:hover {
-            background: var(--btn-sec-hover);
-            border-color: var(--border-hover);
-        }
-
-        /* Features */
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 24px;
-        }
-
-        .feature-card {
-            background: var(--bg-card);
-            padding: 32px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-sm);
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .feature-card:hover {
-            border-color: var(--border-hover);
-            box-shadow: var(--shadow-md);
-        }
-
-        .feature-icon {
-            font-size: 20px;
-            margin-bottom: 16px;
+            height: 26px;
+            padding: 0 8px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
-            background: var(--bg-card-hover);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--primary);
+            gap: 5px;
+            transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+            white-space: nowrap;
         }
 
-        .feature-card h3 {
-            margin-bottom: 8px;
-            font-size: 18px;
-            font-weight: 700;
+        .icon-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-strong);
             color: var(--text-main);
-            letter-spacing: -0.01em;
         }
 
-        .feature-card p {
-            color: var(--text-muted);
-            font-size: 14px;
-            line-height: 1.6;
+        .icon-btn.active {
+            background: var(--accent);
+            color: var(--accent-fg);
+            border-color: var(--accent);
         }
 
-        /* Playground */
-        .playground-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0;
-            height: 600px;
-            margin-top: 24px;
-            background: var(--playground-container-bg);
+        .icon-btn svg {
+            width: 13px;
+            height: 13px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.75;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        /* Section Containers */
+        .page-section {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-inner {
+            max-width: none;
+            margin: 0 auto;
+            padding: 12px 16px 20px;
+        }
+
+        body.contained-mode .section-inner {
+            max-width: var(--container-max);
+            padding: 24px 20px;
+        }
+
+        /* Workbench / Playground */
+        #playground {
+            background: var(--bg-page);
+        }
+
+        .workbench-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .workbench-bar-left,
+        .workbench-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .workbench-title {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-pill {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            height: 26px;
+            padding: 0 8px;
+            background: var(--bg-surface);
             border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: var(--shadow-md);
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #16a34a;
+            display: inline-block;
+        }
+
+        .btn-group {
+            display: inline-flex;
+            border: 1px solid var(--border);
+            background: var(--bg-surface);
+        }
+
+        .btn-group .group-btn {
+            background: transparent;
+            border: none;
+            border-right: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0 9px;
+            height: 24px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: background-color 0.1s, color 0.1s;
+            white-space: nowrap;
+        }
+
+        .btn-group .group-btn:last-child {
+            border-right: none;
+        }
+
+        .btn-group .group-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-main);
+        }
+
+        .btn-group .group-btn.active {
+            background: var(--accent);
+            color: var(--accent-fg);
+        }
+
+        .sample-select {
+            height: 26px;
+            padding: 0 8px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-main);
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            outline: none;
+            max-width: 280px;
+        }
+
+        .sample-select:hover,
+        .sample-select:focus {
+            border-color: var(--border-strong);
+        }
+
+        /* Playground Split Frame */
+        .playground-container {
+            display: flex;
+            flex-direction: row;
+            height: calc(100vh - 108px);
+            min-height: 520px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-strong);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .playground-container.height-compact {
+            height: 600px;
+        }
+
+        .playground-container.height-tall {
+            height: calc(100vh - 58px);
+        }
+
+        /* Layout modes for Editor & Preview */
+        .playground-container[data-layout="split"] .editor-pane {
+            width: var(--split-left, 38%);
+            min-width: 220px;
+        }
+
+        .playground-container[data-layout="split"] .preview-pane {
+            flex: 1;
+            min-width: 260px;
+        }
+
+        .playground-container[data-layout="wide-preview"] .editor-pane {
+            width: 26%;
+            min-width: 220px;
+        }
+
+        .playground-container[data-layout="wide-preview"] .preview-pane {
+            flex: 1;
+        }
+
+        .playground-container[data-layout="stacked"] {
+            flex-direction: column;
+            height: 880px;
+        }
+
+        .playground-container[data-layout="stacked"] .editor-pane {
+            width: 100% !important;
+            height: 36%;
+            min-height: 180px;
+            border-right: none;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .playground-container[data-layout="stacked"] .pane-resizer {
+            display: none;
+        }
+
+        .playground-container[data-layout="stacked"] .preview-pane {
+            width: 100% !important;
+            flex: 1;
+        }
+
+        .playground-container[data-layout="preview-only"] .editor-pane,
+        .playground-container[data-layout="preview-only"] .pane-resizer {
+            display: none;
+        }
+
+        .playground-container[data-layout="preview-only"] .preview-pane {
+            width: 100% !important;
+            flex: 1;
+        }
+
+        /* Resizer Handle */
+        .pane-resizer {
+            width: 6px;
+            background: var(--bg-toolbar);
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            cursor: col-resize;
+            flex-shrink: 0;
+            position: relative;
+            transition: background-color 0.1s;
+            user-select: none;
+        }
+
+        .pane-resizer::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 28px;
+            background: var(--border-strong);
+        }
+
+        .pane-resizer:hover,
+        .pane-resizer.dragging {
+            background: var(--accent-highlight);
+            border-color: var(--accent-highlight);
+        }
+
+        .pane-resizer:hover::after,
+        .pane-resizer.dragging::after {
+            background: #ffffff;
+        }
+
+        /* Editor Pane */
         .editor-pane {
             display: flex;
             flex-direction: column;
-            border-right: 1px solid var(--border);
+            background: var(--bg-surface);
+            overflow: hidden;
+            flex-shrink: 0;
         }
 
         .pane-header {
-            padding: 0 20px;
-            height: 48px;
-            background: var(--playground-header-bg);
+            padding: 0 12px;
+            height: 36px;
+            background: var(--bg-toolbar);
             border-bottom: 1px solid var(--border);
             font-family: var(--font-mono);
-            font-weight: 600;
             font-size: 11px;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            color: var(--text-muted);
+            color: var(--text-secondary);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .pane-header-left,
+        .pane-header-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .pane-label {
+            font-weight: 600;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .meta-tag {
+            color: var(--text-muted);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            white-space: nowrap;
+        }
+
+        .editor-body {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+            background: var(--bg-code);
+        }
+
+        .line-numbers {
+            width: 42px;
+            padding: 14px 8px 14px 0;
+            text-align: right;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre;
+            color: var(--text-muted);
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            user-select: none;
+            overflow: hidden;
+            flex-shrink: 0;
+            opacity: 0.75;
         }
 
         textarea {
             flex: 1;
             width: 100%;
             border: none;
-            padding: 20px;
+            padding: 14px 16px;
             font-family: var(--font-mono);
             font-size: 13px;
+            line-height: 1.6;
             resize: none;
             outline: none;
             background: transparent;
-            color: var(--playground-editor-text);
-            line-height: 1.6;
+            color: var(--text-main);
+            tab-size: 2;
+            white-space: pre;
+            overflow: auto;
             font-variant-ligatures: none;
             font-feature-settings: "liga" 0, "calt" 0;
             -webkit-font-feature-settings: "liga" 0, "calt" 0;
         }
 
-        textarea::placeholder {
-            color: var(--text-muted);
-            opacity: 0.5;
-        }
-
+        /* Preview Pane */
         .preview-pane {
             display: flex;
             flex-direction: column;
-            background: var(--playground-preview-bg);
+            background: var(--canvas-bg);
             overflow: hidden;
+            min-width: 0;
         }
 
         #output {
@@ -373,20 +567,47 @@
             overflow: auto;
             padding: 20px;
             display: flex;
-            background-color: var(--playground-preview-bg);
-            background-image: radial-gradient(var(--canvas-dot-color) 1px, transparent 1px);
-            background-size: 16px 16px;
+            align-items: flex-start;
+            justify-content: flex-start;
+            background-color: var(--canvas-bg);
+            background-image:
+                linear-gradient(to right, var(--canvas-grid) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--canvas-grid) 1px, transparent 1px);
+            background-size: 20px 20px;
+            cursor: grab;
+            position: relative;
+        }
+
+        #output.bg-plain {
+            background-image: none;
+        }
+
+        #output.bg-paper {
+            background-image: none;
+            background-color: #ffffff;
+        }
+
+        #output.panning {
+            cursor: grabbing;
+            user-select: none;
         }
 
         #output svg {
             margin: auto;
             flex-shrink: 0;
-            transition: all 0.2s ease;
-            background: var(--playground-canvas-bg);
-            padding: 24px;
-            border-radius: 6px;
-            box-shadow: var(--playground-canvas-shadow);
-            border: 1px solid var(--border);
+            background: var(--canvas-paper);
+            padding: 20px;
+            border: 1px solid var(--border-strong);
+            transform-origin: center top;
+        }
+
+        #output.bg-paper svg {
+            border-color: transparent;
+        }
+
+        #output.zoom-fit {
+            align-items: center;
+            justify-content: center;
         }
 
         #output.zoom-fit svg {
@@ -396,306 +617,124 @@
             height: auto;
         }
 
-        #output.zoom-actual {
-            display: block;
-            text-align: center;
-        }
-
-        #output.zoom-actual svg {
-            max-width: none;
-            max-height: none;
-            margin: 0 auto;
-            display: inline-block;
-        }
-
-        /* Gallery */
-        .gallery-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .gallery-item {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .gallery-item:hover {
-            border-color: var(--border-hover);
-            box-shadow: var(--shadow-md);
-        }
-
-        .gallery-preview {
-            height: 200px;
-            background: var(--gallery-preview-bg);
-            overflow: hidden;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            background-image: radial-gradient(var(--canvas-dot-color) 0.75px, transparent 0.75px);
-            background-size: 12px 12px;
-        }
-
-        .gallery-preview svg {
-            max-width: 100%;
-            max-height: 100%;
-            width: auto !important;
-            height: auto !important;
-            background: var(--playground-canvas-bg);
-            padding: 12px;
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            border: 1px solid var(--border);
-        }
-
-        .gallery-info {
-            padding: 12px 16px;
-            background: var(--gallery-info-bg);
-        }
-
-        .gallery-title {
-            font-weight: 600;
-            font-size: 13px;
-            color: var(--text-main);
+        .zoom-readout {
             font-family: var(--font-mono);
-        }
-
-        /* Inline code block overrides */
-        :not(pre) > code {
-            background: var(--bg-card-hover) !important;
-            color: var(--primary) !important;
-            border: 1px solid var(--border) !important;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: var(--font-mono);
-            font-size: 13px;
-            font-variant-ligatures: none;
-            font-feature-settings: "liga" 0, "calt" 0;
-            -webkit-font-feature-settings: "liga" 0, "calt" 0;
-        }
-
-        /* Code Block Copier */
-        .code-container {
-            position: relative;
-            margin-bottom: 16px;
-        }
-
-        pre {
-            background: var(--bg-card) !important;
-            padding: 16px 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            font-family: var(--font-mono);
-            font-size: 13px;
-            border: 1px solid var(--border);
-            line-height: 1.5;
-            max-width: 100%;
-            font-variant-ligatures: none;
-            font-feature-settings: "liga" 0, "calt" 0;
-            -webkit-font-feature-settings: "liga" 0, "calt" 0;
-        }
-
-        pre code {
-            color: var(--text-main) !important;
-        }
-
-        .copy-code-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: var(--btn-action-bg);
-            border: 1px solid var(--btn-action-border);
-            border-radius: 4px;
-            color: var(--text-muted);
-            padding: 4px 8px;
             font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            opacity: 0;
-        }
-
-        .code-container:hover .copy-code-btn {
-            opacity: 1;
-        }
-
-        .copy-code-btn:hover {
-            background: var(--btn-action-hover);
-            color: var(--text-main);
-            border-color: var(--border-hover);
-        }
-
-        footer {
-            border-top: 1px solid var(--border);
-            padding: 48px 0;
+            min-width: 44px;
             text-align: center;
-            color: var(--text-muted);
-            font-size: 13px;
-            background: var(--footer-bg);
-        }
-
-        /* Modal styling */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(11, 15, 25, 0.7);
-            backdrop-filter: blur(4px);
-            z-index: 1000;
-            justify-content: center;
+            color: var(--text-secondary);
+            padding: 0 4px;
+            display: inline-flex;
             align-items: center;
-            opacity: 0;
-            transition: opacity 0.2s ease-out;
+            justify-content: center;
+            border-right: 1px solid var(--border);
         }
 
-        .modal-overlay.active {
+        /* Gallery Section */
+        #gallery {
+            padding-top: 20px;
+            padding-bottom: 28px;
+        }
+
+        .section-header-bar {
             display: flex;
-            opacity: 1;
-        }
-
-        .modal-content {
-            background: var(--bg-body);
-            width: 90vw;
-            height: 90vh;
-            border-radius: 8px;
-            box-shadow: var(--shadow-md);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            position: relative;
-            border: 1px solid var(--border);
-            animation: modalSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        @keyframes modalSlideIn {
-            from {
-                transform: scale(0.95);
-                opacity: 0;
-            }
-            to {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .modal-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border);
-            display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
             align-items: center;
-            background: var(--bg-card);
+            gap: 16px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
         }
 
-        .modal-title {
-            font-weight: 700;
-            font-size: 15px;
-            color: var(--text-main);
-            font-family: var(--font-mono);
-        }
-
-        .modal-body {
-            flex: 1;
-            overflow: auto;
-            padding: 32px;
-            display: block;
-            text-align: center;
-            background: var(--playground-preview-bg);
-            background-image: radial-gradient(var(--canvas-dot-color) 1px, transparent 1px);
-            background-size: 16px 16px;
-        }
-
-        .modal-body svg {
-            background: var(--playground-canvas-bg);
-            box-shadow: var(--playground-canvas-shadow);
-            max-width: none;
-            max-height: none;
-            margin: 0 auto;
-            display: inline-block;
-            padding: 24px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-        }
-
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            color: var(--text-muted);
-            line-height: 1;
-            padding: 6px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.15s ease;
-        }
-
-        .close-btn:hover {
-            color: var(--text-main);
-            background: var(--bg-card-hover);
-        }
-
-        .badge-beta {
-            display: inline-block;
-            padding: 2px 6px;
-            background: var(--bg-card-hover);
-            color: var(--text-muted);
-            font-family: var(--font-mono);
-            font-size: 10px;
+        .section-heading {
+            font-size: 16px;
             font-weight: 600;
-            border-radius: 4px;
-            text-transform: lowercase;
-            vertical-align: middle;
-            margin-left: 8px;
-            border: 1px solid var(--border);
-            line-height: 1;
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--text-main);
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
-        /* Tabs */
+        .section-subtitle {
+            font-family: var(--font-sans);
+            font-size: 13px;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+            color: var(--text-muted);
+        }
+
+        .gallery-controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
         .tabs-nav {
             display: flex;
-            justify-content: center;
+            flex-wrap: wrap;
             gap: 4px;
-            margin-bottom: 32px;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 1px;
         }
 
         .tab-btn {
-            background: none;
-            border: none;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-muted);
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
             cursor: pointer;
-            position: relative;
-            transition: all 0.15s ease;
-            border-radius: 6px 6px 0 0;
-            margin-bottom: -1px;
-            border: 1px solid transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.1s, color 0.1s, border-color 0.1s;
         }
 
         .tab-btn:hover {
             color: var(--text-main);
-            background: var(--bg-card-hover);
+            background: var(--bg-hover);
+            border-color: var(--border-strong);
         }
 
         .tab-btn.active {
-            color: var(--primary);
-            background: var(--bg-body);
-            border-color: var(--border) var(--border) transparent var(--border);
+            color: var(--accent-fg);
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .tab-count {
+            font-size: 10px;
+            opacity: 0.75;
+        }
+
+        .search-box {
+            position: relative;
+            min-width: 260px;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 30px;
+            padding: 0 10px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--border-strong);
         }
 
         .tab-content {
@@ -706,204 +745,316 @@
             display: block;
         }
 
-        .docs-grid {
+        .gallery-subhead {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-secondary);
+            margin: 22px 0 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gallery-subhead:first-child {
+            margin-top: 0;
+        }
+
+        .gallery-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            margin-bottom: 24px;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 12px;
+        }
+
+        .gallery-item {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: border-color 0.1s;
+        }
+
+        .gallery-item:hover {
+            border-color: var(--text-main);
+        }
+
+        .gallery-info {
+            padding: 7px 10px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .gallery-title {
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--text-main);
+            font-family: var(--font-mono);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .gallery-card-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .card-mini-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 10px;
+            padding: 1px 6px;
+            cursor: pointer;
+        }
+
+        .card-mini-btn:hover {
+            background: var(--accent);
+            color: var(--accent-fg);
+            border-color: var(--accent);
+        }
+
+        .gallery-preview {
+            height: 200px;
+            background: var(--canvas-bg);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+        }
+
+        .gallery-preview svg {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto !important;
+            height: auto !important;
+            background: var(--canvas-paper);
+            padding: 10px;
+            border: 1px solid var(--border);
+        }
+
+        /* Documentation / Reference */
+        #documentation {
+            padding-top: 20px;
+            padding-bottom: 32px;
+        }
+
+        .docs-layout {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .doc-block {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .doc-block h3 {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .doc-block p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 12px;
         }
 
         .usage-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 14px;
         }
 
-        .pane-action-btn {
-            background: var(--btn-action-bg);
-            border: 1px solid var(--btn-action-border);
-            color: var(--btn-action-text);
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            outline: none;
-        }
-
-        .pane-action-btn:hover {
-            background: var(--btn-action-hover);
+        :not(pre) > code {
+            background: var(--bg-panel);
             color: var(--text-main);
-            border-color: var(--border-hover);
-        }
-
-        .modal-action-btn {
-            background: var(--btn-action-bg);
-            border: 1px solid var(--btn-action-border);
-            color: var(--btn-action-text);
-            padding: 6px 14px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            outline: none;
-        }
-
-        .modal-action-btn:hover {
-            background: var(--btn-action-hover);
-            color: var(--text-main);
-            border-color: var(--border-hover);
-        }
-
-        .theme-toggle-btn {
-            background: var(--bg-card);
             border: 1px solid var(--border);
+            padding: 1px 5px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+        }
+
+        .code-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        pre {
+            background: var(--bg-code);
+            padding: 12px 14px;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            border: 1px solid var(--border);
+            line-height: 1.55;
+            color: var(--text-main);
+            font-variant-ligatures: none;
+        }
+
+        .copy-code-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 2px 8px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 500;
             cursor: pointer;
-            padding: 0;
-            border-radius: 6px;
-            width: 32px;
-            height: 32px;
-            display: inline-flex;
+        }
+
+        .copy-code-btn:hover {
+            background: var(--accent);
+            color: var(--accent-fg);
+            border-color: var(--accent);
+        }
+
+        footer {
+            padding: 20px 16px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-family: var(--font-mono);
+            background: var(--bg-surface);
+            display: flex;
+            justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        /* Full-Screen Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 10, 12, 0.78);
+            z-index: 1000;
             justify-content: center;
-            margin-left: 16px;
-            transition: all 0.15s ease;
-            outline: none;
-            box-shadow: var(--shadow-sm);
+            align-items: center;
         }
 
-        .theme-toggle-btn:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
+        .modal-overlay.active {
+            display: flex;
         }
 
-        .theme-toggle-btn .sun-icon,
-        .theme-toggle-btn .moon-icon {
-            font-size: 14px;
-            line-height: 1;
+        .modal-content {
+            background: var(--bg-surface);
+            width: 96vw;
+            height: 94vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border-strong);
         }
 
-        /* Mobile Responsive Overhaul */
+        .modal-header {
+            padding: 0 16px;
+            height: 40px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-toolbar);
+        }
+
+        .modal-title {
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--text-main);
+            font-family: var(--font-mono);
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow: auto;
+            padding: 32px;
+            display: block;
+            text-align: center;
+            background: var(--canvas-bg);
+            background-image:
+                linear-gradient(to right, var(--canvas-grid) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--canvas-grid) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .modal-body svg {
+            background: var(--canvas-paper);
+            max-width: none;
+            max-height: none;
+            margin: 0 auto;
+            display: inline-block;
+            padding: 24px;
+            border: 1px solid var(--border-strong);
+        }
+
         @media (max-width: 1024px) {
-            .hero h1 {
-                font-size: 32px;
+            .brand-summary {
+                display: none;
             }
-            .playground-container {
-                height: 500px;
+            .docs-layout {
+                grid-template-columns: 1fr;
+            }
+            .usage-grid {
+                grid-template-columns: 1fr;
             }
         }
 
         @media (max-width: 768px) {
-            section {
-                padding: 48px 0;
-            }
-
             header {
-                position: relative;
-            }
-
-            nav {
                 height: auto;
-                flex-direction: column;
-                padding: 12px 0;
-                gap: 12px;
             }
-
-            .nav-links {
-                width: 100%;
-                justify-content: center;
-                flex-wrap: wrap;
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 10px 14px;
                 gap: 8px;
             }
-
-            .nav-links a {
-                margin: 0 4px;
-                font-size: 13px;
-                margin-left: 12px;
+            .nav-links {
+                width: 100%;
+                flex-wrap: wrap;
             }
-
-            .theme-toggle-btn {
-                margin-left: 4px;
-            }
-
-            .hero {
-                padding: 48px 0 32px;
-            }
-
-            .hero h1 {
-                font-size: 28px;
-                margin-bottom: 12px;
-            }
-
-            .hero p {
-                font-size: 14px;
-                margin-bottom: 24px;
-            }
-
-            .btn {
-                padding: 8px 16px;
-                font-size: 13px;
-            }
-
-            /* Responsive Playground */
             .playground-container {
-                grid-template-columns: 1fr;
-                height: auto;
-                border-radius: 6px;
+                flex-direction: column !important;
+                height: auto !important;
             }
-
             .editor-pane {
-                border-right: none;
+                width: 100% !important;
+                height: 300px !important;
                 border-bottom: 1px solid var(--border);
             }
-
-            textarea {
-                height: 240px;
-                padding: 16px;
-                font-size: 13px;
+            .pane-resizer {
+                display: none !important;
             }
-
             .preview-pane {
-                height: 300px;
-                border-top: none;
+                width: 100% !important;
+                height: 380px !important;
             }
-
-            #output {
-                padding: 16px;
-            }
-
-            /* Gallery & Documentation */
             .gallery-grid {
                 grid-template-columns: 1fr;
-                gap: 16px;
-            }
-
-            .docs-grid {
-                grid-template-columns: 1fr;
-                gap: 16px;
-            }
-
-            .usage-grid {
-                grid-template-columns: 1fr;
-                gap: 16px;
-            }
-
-            .feature-card {
-                padding: 20px;
-            }
-
-            pre {
-                padding: 12px 16px;
-                font-size: 12px;
-            }
-
-            .copy-code-btn {
-                opacity: 1;
             }
         }
     </style>
@@ -911,69 +1062,79 @@
 
 <body>
     <header>
-        <div class="container">
-            <nav>
+        <div class="topbar">
+            <div class="brand-group">
                 <a href="#" class="logo">
-                    <span class="logo-text">SnapUML</span><span class="badge-beta">beta</span>
+                    <span class="logo-mark"></span>
+                    <span>SnapUML</span>
                 </a>
-                <div class="nav-links">
-                    <a href="#features">Features</a>
-                    <a href="#playground">Playground</a>
-                    <a href="#gallery">Examples</a>
-                    <a href="#documentation">Getting Started</a>
-                    <a href="https://github.com/funap/snapuml" target="_blank">GitHub</a>
-                    <button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle Theme">
-                        <span class="sun-icon">☀️</span>
-                        <span class="moon-icon">🌙</span>
-                    </button>
-                </div>
-            </nav>
+                <span class="badge-version">v0.1.0</span>
+                <span class="brand-summary">Client-side PlantUML &amp; WireLayout SVG compiler — Sequence / Component / Salt / Hardware</span>
+            </div>
+            <div class="nav-links">
+                <a href="#playground">Workbench</a>
+                <a href="#gallery">Gallery</a>
+                <a href="#documentation">API &amp; Usage</a>
+                <a href="https://github.com/funap/snapuml" target="_blank" rel="noopener">GitHub ↗</a>
+                <span class="nav-divider"></span>
+                <button id="width-toggle" class="icon-btn active" title="Toggle between 100% Full-Width and Centered Container">
+                    <svg viewBox="0 0 24 24"><path d="M3 12h18M3 12l4-4M3 12l4 4M21 12l-4-4M21 12l-4 4"/></svg>
+                    <span id="width-toggle-label">Full Width</span>
+                </button>
+                <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme" title="Switch Light / Dark Theme">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                    <span id="theme-label">Dark</span>
+                </button>
+            </div>
         </div>
     </header>
 
     <main>
-        <div class="container">
-            <section class="hero">
-                <h1>UML Diagrams, Instantly</h1>
-                <p>Fast, local, client-side UML rendering with zero server round-trips. Write sequence diagrams, component diagrams, and wireframes using a simple text syntax.</p>
-                <div style="display: flex; gap: 12px; justify-content: center;">
-                    <a href="#playground" class="btn">Open Playground</a>
-                    <a href="#gallery" class="btn secondary">View Examples</a>
-                </div>
-            </section>
-
-            <section id="features">
-                <div class="features">
-                    <div class="feature-card">
-                        <span class="feature-icon">⚡</span>
-                        <h3>Blazing Fast</h3>
-                        <p>Renders instantly in your browser. No server round-trips means zero latency as you type.</p>
+        <!-- Workbench: Full-Width Editor & Live Preview -->
+        <section id="playground" class="page-section">
+            <div class="section-inner">
+                <div class="workbench-bar">
+                    <div class="workbench-bar-left">
+                        <span class="workbench-title">Workbench</span>
+                        <span class="status-pill" title="Auto-detected diagram compiler">
+                            <span class="status-dot"></span>
+                            <span id="detected-type">SEQUENCE</span>
+                        </span>
+                        <span class="status-pill" id="render-stats" title="Last compile duration">0.0 ms</span>
+                        <select id="sample-picker" class="sample-select" aria-label="Load Sample">
+                            <option value="">Load example preset...</option>
+                        </select>
                     </div>
-                    <div class="feature-card">
-                        <span class="feature-icon">✨</span>
-                        <h3>Modern Aesthetics</h3>
-                        <p>Generates crisp, publication-quality SVGs with precise alignment and beautiful styling.</p>
-                    </div>
-                    <div class="feature-card">
-                        <span class="feature-icon">📄</span>
-                        <h3>Markdown Friendly</h3>
-                        <p>Pairs perfectly with Markdown. Write diagrams as code for documentation that's versioned,
-                            searchable, and easy to maintain.</p>
-                    </div>
-                </div>
-            </section>
-
-            <section id="playground">
-                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
-                    <h2>Interactive Playground</h2>
-                    <span style="font-size: 14px; color: var(--text-muted);">Edits render automatically</span>
-                </div>
-                <div class="playground-container">
-                    <div class="editor-pane">
-                        <div class="pane-header">
-                            <span>Input Source</span>
+                    <div class="workbench-bar-right">
+                        <span class="meta-tag">Layout:</span>
+                        <div class="btn-group" role="group" aria-label="Pane Layout">
+                            <button type="button" class="group-btn active" data-set-layout="split" title="Resizable side-by-side split (drag divider to adjust)">Split</button>
+                            <button type="button" class="group-btn" data-set-layout="wide-preview" title="Compact editor + wide preview (26% / 74%)">Wide Preview</button>
+                            <button type="button" class="group-btn" data-set-layout="stacked" title="Full-width stacked (Top Editor / 100%-Width Bottom Preview)">Stacked</button>
+                            <button type="button" class="group-btn" data-set-layout="preview-only" title="100% full-width preview only">Preview Only</button>
                         </div>
-                        <textarea id="editor" spellcheck="false">Alice -> Bob: Authentication Request
+                        <div class="btn-group" role="group" aria-label="Workbench Height">
+                            <button type="button" class="group-btn active" data-set-height="default" title="Fit viewport height">Fit VH</button>
+                            <button type="button" class="group-btn" data-set-height="tall" title="Maximize vertical height">Tall</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="playground-container" id="playground-container" data-layout="split">
+                    <div class="editor-pane" id="editor-pane">
+                        <div class="pane-header">
+                            <div class="pane-header-left">
+                                <span class="pane-label">Source</span>
+                                <span class="meta-tag" id="editor-metrics">11 lines</span>
+                            </div>
+                            <div class="pane-header-right">
+                                <button type="button" id="copy-source-btn" class="icon-btn" title="Copy diagram source code">Copy Code</button>
+                                <button type="button" id="clear-editor-btn" class="icon-btn" title="Clear editor">Clear</button>
+                            </div>
+                        </div>
+                        <div class="editor-body">
+                            <div class="line-numbers" id="line-numbers" aria-hidden="true">1</div>
+                            <textarea id="editor" spellcheck="false" placeholder="Enter Sequence, Component, Salt, or WireLayout syntax...">Alice -> Bob: Authentication Request
 Bob --> Alice: Authentication Response
 
 Alice -> Bob: Another Request
@@ -984,178 +1145,174 @@ alt successful case
 else failure
     Bob -> Alice: Failure
 end</textarea>
+                        </div>
                     </div>
-                    <div class="preview-pane">
+
+                    <div class="pane-resizer" id="pane-resizer" title="Drag to resize panes (double-click to reset)"></div>
+
+                    <div class="preview-pane" id="preview-pane">
                         <div class="pane-header">
-                            <span>Live Preview</span>
-                            <div style="display: flex; gap: 12px;">
-                                <button id="copy-btn" class="pane-action-btn">Copy SVG</button>
-                                <button id="zoom-btn" class="pane-action-btn">⤢ Full Screen</button>
+                            <div class="pane-header-left">
+                                <span class="pane-label">Preview</span>
+                                <span class="meta-tag" id="svg-dimensions">—</span>
+                            </div>
+                            <div class="pane-header-right">
+                                <div class="btn-group" role="group" aria-label="Zoom Controls">
+                                    <button type="button" id="zoom-fit-btn" class="group-btn active" title="Scale diagram to fit pane">Fit</button>
+                                    <button type="button" id="zoom-100-btn" class="group-btn" title="Actual size (100%)">100%</button>
+                                    <button type="button" id="zoom-out-btn" class="group-btn" title="Zoom out">−</button>
+                                    <span class="zoom-readout" id="zoom-readout">Fit</span>
+                                    <button type="button" id="zoom-in-btn" class="group-btn" title="Zoom in">+</button>
+                                </div>
+                                <button type="button" id="bg-toggle-btn" class="icon-btn" title="Cycle canvas background (Grid / Plain / White)">Grid</button>
+                                <button type="button" id="copy-btn" class="icon-btn" title="Copy SVG markup to clipboard">Copy SVG</button>
+                                <button type="button" id="download-btn" class="icon-btn" title="Download as .svg file">Download .svg</button>
+                                <button type="button" id="zoom-btn" class="icon-btn" title="Open full-screen preview (Esc to close)">
+                                    <svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                                    <span>Expand</span>
+                                </button>
                             </div>
                         </div>
-                        <div id="output"></div>
+                        <div id="output" class="zoom-fit" title="Drag to pan · Ctrl+Wheel to zoom"></div>
                     </div>
                 </div>
-            </section>
+            </div>
+        </section>
 
-            <section id="gallery">
-                <h2 style="margin-bottom: 40px; text-align: center;">Examples Gallery</h2>
+        <!-- Samples Gallery -->
+        <section id="gallery" class="page-section">
+            <div class="section-inner">
+                <div class="section-header-bar">
+                    <h2 class="section-heading">
+                        <span>Examples Gallery</span>
+                        <span class="section-subtitle">Click any card to load its source into the workbench</span>
+                    </h2>
+                    <div class="search-box">
+                        <input type="search" id="gallery-search" class="search-input" placeholder="Filter examples by title or syntax...">
+                    </div>
+                </div>
 
-                <div class="tabs-nav">
-                    <button class="tab-btn active" onclick="switchTab('sequence')">Sequence Diagrams</button>
-                    <button class="tab-btn" onclick="switchTab('component')">Component Diagrams</button>
-                    <button class="tab-btn" onclick="switchTab('salt')">Salt Wireframes</button>
-                    <button class="tab-btn" onclick="switchTab('wire')">WireLayout (Hardware)</button>
+                <div class="gallery-controls">
+                    <div class="tabs-nav" id="gallery-tabs">
+                        <button class="tab-btn active" data-tab="sequence" onclick="switchTab('sequence')">
+                            <span>Sequence</span>
+                            <span class="tab-count" id="count-sequence"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="component" onclick="switchTab('component')">
+                            <span>Component</span>
+                            <span class="tab-count" id="count-component"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="salt" onclick="switchTab('salt')">
+                            <span>Salt Wireframes</span>
+                            <span class="tab-count" id="count-salt"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="wire" onclick="switchTab('wire')">
+                            <span>WireLayout (Hardware)</span>
+                            <span class="tab-count" id="count-wire"></span>
+                        </button>
+                        <button class="tab-btn" data-tab="all" onclick="switchTab('all')">
+                            <span>All Examples</span>
+                            <span class="tab-count" id="count-all"></span>
+                        </button>
+                    </div>
                 </div>
 
                 <div id="sequence-tab" class="tab-content active">
-                    <h3 style="margin: 0 0 20px; color: var(--secondary);">Compatible with PlantUML</h3>
-                    <div class="gallery-grid" id="gallery-compatible">
-                        <!-- Compatible items injected via JS -->
-                    </div>
+                    <div class="gallery-subhead">PlantUML Compatible Sequence Diagrams</div>
+                    <div class="gallery-grid" id="gallery-compatible"></div>
 
-                    <h3 style="margin: 40px 0 20px; color: var(--secondary);">SnapUML Extensions (Incompatible)</h3>
-                    <div class="gallery-grid" id="gallery-extensions">
-                        <!-- Extension items injected via JS -->
-                    </div>
+                    <div class="gallery-subhead">SnapUML Extensions</div>
+                    <div class="gallery-grid" id="gallery-extensions"></div>
                 </div>
 
                 <div id="component-tab" class="tab-content">
-                    <div class="gallery-grid" id="gallery-component">
-                        <!-- Component items injected via JS -->
-                    </div>
+                    <div class="gallery-subhead">Component &amp; Architecture Diagrams</div>
+                    <div class="gallery-grid" id="gallery-component"></div>
                 </div>
 
                 <div id="salt-tab" class="tab-content">
-                    <div class="gallery-grid" id="gallery-salt">
-                        <!-- Salt items injected via JS -->
-                    </div>
+                    <div class="gallery-subhead">Salt UI Wireframes</div>
+                    <div class="gallery-grid" id="gallery-salt"></div>
                 </div>
 
                 <div id="wire-tab" class="tab-content">
-                    <div class="gallery-grid" id="gallery-wire">
-                        <!-- Wire items injected via JS -->
-                    </div>
+                    <div class="gallery-subhead">WireLayout Hardware &amp; PCB Block Diagrams</div>
+                    <div class="gallery-grid" id="gallery-wire"></div>
                 </div>
-            </section>
+            </div>
+        </section>
 
-            <section id="documentation">
-                <h2 style="margin-bottom: 40px; text-align: center;">📘 Getting Started</h2>
-
-                <div class="feature-card" style="margin-bottom: 40px;">
-                    <h3 style="margin-bottom: 15px;">Getting Started</h3>
-                    <p style="color: var(--text-muted); margin-bottom: 15px;">
-                        Download the SnapUML library and include it in your project.
-                    </p>
-                    <div class="code-container">
-                        <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
-                        <pre><code>&lt;script src="snapuml.min.js"&gt;&lt;/script&gt;</code></pre>
-                    </div>
-                    <p style="color: var(--text-muted); font-size: 14px;">
-                        Once loaded, the <code
-                            style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);">window.snapuml</code>
-                        global object becomes available.
-                    </p>
+        <!-- Documentation & API Reference -->
+        <section id="documentation" class="page-section">
+            <div class="section-inner">
+                <div class="section-header-bar">
+                    <h2 class="section-heading">
+                        <span>Integration &amp; API Reference</span>
+                        <span class="section-subtitle">100% client-side TypeScript bundle · Zero runtime dependencies</span>
+                    </h2>
                 </div>
 
-                <div class="docs-grid">
-                    <div class="feature-card">
-                        <h3 style="margin-bottom: 15px;">🚀 Manual Rendering</h3>
-                        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px; line-height: 1.6;">
-                            Use <code
-                                style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);">render()</code>
-                            to manually convert diagram code to SVG. This function automatically detects the diagram
-                            type
-                            (Sequence or Component).
-                        </p>
+                <div class="docs-layout">
+                    <div class="doc-block">
+                        <h3>1. Script Inclusion</h3>
+                        <p>Include the standalone browser bundle. It exposes the global <code>window.snapuml</code> namespace.</p>
                         <div class="code-container">
                             <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
-                            <pre><code>const code = 'Alice -> Bob: Hello'; // or component diagram code
+                            <pre><code>&lt;script src="snapuml.min.js"&gt;&lt;/script&gt;</code></pre>
+                        </div>
+                        <p style="margin-top: auto; font-size: 12px; color: var(--text-muted);">
+                            Also available as ES Module via <code>dist/snapuml.esm.min.mjs</code>.
+                        </p>
+                    </div>
+
+                    <div class="doc-block">
+                        <h3>2. Programmatic Rendering</h3>
+                        <p>Call <code>snapuml.render(code)</code> to compile diagram text into an inline SVG string. Diagram type is detected automatically.</p>
+                        <div class="code-container">
+                            <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
+                            <pre><code>const code = 'Alice -> Bob: Hello';
 const svg = snapuml.render(code);
 
-// Insert into DOM
 document.getElementById('output').innerHTML = svg;</code></pre>
                         </div>
-                        <div style="font-size: 12px; line-height: 1.8; margin-top: 16px;">
-                            <p style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">Parameters:</p>
-                            <p style="color: var(--text-muted); margin-bottom: 8px;">
-                                • <code
-                                    style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 1px 4px; border-radius: 3px;">content</code>:
-                                SnapUML-format diagram code
-                            </p>
-                            <p style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">Returns:</p>
-                            <p style="color: var(--text-muted);">
-                                SVG string. On error, returns styled error SVG (no exceptions thrown).
-                            </p>
-                        </div>
-                    </div>
-                    <div class="feature-card">
-                        <h3 style="margin-bottom: 15px;">🔄 Auto-Rendering</h3>
-                        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px; line-height: 1.6;">
-                            Call <code
-                                style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border);">initialize()</code>
-                            to auto-detect and render all diagram blocks. Similar to Mermaid.
+                        <p style="margin-top: auto; font-size: 12px; color: var(--text-muted);">
+                            Explicit compilers: <code>renderSequenceDiagram</code>, <code>renderComponentDiagram</code>, <code>renderSaltDiagram</code>, <code>renderWireDiagram</code>.
                         </p>
+                    </div>
+
+                    <div class="doc-block">
+                        <h3>3. DOM Auto-Initialization</h3>
+                        <p>Use <code>snapuml.initialize()</code> to replace all matching <code>&lt;pre class="snapuml"&gt;</code> elements on page load.</p>
                         <div class="code-container">
                             <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
                             <pre><code>snapuml.initialize({
   startOnLoad: true,
   selector: 'pre.snapuml'
-});
-
-// Or use defaults:
-snapuml.initialize();</code></pre>
+});</code></pre>
                         </div>
-                        <div style="font-size: 12px; line-height: 1.8; margin-top: 16px;">
-                            <p style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">Config Options:
-                            </p>
-                            <p style="color: var(--text-muted); margin-bottom: 6px;">
-                                • <code
-                                    style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 1px 4px; border-radius: 3px;">startOnLoad</code>:
-                                Auto-render on page load (default: true)
-                            </p>
-                            <p style="color: var(--text-muted); margin-bottom: 8px;">
-                                • <code
-                                    style="background: rgba(255,255,255,0.05); color: #e2e8f0; padding: 1px 4px; border-radius: 3px;">selector</code>:
-                                CSS selector (default: 'pre.snapuml')
-                            </p>
-                            <p style="color: var(--text-main); font-weight: 600; margin-bottom: 4px;">Note:</p>
-                            <p style="color: var(--text-muted);">
-                                Finds all matching elements, extracts text content, and replaces with SVG diagrams.
-                            </p>
-                        </div>
+                        <p style="margin-top: auto; font-size: 12px; color: var(--text-muted);">
+                            Non-throwing: syntax errors render an inline diagnostic SVG block.
+                        </p>
                     </div>
                 </div>
 
-                <div class="feature-card" style="margin-bottom: 40px;">
-                    <h3 style="margin-bottom: 20px;">📄 HTML Usage Example</h3>
+                <div class="doc-block">
+                    <h3>HTML Auto-Render Example</h3>
                     <div class="usage-grid">
-                        <div style="display: flex; flex-direction: column;">
-                            <p
-                                style="color: var(--text-muted); font-size: 12px; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">
-                                Code:</p>
-                            <div class="code-container" style="flex: 1; display: flex; flex-direction: column; margin: 0;">
+                        <div>
+                            <div class="code-container" style="margin-bottom: 0;">
                                 <button class="copy-code-btn" onclick="copySnippet(this)">Copy</button>
-                                <pre style="margin: 0; flex: 1; overflow-y: auto;"><code>&lt;html lang="en"&gt;
-  &lt;head&gt;
-    &lt;meta charset="utf-8" /&gt;
-  &lt;/head&gt;
+                                <pre><code>&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
   &lt;body&gt;
-    &lt;h1&gt;Diagrams&lt;/h1&gt;
-
-    &lt;h2&gt;Example 1&lt;/h2&gt;
     &lt;pre class="snapuml"&gt;
-Alice -> Bob: Hello!
-Bob -> Alice: Hi!
+Alice -&gt; Bob: Hello!
+Bob --&gt; Alice: Hi!
     &lt;/pre&gt;
 
-    &lt;h2&gt;Example 2&lt;/h2&gt;
     &lt;pre class="snapuml"&gt;
-participant C
-participant S
-
-C -> S: Request
-S -> C: Response
+[Client] --&gt; [API Gateway] : HTTPS
+[API Gateway] --&gt; [Auth Service]
     &lt;/pre&gt;
 
     &lt;script src="snapuml.min.js"&gt;&lt;/script&gt;
@@ -1166,60 +1323,41 @@ S -> C: Response
 &lt;/html&gt;</code></pre>
                             </div>
                         </div>
-                        <div style="display: flex; flex-direction: column;">
-                            <p
-                                style="color: var(--text-muted); font-size: 12px; font-weight: 600; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em;">
-                                Rendered Output:</p>
-                            <div
-                                style="background: rgba(15, 23, 42, 0.4); padding: 24px; border-radius: 12px; border: 1px solid var(--border); overflow-y: auto; flex: 1; display: flex; flex-direction: column; justify-content: center;">
-                                <h4
-                                    style="margin-top: 0; margin-bottom: 12px; font-size: 14px; color: var(--text-main); font-weight: 600;">
-                                    Example 1</h4>
-                                <pre class="snapuml"
-                                    style="margin: 0 0 20px 0; padding: 0; background: transparent !important; border: none; font-size: 12px; color: var(--text-muted);">Alice -> Bob: Hello!
-Bob -> Alice: Hi!</pre>
-                                <h4
-                                    style="margin-top: 0; margin-bottom: 12px; font-size: 14px; color: var(--text-main); font-weight: 600;">
-                                    Example 2</h4>
-                                <pre class="snapuml"
-                                    style="margin: 0; padding: 0; background: transparent !important; border: none; font-size: 12px; color: var(--text-muted);">participant C
-participant S
-
-C -> S: Request
-S -> C: Response</pre>
+                        <div style="background: var(--canvas-bg); padding: 16px; border: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-around;">
+                            <div>
+                                <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">pre.snapuml #1</div>
+                                <pre class="snapuml">Alice -> Bob: Hello!
+Bob --> Alice: Hi!</pre>
+                            </div>
+                            <div>
+                                <div style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">pre.snapuml #2</div>
+                                <pre class="snapuml">[Client] --> [API Gateway] : HTTPS
+[API Gateway] --> [Auth Service]</pre>
                             </div>
                         </div>
                     </div>
                 </div>
-            </section>
-        </div>
+            </div>
+        </section>
     </main>
 
     <footer>
-        <div class="container" style="text-align: center;">
-            <p>SnapUML &copy; 2026. Open source and free to use.</p>
-            <p
-                style="font-size: 12px; color: var(--text-muted); margin-top: 8px; max-width: 600px; margin-left: auto; margin-right: auto;">
-                Note: SnapUML is currently in beta. Vertical alignment and layout algorithms are subject to refinement
-                as
-                the library evolves.
-            </p>
-        </div>
+        <div>SnapUML — Open-source client-side diagram compiler (MIT License)</div>
+        <div>Sequence · Component · Salt · WireLayout</div>
     </footer>
 
-    <!-- Zoom Modal -->
+    <!-- Full-Screen Preview Modal -->
     <div id="zoom-modal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">Diagram Preview</div>
-                <div style="display: flex; gap: 12px; margin-left: auto; margin-right: 16px;">
-                    <button id="modal-copy-btn" class="modal-action-btn">Copy SVG</button>
+                <div class="modal-title" id="modal-title">Diagram Preview</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="modal-copy-btn" class="icon-btn">Copy SVG</button>
+                    <button id="modal-download-btn" class="icon-btn">Download .svg</button>
+                    <button class="icon-btn" id="close-modal">Close [Esc]</button>
                 </div>
-                <button class="close-btn" id="close-modal">&times;</button>
             </div>
-            <div class="modal-body" id="modal-body">
-                <!-- SVG content will be injected here -->
-            </div>
+            <div class="modal-body" id="modal-body"></div>
         </div>
     </div>
 
@@ -1998,116 +2136,6 @@ Alice <- Bob : hello`
 
         };
 
-        const editor = document.getElementById('editor');
-        const output = document.getElementById('output');
-        const galleryCompatible = document.getElementById('gallery-compatible');
-        const galleryExtensions = document.getElementById('gallery-extensions');
-        const copyBtn = document.getElementById('copy-btn');
-        const zoomBtn = document.getElementById('zoom-btn');
-        const modal = document.getElementById('zoom-modal');
-        const modalBody = document.getElementById('modal-body');
-        const closeModal = document.getElementById('close-modal');
-        const modalCopyBtn = document.getElementById('modal-copy-btn');
-        const galleryComponent = document.getElementById('gallery-component');
-        const gallerySalt = document.getElementById('gallery-salt');
-        const galleryWire = document.getElementById('gallery-wire');
-
-        function switchTab(type) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-            if (type === 'sequence') {
-                document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
-                document.getElementById('sequence-tab').classList.add('active');
-            } else if (type === 'component') {
-                document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
-                document.getElementById('component-tab').classList.add('active');
-            } else if (type === 'salt') {
-                document.querySelector('.tab-btn:nth-child(3)').classList.add('active');
-                document.getElementById('salt-tab').classList.add('active');
-            } else if (type === 'wire') {
-                document.querySelector('.tab-btn:nth-child(4)').classList.add('active');
-                document.getElementById('wire-tab').classList.add('active');
-            }
-        }
-
-        // Force preview to fit
-        output.classList.add('zoom-fit');
-
-        // Zoom Modal Logic
-        zoomBtn.addEventListener('click', () => {
-            // Clone SVG content to modal
-            const svgContent = output.innerHTML;
-            modalBody.innerHTML = svgContent;
-            modal.classList.add('active');
-        });
-
-        function hideModal() {
-            modal.classList.remove('active');
-            // clear content after transition to avoid flicker? or just leave it.
-            setTimeout(() => {
-                if (!modal.classList.contains('active')) modalBody.innerHTML = '';
-            }, 300);
-        }
-
-        closeModal.addEventListener('click', hideModal);
-
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                hideModal();
-            }
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && modal.classList.contains('active')) {
-                hideModal();
-            }
-        });
-
-        function render() {
-            try {
-                if (window.snapuml && window.snapuml.render) {
-                    const svg = window.snapuml.render(editor.value);
-                    output.innerHTML = svg;
-                }
-            } catch (e) {
-                // Don't clear output on intermediate error, maybe show toast
-                console.error(e);
-            }
-        }
-
-        // Debounce render
-        let timeout;
-        editor.addEventListener('input', () => {
-            clearTimeout(timeout);
-            localStorage.setItem('snapuml_playground', editor.value);
-            timeout = setTimeout(render, 300);
-        });
-
-        // Copy SVG Logic
-        function setupCopyButton(button, sourceElement) {
-            button.addEventListener('click', () => {
-                const svgContent = sourceElement.innerHTML;
-                navigator.clipboard.writeText(svgContent).then(() => {
-                    const originalText = button.innerText;
-                    button.innerText = 'Copied!';
-                    setTimeout(() => button.innerText = originalText, 2000);
-                });
-            });
-        }
-
-        function copySnippet(button) {
-            const pre = button.nextElementSibling;
-            const codeText = pre.innerText;
-            navigator.clipboard.writeText(codeText).then(() => {
-                const originalText = button.innerText;
-                button.innerText = 'Copied!';
-                setTimeout(() => {
-                    button.innerText = originalText;
-                }, 2000);
-            });
-        }
-
         const componentSamples = {
             comp_basic: {
                 title: "Components",
@@ -2263,7 +2291,7 @@ p2 --> c1`
             }
         };
 
-const saltSamples = {
+        const saltSamples = {
             basic_widgets: {
                 title: "Basic widgets",
                 code: `@startsalt
@@ -2871,16 +2899,7 @@ saltDiagram {
             }
         };
 
-
-
-
-
-        setupCopyButton(copyBtn, output);
-        setupCopyButton(modalCopyBtn, modalBody);
-
-        // Initialize Gallery
-        
-                const wireSamples = {
+        const wireSamples = {
             esp32Sensing: {
                 title: "ESP32-S3 IoT Sensing Board (Full Practical Spec)",
                 code: `# ==========================================
@@ -3312,9 +3331,488 @@ board LORA_NODE "LoRa Low-Power Sensor PCB" {
             }
         };
 
+        const editor = document.getElementById('editor');
+        const lineNumbers = document.getElementById('line-numbers');
+        const editorMetrics = document.getElementById('editor-metrics');
+        const output = document.getElementById('output');
+        const detectedTypeEl = document.getElementById('detected-type');
+        const renderStatsEl = document.getElementById('render-stats');
+        const svgDimensionsEl = document.getElementById('svg-dimensions');
+        const samplePicker = document.getElementById('sample-picker');
+
+        const playgroundContainer = document.getElementById('playground-container');
+        const editorPane = document.getElementById('editor-pane');
+        const paneResizer = document.getElementById('pane-resizer');
+
+        const copyBtn = document.getElementById('copy-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const zoomBtn = document.getElementById('zoom-btn');
+        const copySourceBtn = document.getElementById('copy-source-btn');
+        const clearEditorBtn = document.getElementById('clear-editor-btn');
+        const bgToggleBtn = document.getElementById('bg-toggle-btn');
+
+        const zoomFitBtn = document.getElementById('zoom-fit-btn');
+        const zoom100Btn = document.getElementById('zoom-100-btn');
+        const zoomInBtn = document.getElementById('zoom-in-btn');
+        const zoomOutBtn = document.getElementById('zoom-out-btn');
+        const zoomReadout = document.getElementById('zoom-readout');
+
+        const modal = document.getElementById('zoom-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const closeModal = document.getElementById('close-modal');
+        const modalCopyBtn = document.getElementById('modal-copy-btn');
+        const modalDownloadBtn = document.getElementById('modal-download-btn');
+
+        const galleryCompatible = document.getElementById('gallery-compatible');
+        const galleryExtensions = document.getElementById('gallery-extensions');
+        const galleryComponent = document.getElementById('gallery-component');
+        const gallerySalt = document.getElementById('gallery-salt');
+        const galleryWire = document.getElementById('gallery-wire');
+        const gallerySearch = document.getElementById('gallery-search');
+
+        // Diagram type detector for UI badge
+        function detectDiagramKind(content) {
+            if (/@startsalt/i.test(content) || /\{\{salt/i.test(content)) return 'SALT';
+            if (
+                /@startwire/i.test(content) ||
+                /@startwirelayout/i.test(content) ||
+                /^\s*board\s+[\w.-]+/m.test(content) ||
+                /->\s*bus\s+[\w.-]+/m.test(content) ||
+                /@\s*edge(\.(top|bottom|left|right|N|S|W|E))?/i.test(content) ||
+                /\b\w+\.(top|bottom|left|right|N|S|W|E)\s*[<]?[-=]+[>]?/m.test(content) ||
+                /[<]?[-=]+[>]?\s*\w+\.(top|bottom|left|right|N|S|W|E)\b/m.test(content)
+            ) {
+                return 'WIRELAYOUT';
+            }
+            const hasSeq = /\b(participant|actor|boundary|control|entity|collections|queue)\b/.test(content);
+            const hasComp = /\b(component|interface|package|node|cloud|database|frame|folder)\b/.test(content) || /^\s*\[[^\]\r\n]+\]/m.test(content);
+            if (hasComp && !hasSeq) return 'COMPONENT';
+            return 'SEQUENCE';
+        }
+
+        // Line numbers & metrics
+        function updateLineNumbers() {
+            const text = editor.value || '';
+            const count = text.split('\n').length;
+            let nums = '';
+            for (let i = 1; i <= count; i++) {
+                nums += i + '\n';
+            }
+            lineNumbers.textContent = nums;
+            editorMetrics.textContent = count + (count === 1 ? ' line' : ' lines') + ' · ' + text.length + ' chars';
+        }
+
+        editor.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = editor.scrollTop;
+        });
+
+        // Support Tab key in editor
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+                editor.selectionStart = editor.selectionEnd = start + 2;
+                editor.dispatchEvent(new Event('input'));
+            }
+        });
+
+        // Zoom & Pan State
+        let currentZoom = 'fit'; // 'fit' or numeric scale (e.g. 1.0)
+        const ZOOM_STEPS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0];
+
+        function applyZoom() {
+            const svgEl = output.querySelector('svg');
+            zoomFitBtn.classList.toggle('active', currentZoom === 'fit');
+            zoom100Btn.classList.toggle('active', currentZoom === 1.0);
+
+            if (currentZoom === 'fit') {
+                output.classList.add('zoom-fit');
+                zoomReadout.textContent = 'Fit';
+                if (svgEl) {
+                    svgEl.style.width = '';
+                    svgEl.style.height = '';
+                }
+            } else {
+                output.classList.remove('zoom-fit');
+                const pct = Math.round(currentZoom * 100) + '%';
+                zoomReadout.textContent = pct;
+                if (svgEl) {
+                    const baseW = parseFloat(svgEl.getAttribute('width')) || svgEl.viewBox?.baseVal?.width || 600;
+                    const baseH = parseFloat(svgEl.getAttribute('height')) || svgEl.viewBox?.baseVal?.height || 400;
+                    svgEl.style.width = Math.round(baseW * currentZoom) + 'px';
+                    svgEl.style.height = Math.round(baseH * currentZoom) + 'px';
+                }
+            }
+        }
+
+        zoomFitBtn.addEventListener('click', () => {
+            currentZoom = 'fit';
+            applyZoom();
+        });
+
+        zoom100Btn.addEventListener('click', () => {
+            currentZoom = 1.0;
+            applyZoom();
+        });
+
+        zoomInBtn.addEventListener('click', () => {
+            const cur = currentZoom === 'fit' ? 1.0 : currentZoom;
+            const next = ZOOM_STEPS.find(s => s > cur + 0.01) || ZOOM_STEPS[ZOOM_STEPS.length - 1];
+            currentZoom = next;
+            applyZoom();
+        });
+
+        zoomOutBtn.addEventListener('click', () => {
+            const cur = currentZoom === 'fit' ? 1.0 : currentZoom;
+            const prev = [...ZOOM_STEPS].reverse().find(s => s < cur - 0.01) || ZOOM_STEPS[0];
+            currentZoom = prev;
+            applyZoom();
+        });
+
+        output.addEventListener('wheel', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                if (e.deltaY < 0) zoomInBtn.click();
+                else zoomOutBtn.click();
+            }
+        }, { passive: false });
+
+        // Drag to pan inside #output
+        let isPanning = false;
+        let panStartX = 0, panStartY = 0, panScrollLeft = 0, panScrollTop = 0;
+
+        output.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isPanning = true;
+            output.classList.add('panning');
+            panStartX = e.clientX;
+            panStartY = e.clientY;
+            panScrollLeft = output.scrollLeft;
+            panScrollTop = output.scrollTop;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            output.scrollLeft = panScrollLeft - (e.clientX - panStartX);
+            output.scrollTop = panScrollTop - (e.clientY - panStartY);
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isPanning) {
+                isPanning = false;
+                output.classList.remove('panning');
+            }
+        });
+
+        // Canvas Background Toggle (Grid -> Plain -> White)
+        const bgModes = ['grid', 'plain', 'paper'];
+        let currentBgIdx = 0;
+        bgToggleBtn.addEventListener('click', () => {
+            currentBgIdx = (currentBgIdx + 1) % bgModes.length;
+            const mode = bgModes[currentBgIdx];
+            output.classList.remove('bg-plain', 'bg-paper');
+            if (mode === 'plain') {
+                output.classList.add('bg-plain');
+                bgToggleBtn.textContent = 'Plain';
+            } else if (mode === 'paper') {
+                output.classList.add('bg-paper');
+                bgToggleBtn.textContent = 'White';
+            } else {
+                bgToggleBtn.textContent = 'Grid';
+            }
+        });
+
+        // Layout Mode & Width Controls
+        const widthToggleBtn = document.getElementById('width-toggle');
+        const widthToggleLabel = document.getElementById('width-toggle-label');
+
+        function setContainedMode(contained) {
+            document.body.classList.toggle('contained-mode', contained);
+            widthToggleBtn.classList.toggle('active', !contained);
+            widthToggleLabel.textContent = contained ? 'Centered' : 'Full Width';
+            localStorage.setItem('snapuml_width_mode', contained ? 'contained' : 'full');
+        }
+
+        if (localStorage.getItem('snapuml_width_mode') === 'contained') {
+            setContainedMode(true);
+        }
+
+        widthToggleBtn.addEventListener('click', () => {
+            setContainedMode(!document.body.classList.contains('contained-mode'));
+        });
+
+        document.querySelectorAll('[data-set-layout]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const layout = btn.getAttribute('data-set-layout');
+                playgroundContainer.setAttribute('data-layout', layout);
+                document.querySelectorAll('[data-set-layout]').forEach(b => b.classList.toggle('active', b === btn));
+                if (layout !== 'split') {
+                    editorPane.style.width = '';
+                }
+            });
+        });
+
+        document.querySelectorAll('[data-set-height]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const h = btn.getAttribute('data-set-height');
+                playgroundContainer.classList.toggle('height-tall', h === 'tall');
+                document.querySelectorAll('[data-set-height]').forEach(b => b.classList.toggle('active', b === btn));
+            });
+        });
+
+        // Draggable Split Pane Resizer
+        let isResizing = false;
+        paneResizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isResizing = true;
+            paneResizer.classList.add('dragging');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        paneResizer.addEventListener('dblclick', () => {
+            playgroundContainer.style.setProperty('--split-left', '38%');
+            editorPane.style.width = '';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const rect = playgroundContainer.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const pct = Math.min(82, Math.max(16, (offsetX / rect.width) * 100));
+            if (playgroundContainer.getAttribute('data-layout') !== 'split') {
+                playgroundContainer.setAttribute('data-layout', 'split');
+                document.querySelectorAll('[data-set-layout]').forEach(b => {
+                    b.classList.toggle('active', b.getAttribute('data-set-layout') === 'split');
+                });
+            }
+            playgroundContainer.style.setProperty('--split-left', pct.toFixed(1) + '%');
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                paneResizer.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+
+        // Render Function
+        function render() {
+            updateLineNumbers();
+            const code = editor.value;
+            detectedTypeEl.textContent = detectDiagramKind(code);
+
+            try {
+                if (window.snapuml && window.snapuml.render) {
+                    const t0 = performance.now();
+                    const svg = window.snapuml.render(code);
+                    const elapsed = (performance.now() - t0).toFixed(1);
+                    output.innerHTML = svg;
+                    renderStatsEl.textContent = elapsed + ' ms';
+
+                    const svgEl = output.querySelector('svg');
+                    if (svgEl) {
+                        const w = svgEl.getAttribute('width') || Math.round(svgEl.viewBox?.baseVal?.width || 0);
+                        const h = svgEl.getAttribute('height') || Math.round(svgEl.viewBox?.baseVal?.height || 0);
+                        svgDimensionsEl.textContent = w && h ? (w + ' × ' + h + ' px') : 'SVG';
+                    } else {
+                        svgDimensionsEl.textContent = '—';
+                    }
+                    applyZoom();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        let timeout;
+        editor.addEventListener('input', () => {
+            updateLineNumbers();
+            clearTimeout(timeout);
+            localStorage.setItem('snapuml_playground', editor.value);
+            timeout = setTimeout(render, 180);
+        });
+
+        // Editor Action Buttons
+        copySourceBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(editor.value).then(() => {
+                const orig = copySourceBtn.textContent;
+                copySourceBtn.textContent = 'Copied!';
+                setTimeout(() => copySourceBtn.textContent = orig, 1500);
+            });
+        });
+
+        clearEditorBtn.addEventListener('click', () => {
+            editor.value = '';
+            localStorage.setItem('snapuml_playground', '');
+            samplePicker.value = '';
+            render();
+            editor.focus();
+        });
+
+        // Copy & Download SVG Helpers
+        function setupCopyButton(button, sourceElement) {
+            button.addEventListener('click', () => {
+                const svgContent = sourceElement.innerHTML.trim();
+                navigator.clipboard.writeText(svgContent).then(() => {
+                    const originalText = button.innerText;
+                    button.innerText = 'Copied!';
+                    setTimeout(() => button.innerText = originalText, 1600);
+                });
+            });
+        }
+
+        function downloadSvgFrom(sourceElement, filename) {
+            const svgEl = sourceElement.querySelector('svg');
+            if (!svgEl) return;
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svgEl);
+            if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+                source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+            const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'snapuml-diagram.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        setupCopyButton(copyBtn, output);
+        setupCopyButton(modalCopyBtn, modalBody);
+
+        downloadBtn.addEventListener('click', () => downloadSvgFrom(output, 'snapuml-diagram.svg'));
+        modalDownloadBtn.addEventListener('click', () => downloadSvgFrom(modalBody, 'snapuml-diagram.svg'));
+
+        function copySnippet(button) {
+            const pre = button.nextElementSibling;
+            const codeText = pre.innerText;
+            navigator.clipboard.writeText(codeText).then(() => {
+                const originalText = button.innerText;
+                button.innerText = 'Copied!';
+                setTimeout(() => {
+                    button.innerText = originalText;
+                }, 1600);
+            });
+        }
+
+        // Full-Screen Modal Logic
+        function openModalWithSvg(svgMarkup, titleText) {
+            modalTitle.textContent = titleText || 'Diagram Preview';
+            modalBody.innerHTML = svgMarkup;
+            modal.classList.add('active');
+        }
+
+        zoomBtn.addEventListener('click', () => {
+            openModalWithSvg(output.innerHTML, 'Workbench Preview (' + detectedTypeEl.textContent + ')');
+        });
+
+        function hideModal() {
+            modal.classList.remove('active');
+            modalBody.innerHTML = '';
+        }
+
+        closeModal.addEventListener('click', hideModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) hideModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('active')) {
+                hideModal();
+            }
+        });
+
+        // Gallery Tab Switching & Filtering
+        let currentTab = 'sequence';
+
+        function switchTab(type) {
+            currentTab = type;
+            document.querySelectorAll('#gallery-tabs .tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-tab') === type);
+            });
+            document.querySelectorAll('#gallery .tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            if (type === 'sequence') {
+                document.getElementById('sequence-tab').classList.add('active');
+            } else if (type === 'component') {
+                document.getElementById('component-tab').classList.add('active');
+            } else if (type === 'salt') {
+                document.getElementById('salt-tab').classList.add('active');
+            } else if (type === 'wire') {
+                document.getElementById('wire-tab').classList.add('active');
+            } else if (type === 'all') {
+                document.querySelectorAll('#gallery .tab-content').forEach(content => {
+                    content.classList.add('active');
+                });
+            }
+        }
+
+        gallerySearch.addEventListener('input', () => {
+            const q = gallerySearch.value.trim().toLowerCase();
+            if (q && currentTab !== 'all') {
+                switchTab('all');
+            }
+            document.querySelectorAll('.gallery-item').forEach(card => {
+                const matchText = card.getAttribute('data-search') || '';
+                card.style.display = (!q || matchText.includes(q)) ? '' : 'none';
+            });
+        });
+
+        // Populate Sample Picker & Gallery
+        const allPresetsMap = new Map();
+
+        function populatePickerGroup(label, entries, prefix) {
+            const group = document.createElement('optgroup');
+            group.label = label;
+            Object.entries(entries).forEach(([key, sample]) => {
+                const id = prefix + ':' + key;
+                allPresetsMap.set(id, sample);
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = sample.title;
+                group.appendChild(opt);
+            });
+            samplePicker.appendChild(group);
+        }
+
+        samplePicker.addEventListener('change', () => {
+            const sample = allPresetsMap.get(samplePicker.value);
+            if (sample) {
+                editor.value = sample.code;
+                localStorage.setItem('snapuml_playground', editor.value);
+                render();
+            }
+        });
+
         function initGallery() {
-            // Sequence Samples
-            Object.entries(samples).forEach(([key, sample]) => {
+            const seqEntries = Object.entries(samples);
+            const compEntries = Object.entries(componentSamples);
+            const saltEntries = Object.entries(saltSamples);
+            const wireEntries = Object.entries(wireSamples);
+
+            document.getElementById('count-sequence').textContent = '(' + seqEntries.length + ')';
+            document.getElementById('count-component').textContent = '(' + compEntries.length + ')';
+            document.getElementById('count-salt').textContent = '(' + saltEntries.length + ')';
+            document.getElementById('count-wire').textContent = '(' + wireEntries.length + ')';
+            document.getElementById('count-all').textContent = '(' + (seqEntries.length + compEntries.length + saltEntries.length + wireEntries.length) + ')';
+
+            populatePickerGroup('Sequence Diagrams', samples, 'seq');
+            populatePickerGroup('Component Diagrams', componentSamples, 'comp');
+            populatePickerGroup('Salt Wireframes', saltSamples, 'salt');
+            populatePickerGroup('WireLayout (Hardware)', wireSamples, 'wire');
+
+            seqEntries.forEach(([key, sample]) => {
                 const item = createGalleryItem(sample, 'sequence');
                 if (key === 'bubbleNote') {
                     galleryExtensions.appendChild(item);
@@ -3323,22 +3821,19 @@ board LORA_NODE "LoRa Low-Power Sensor PCB" {
                 }
             });
 
-            // Component Samples
-            Object.entries(componentSamples).forEach(([key, sample]) => {
+            compEntries.forEach(([key, sample]) => {
                 const item = createGalleryItem(sample, 'component');
                 galleryComponent.appendChild(item);
             });
 
-            // Salt Samples
-            Object.entries(saltSamples).forEach(([key, sample]) => {
+            saltEntries.forEach(([key, sample]) => {
                 const item = createGalleryItem(sample, 'salt');
                 gallerySalt.appendChild(item);
             });
 
-            // Wire Samples
             if (galleryWire) {
-                Object.entries(wireSamples).forEach(([key, sample]) => {
-                    const item = createGalleryItem(sample, "wire");
+                wireEntries.forEach(([key, sample]) => {
+                    const item = createGalleryItem(sample, 'wire');
                     galleryWire.appendChild(item);
                 });
             }
@@ -3347,27 +3842,39 @@ board LORA_NODE "LoRa Low-Power Sensor PCB" {
         function createGalleryItem(sample, type) {
             const item = document.createElement('div');
             item.className = 'gallery-item';
+            item.setAttribute('data-search', (sample.title + ' ' + type + ' ' + sample.code).toLowerCase());
 
-            // Render preview
-            let previewSvg = "";
+            let previewSvg = '';
             try {
-                if (type === "sequence") {
+                if (type === 'sequence') {
                     previewSvg = window.snapuml.renderSequenceDiagram(sample.code);
-                } else if (type === "component") {
+                } else if (type === 'component') {
                     previewSvg = window.snapuml.renderComponentDiagram(sample.code);
-                } else if (type === "wire") {
+                } else if (type === 'wire') {
                     previewSvg = window.snapuml.renderWireDiagram(sample.code);
                 } else {
                     previewSvg = window.snapuml.renderSaltDiagram(sample.code);
                 }
-            } catch (e) { previewSvg = "Error"; }
+            } catch (e) {
+                previewSvg = 'Error';
+            }
 
             item.innerHTML = `
-                <div class="gallery-preview">${previewSvg}</div>
                 <div class="gallery-info">
-                    <div class="gallery-title">${sample.title}</div>
+                    <div class="gallery-title" title="${sample.title.replace(/"/g, '&quot;')}">${sample.title}</div>
+                    <div class="gallery-card-actions">
+                        <button type="button" class="card-mini-btn inspect-btn" title="Open full-screen preview">Zoom</button>
+                        <button type="button" class="card-mini-btn load-btn" title="Load into Workbench">Edit</button>
+                    </div>
                 </div>
+                <div class="gallery-preview">${previewSvg}</div>
             `;
+
+            const inspectBtn = item.querySelector('.inspect-btn');
+            inspectBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openModalWithSvg(previewSvg, sample.title);
+            });
 
             item.addEventListener('click', () => {
                 editor.value = sample.code;
@@ -3381,12 +3888,23 @@ board LORA_NODE "LoRa Low-Power Sensor PCB" {
 
         // Theme Toggle Logic
         const themeToggleBtn = document.getElementById('theme-toggle');
+        const themeLabel = document.getElementById('theme-label');
+
+        function syncThemeLabel() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            if (themeLabel) {
+                themeLabel.textContent = currentTheme === 'dark' ? 'Light' : 'Dark';
+            }
+        }
+        syncThemeLabel();
+
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', () => {
                 const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
                 const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
                 document.documentElement.setAttribute('data-theme', newTheme);
                 localStorage.setItem('snapuml_theme', newTheme);
+                syncThemeLabel();
             });
         }
 
@@ -3399,10 +3917,9 @@ board LORA_NODE "LoRa Low-Power Sensor PCB" {
             render();
             if (window.snapuml) {
                 initGallery();
-                // Initialize auto-rendering for demonstration diagrams
                 window.snapuml.initialize({ startOnLoad: true });
             } else {
-                output.innerHTML = '<p style="color:red; opacity:0.6;">SnapUML library not loaded. Run npm run build.</p>';
+                output.innerHTML = '<p style="color:red; opacity:0.6; font-family: monospace;">SnapUML library not loaded. Run npm run build.</p>';
             }
         });
     </script>
