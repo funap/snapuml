@@ -215,6 +215,9 @@ export class WireLayout {
             }
         }
 
+        // Prevent component overlaps (collision avoidance)
+        this.preventComponentOverlaps(diagram, placedComponents, placedBoards);
+
         // 6. Calculate Pin Ports for Components
         this.assignPorts(diagram, placedComponents);
 
@@ -761,7 +764,7 @@ export class WireLayout {
 
             let requiredWidth = this.metrics.NodeMinWidth;
             if (nHorizontal > 1) {
-                let maxHorizReqWidth = (nHorizontal + 1) * this.metrics.SlotPitch;
+                let maxHorizReqWidth = this.metrics.NodeMinWidth;
                 for (const face of ['top', 'bottom'] as WireFace[]) {
                     const connsOnFace = diagram.wires.filter(w => {
                         if (w.isBus) return false;
@@ -787,13 +790,15 @@ export class WireLayout {
                             }
                         }
                         const horizPitch = maxChildWidth + 40;
-                        const reqW = (nOnFace + 1) * horizPitch;
+                        const reqW = maxChildWidth + (nOnFace - 1) * horizPitch;
                         if (reqW > maxHorizReqWidth) {
                             maxHorizReqWidth = reqW;
                         }
                     }
                 }
-                requiredWidth = maxHorizReqWidth;
+                if (maxHorizReqWidth > requiredWidth) {
+                    requiredWidth = maxHorizReqWidth;
+                }
             }
 
             let userW = comp.userWidth;
@@ -840,6 +845,7 @@ export class WireLayout {
         const spanningComps = new Map<string, { minCol: number; maxCol: number }>();
 
         for (const [id, pos] of gridPositions.entries()) {
+            const comp = diagram.getComponent(id);
             const childCols: number[] = [pos.col];
             for (const wire of diagram.wires) {
                 if (wire.isBus && wire.busChildren) {
@@ -1038,7 +1044,12 @@ export class WireLayout {
                         const pinY = anchor.y + (anchor.height * (i + 1)) / (nRight + 1);
                         tgt.y = pinY - tgt.height / 2;
                         if (w.protocol || w.note) {
-                            tgt.x = Math.max(tgt.x, anchor.x + anchor.width + 120);
+                            const minX = anchor.x + anchor.width + 120;
+                            if (tgt.x < minX) {
+                                const deltaX = minX - tgt.x;
+                                tgt.x = minX;
+                                this.shiftSubtree(diagram, tgt.id, deltaX, 0, placedComponents);
+                            }
                         }
                     }
                 }
@@ -1064,6 +1075,14 @@ export class WireLayout {
                     if (tgt && tgt.tier > anchor.tier && tgtFace === 'right') {
                         const pinY = anchor.y + (anchor.height * (i + 1)) / (nLeft + 1);
                         tgt.y = pinY - tgt.height / 2;
+                        if (w.protocol || w.note) {
+                            const maxX = anchor.x - 120 - tgt.width;
+                            if (tgt.x > maxX) {
+                                const deltaX = maxX - tgt.x;
+                                tgt.x = maxX;
+                                this.shiftSubtree(diagram, tgt.id, deltaX, 0, placedComponents);
+                            }
+                        }
                     }
                 }
             }
@@ -1120,6 +1139,41 @@ export class WireLayout {
         return placedComponents;
     }
 
+    private shiftSubtree(
+        diagram: WireDiagram,
+        parentId: string,
+        deltaX: number,
+        deltaY: number,
+        components: PlacedComponent[]
+    ): void {
+        if (deltaX === 0 && deltaY === 0) return;
+        const visited = new Set<string>([parentId]);
+        const queue: string[] = [parentId];
+
+        while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            for (const w of diagram.wires) {
+                if (w.isBus) continue;
+                let childId: string | undefined;
+                if (w.sourceId === currentId && (w.sourceFace === 'bottom' || w.sourceFace === 'top')) {
+                    childId = w.targetId;
+                } else if (w.targetId === currentId && (w.targetFace === 'bottom' || w.targetFace === 'top')) {
+                    childId = w.sourceId;
+                }
+
+                if (childId && !visited.has(childId)) {
+                    visited.add(childId);
+                    queue.push(childId);
+                    const childComp = components.find(c => c.id === childId);
+                    if (childComp) {
+                        childComp.x += deltaX;
+                        childComp.y += deltaY;
+                    }
+                }
+            }
+        }
+    }
+
     private calculateBoardsAndAlignEdges(
         diagram: WireDiagram,
         components: PlacedComponent[]
@@ -1146,10 +1200,10 @@ export class WireLayout {
             }
 
             const titleWidth = Math.max(90, (board.label || board.id).length * 9 + 30);
-            const leftPad = Math.max(this.metrics.BoardPadding, titleWidth + 20);
-            const bx = minX - leftPad;
+            const padX = this.metrics.BoardPadding;
+            const bx = minX - padX;
             const by = minY - (this.metrics.BoardPadding + this.metrics.BoardHeaderHeight);
-            let bw = (maxX - bx) + this.metrics.BoardPadding;
+            let bw = Math.max((maxX - minX) + 2 * padX, titleWidth + 40);
             let bh = (maxY - minY) + 2 * this.metrics.BoardPadding + this.metrics.BoardHeaderHeight;
 
             // Ensure board bounding box is wide/tall enough so edge components do not collide with core components
@@ -1196,37 +1250,252 @@ export class WireLayout {
 
         // Adjust external components outside boards
         for (const board of boards) {
+            const extCompsBySide: Record<WireFace, PlacedComponent[]> = {
+                right: [],
+                left: [],
+                top: [],
+                bottom: []
+            };
+
             for (const c of components) {
                 if (!c.boardId) {
-                    if (c.x > board.x) {
-                        let minClearance = 180;
-                        for (const w of diagram.wires) {
-                            const isConnected = (diagram.getComponent(w.sourceId)?.boardId === board.id && w.targetId === c.id) ||
-                                                (diagram.getComponent(w.targetId)?.boardId === board.id && w.sourceId === c.id);
-                            if (isConnected) {
-                                let connectorW = 0;
-                                let labelW = 0;
-                                if (w.connector) {
-                                    connectorW = Math.max(24, Math.ceil(getTextWidth(w.connector, 10)) + 14);
-                                }
-                                if (w.protocol || w.note) {
-                                    const rawText = [w.protocol?.raw, w.note].filter(Boolean).join(' ');
-                                    labelW = Math.max(20, Math.ceil(getTextWidth(rawText, 10)) + 14);
-                                }
-                                if (connectorW > 0 && labelW > 0) {
-                                    minClearance = Math.max(minClearance, connectorW + labelW + 60);
-                                } else if (connectorW > 0 || labelW > 0) {
-                                    minClearance = Math.max(minClearance, (connectorW || labelW) + 60);
-                                }
+                    const side = this.getExternalComponentSide(c, board, diagram, components);
+                    extCompsBySide[side].push(c);
+                }
+            }
+
+            // Adjust right side external components
+            if (extCompsBySide.right.length > 0) {
+                extCompsBySide.right.sort((a, b) => a.x - b.x);
+                for (const c of extCompsBySide.right) {
+                    let minClearance = 180;
+                    for (const w of diagram.wires) {
+                        const isConnected = (diagram.getComponent(w.sourceId)?.boardId === board.id && w.targetId === c.id) ||
+                                            (diagram.getComponent(w.targetId)?.boardId === board.id && w.sourceId === c.id);
+                        if (isConnected) {
+                            let connectorW = 0;
+                            let labelW = 0;
+                            if (w.connector) {
+                                connectorW = Math.max(24, Math.ceil(getTextWidth(w.connector, 10)) + 14);
+                            }
+                            if (w.protocol || w.note) {
+                                const rawText = [w.protocol?.raw, w.note].filter(Boolean).join(' ');
+                                labelW = Math.max(20, Math.ceil(getTextWidth(rawText, 10)) + 14);
+                            }
+                            if (connectorW > 0 && labelW > 0) {
+                                minClearance = Math.max(minClearance, connectorW + labelW + 60);
+                            } else if (connectorW > 0 || labelW > 0) {
+                                minClearance = Math.max(minClearance, (connectorW || labelW) + 60);
                             }
                         }
-                        c.x = Math.max(c.x, board.x + board.width + minClearance);
+                    }
+                    c.x = Math.max(c.x, board.x + board.width + minClearance);
+                }
+            }
+
+            // Adjust bottom side external components
+            if (extCompsBySide.bottom.length > 0) {
+                const minClearanceY = 60;
+                for (const c of extCompsBySide.bottom) {
+                    c.y = Math.max(c.y, board.y + board.height + minClearanceY);
+                }
+            }
+
+            // Adjust top side external components
+            if (extCompsBySide.top.length > 0) {
+                const minClearanceY = 60;
+                for (const c of extCompsBySide.top) {
+                    if (c.y + c.height > board.y - minClearanceY) {
+                        c.y = board.y - minClearanceY - c.height;
+                    }
+                }
+            }
+
+            // Adjust left side external components
+            if (extCompsBySide.left.length > 0) {
+                const minClearanceX = 180;
+                for (const c of extCompsBySide.left) {
+                    if (c.x + c.width > board.x - minClearanceX) {
+                        c.x = board.x - minClearanceX - c.width;
                     }
                 }
             }
         }
 
         return boards;
+    }
+
+    private getExternalComponentSide(
+        c: PlacedComponent,
+        board: PlacedBoard,
+        diagram: WireDiagram,
+        components: PlacedComponent[]
+    ): WireFace {
+        // 1. Check direct connection wires between c and any component in board
+        for (const w of diagram.wires) {
+            const isSrcInBoard = diagram.getComponent(w.sourceId)?.boardId === board.id;
+            const isTgtInBoard = diagram.getComponent(w.targetId)?.boardId === board.id;
+
+            if (isSrcInBoard && w.targetId === c.id) {
+                const sComp = components.find(comp => comp.id === w.sourceId);
+                const { sFace } = this.inferWireFaces(w, sComp, c);
+                if (sFace) return sFace;
+            } else if (isTgtInBoard && w.sourceId === c.id) {
+                const tComp = components.find(comp => comp.id === w.targetId);
+                const { tFace } = this.inferWireFaces(w, c, tComp);
+                if (tFace) return tFace;
+            }
+        }
+
+        // 2. Check grid position relative to board components
+        const boardComps = components.filter(comp => comp.boardId === board.id);
+        if (boardComps.length > 0) {
+            const minRow = Math.min(...boardComps.map(comp => comp.gridRow));
+            const maxRow = Math.max(...boardComps.map(comp => comp.gridRow));
+            const minCol = Math.min(...boardComps.map(comp => comp.gridCol));
+            const maxCol = Math.max(...boardComps.map(comp => comp.gridCol));
+
+            if (c.gridRow > maxRow) return 'bottom';
+            if (c.gridRow < minRow) return 'top';
+            if (c.gridCol > maxCol) return 'right';
+            if (c.gridCol < minCol) return 'left';
+        }
+
+        // 3. Fallback to geometric centers
+        const cCenterY = c.y + c.height / 2;
+        if (cCenterY >= board.y + board.height) return 'bottom';
+        if (cCenterY <= board.y) return 'top';
+
+        const cCenterX = c.x + c.width / 2;
+        if (cCenterX < board.x) return 'left';
+        return 'right';
+    }
+
+    private preventComponentOverlaps(
+        diagram: WireDiagram,
+        components: PlacedComponent[],
+        boards: PlacedBoard[]
+    ): void {
+        const minGapX = 20;
+        const minGapY = 20;
+        const maxIterations = 25;
+
+        for (let iter = 0; iter < maxIterations; iter++) {
+            let anyResolved = false;
+
+            // 1. Pairwise collision detection and resolution between components
+            for (let i = 0; i < components.length; i++) {
+                for (let j = i + 1; j < components.length; j++) {
+                    const c1 = components[i];
+                    const c2 = components[j];
+
+                    const overlapX = Math.min(c1.x + c1.width, c2.x + c2.width) - Math.max(c1.x, c2.x);
+                    const overlapY = Math.min(c1.y + c1.height, c2.y + c2.height) - Math.max(c1.y, c2.y);
+
+                    if (overlapX > 0 && overlapY > 0) {
+                        let first = c1;
+                        let second = c2;
+
+                        if (c1.boardId && !c2.boardId) {
+                            first = c1;
+                            second = c2;
+                        } else if (!c1.boardId && c2.boardId) {
+                            first = c2;
+                            second = c1;
+                        } else if (c1.gridCol !== c2.gridCol) {
+                            if (c1.gridCol > c2.gridCol) {
+                                first = c2;
+                                second = c1;
+                            }
+                        } else if (c1.gridRow !== c2.gridRow) {
+                            if (c1.gridRow > c2.gridRow) {
+                                first = c2;
+                                second = c1;
+                            }
+                        } else if (c1.slotOnFace !== undefined && c2.slotOnFace !== undefined && c1.slotOnFace !== c2.slotOnFace) {
+                            if (c1.slotOnFace > c2.slotOnFace) {
+                                first = c2;
+                                second = c1;
+                            }
+                        } else if (c1.x > c2.x) {
+                            first = c2;
+                            second = c1;
+                        }
+
+                        if (second.gridCol > first.gridCol) {
+                            second.x = first.x + first.width + minGapX;
+                            anyResolved = true;
+                        } else if (second.gridRow > first.gridRow) {
+                            second.y = first.y + first.height + minGapY;
+                            anyResolved = true;
+                        } else {
+                            if (overlapX <= overlapY) {
+                                second.x = first.x + first.width + minGapX;
+                            } else {
+                                second.y = first.y + first.height + minGapY;
+                            }
+                            anyResolved = true;
+                        }
+                    }
+                }
+            }
+
+            // 2. Ensure external components do not overlap with boards
+            for (const board of boards) {
+                for (const c of components) {
+                    if (!c.boardId) {
+                        const overlapX = Math.min(board.x + board.width, c.x + c.width) - Math.max(board.x, c.x);
+                        const overlapY = Math.min(board.y + board.height, c.y + c.height) - Math.max(board.y, c.y);
+
+                        if (overlapX > 0 && overlapY > 0) {
+                            const side = this.getExternalComponentSide(c, board, diagram, components);
+                            if (side === 'bottom') {
+                                c.y = board.y + board.height + minGapY;
+                            } else if (side === 'top') {
+                                c.y = board.y - c.height - minGapY;
+                            } else if (side === 'left') {
+                                c.x = board.x - c.width - minGapX;
+                            } else {
+                                c.x = board.x + board.width + minGapX;
+                            }
+                            anyResolved = true;
+                        }
+                    }
+                }
+            }
+
+            // 3. If any internal component moved outside its board, expand the board
+            for (const board of boards) {
+                const bComps = components.filter(c => c.boardId === board.id);
+                for (const c of bComps) {
+                    if (c.isEdge) continue;
+                    if (c.x < board.x + this.metrics.BoardPadding) {
+                        const diff = (board.x + this.metrics.BoardPadding) - c.x;
+                        board.x -= diff;
+                        board.width += diff;
+                        anyResolved = true;
+                    }
+                    if (c.x + c.width > board.x + board.width - this.metrics.BoardPadding) {
+                        board.width = (c.x + c.width + this.metrics.BoardPadding) - board.x;
+                        anyResolved = true;
+                    }
+                    if (c.y < board.y + this.metrics.BoardPadding + this.metrics.BoardHeaderHeight) {
+                        const diff = (board.y + this.metrics.BoardPadding + this.metrics.BoardHeaderHeight) - c.y;
+                        board.y -= diff;
+                        board.height += diff;
+                        anyResolved = true;
+                    }
+                    if (c.y + c.height > board.y + board.height - this.metrics.BoardPadding) {
+                        board.height = (c.y + c.height + this.metrics.BoardPadding) - board.y;
+                        anyResolved = true;
+                    }
+                }
+            }
+
+            if (!anyResolved) {
+                break;
+            }
+        }
     }
 
     private assignPorts(
